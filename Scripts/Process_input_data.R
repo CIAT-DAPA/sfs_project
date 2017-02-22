@@ -4,12 +4,12 @@
 
 # R options
 options(warn = -1); options(scipen = 999)
-OSys <- "windows" # It could be linux (for servers) or windows (for local machine)
+OSys <- "linux" # It could be linux (for servers) or windows (for local machine)
 if(OSys == "linux"){
-  wk_dir <- "/mnt/Workspace_cluster_9/Sustainable_Food_System/Input_data"; setwd(wk_dir); rm(wk_dir)
+  wk_dir <- "/mnt/workspace_cluster_9/Sustainable_Food_System/Input_data/"; setwd(wk_dir); rm(wk_dir)
 } else {
   if(OSys == "windows"){
-    wk_dir <- "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data"; setwd(wk_dir); rm(wk_dir)
+    wk_dir <- "//dapadfs/workspace_cluster_9/Sustainable_Food_System/Input_data"; setwd(wk_dir); rm(wk_dir)
   }
 }
 
@@ -21,45 +21,82 @@ suppressMessages(if(!require(dplyr)){install.packages('dplyr'); library(dplyr)} 
 suppressMessages(if(!require(tidyr)){install.packages('tidyr'); library(tidyr)} else {library(tidyr)})
 suppressMessages(if(!require(ggplot2)){install.packages('ggplot2'); library(ggplot2)} else {library(ggplot2)})
 suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
+suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
+suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} else {library(doMC)})
 suppressMessages(library(compiler))
 
-# Global shapefile
-countries <- shapefile('./world_shape/all_countries.shp'); # countries <- shapefile('./all_countries.shp')
+# Worldwide shapefile
+countries <- readOGR(dsn = "./world_shape", "all_countries")
+countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### DIMENSION: HUMAN INTERVENTIONS                                                                            ###
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 
-# 1. Accessibility to cities (TO PROCESS IN LINUX SERVERS)
-access <- raster('./world_cityAccess/acc_50k')
+# 1. Accessibility per country
+if(!file.exists('./world_cityAccess/countries_access.RDS')){
+  
+  # Accessibility to cities
+  access <- raster('./world_cityAccess/acc_50k')
+  
+  # List of countries (excluding Antarctica)
+  countryList <- countries@data$COUNTRY
+  countryList <- countryList[which(countryList!="Antarctica")]
+  
+  # Function to calculate median per country
+  calc_median <- function(rObject, i){
+    
+    country <- countries[countries@data$COUNTRY==countryList[i],]
+    country_data <- raster::crop(rObject, extent(country))
+    country_data <- raster::mask(x = country_data, mask = country)
+    values <- country_data[!is.na(country_data[])]
+    country_data <- data.frame(ISO3 = countries@data$ISO3[which(countries@data$COUNTRY == countryList[i])], Country = countryList[i], Median = median(values, na.rm = T)); rm(values, country)
+    cat(paste("Country: ", countryList[i], " done\n", sep = ""))
+    return(country_data)
+    
+  }
+  
+  # Parellize the process using 8 cores
+  registerDoMC(8)
+  countries_access <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = access, i = i) }
+  countries_access <- do.call(rbind, countries_access)
+  saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
+} else {
+  readRDS(file = './world_cityAccess/countries_access.RDS')
+}
 
-# Accessibility to cities per country
-
-# # Way 1
-# countries_access <- lapply(1:length(countries@data$COUNTRY), function(i){
-#   
-#   country <- countries[countries@data$COUNTRY==countries@data$COUNTRY[i],]
-#   country_access <- raster::crop(access, extent(country))
-#   country_access <- raster::mask(x = country_access, mask = country)
-#   values <- country_access[!is.na(country_access[])]
-#   country_access <- data.frame(Country = countries@data$COUNTRY[i], Access_median = median(values, na.rm = T)); rm(values, country)
-#   cat(paste("Country: ", countries@data$COUNTRY[i], " done\n", sep = ""))
-#   return(country_access)
-#   
-# })
-# countries_access <- do.call(rbind, countries_access)
-
-# Way 2
-extractCMP <- compiler::cmpfun(f = raster::extract)
-access <- extractCMP(access, countries, fun = median)
-access <- data.frame(access)
-saveRDS(object = access, file = '~/countries_access.RDS')
-
-# 2. Global Human Footprint (1995-2004) (TO PROCESS IN LINUX SERVERS)
+# 2. Global Human Footprint (1995-2004) per country
 # From: http://sedac.ciesin.columbia.edu/data/set/wildareas-v2-human-footprint-geographic/data-download
-hfootprint <- raster('./world_humanFootprint/hf_v2geo')
-hfootprint <- extractCMP(hfootprint, countries, fun = median)
-hfootprint <- data.frame(hfootprint)
+if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
+  
+  # Human footprint raster
+  hfootprint <- raster('./world_humanFootprint/hf_v2geo')
+  
+  # List of countries (excluding Antarctica)
+  countryList <- countries@data$COUNTRY
+  countryList <- countryList[which(countryList!="Antarctica")]
+  
+  # Function to calculate median per country
+  calc_median <- function(rObject, i){
+    
+    country <- countries[countries@data$COUNTRY==countryList[i],]
+    country_data <- raster::crop(rObject, extent(country))
+    country_data <- raster::mask(x = country_data, mask = country)
+    values <- country_data[!is.na(country_data[])]
+    data.frame(ISO3 = countries@data$ISO3[which(countries@data$COUNTRY == countryList[i])], Country = countryList[i], Median = median(values, na.rm = T)); rm(values, country)
+    cat(paste("Country: ", countryList[i], " done\n", sep = ""))
+    return(country_data)
+    
+  }
+  
+  # Parellize the process using 8 cores
+  registerDoMC(8)
+  countries_footprint <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = hfootprint, i = i) }
+  countries_footprint <- do.call(rbind, countries_footprint)
+  saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
+} else {
+  readRDS(file = './world_humanFootprint/countries_foodprint.RDS')
+}
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### DIMENSION: FOOD SECURITY                                                                                  ###
@@ -67,13 +104,30 @@ hfootprint <- data.frame(hfootprint)
 
 # 1. Global Hunger Index Data 2016
 # From: https://github.com/IFPRI/Global-Hunger-Index/tree/master/data
-ghi <- jsonlite::fromJSON("./world_globalHungerIndex2016/country-details.json")
-ghi <- ghi$data$score
+ghi <- jsonlite::fromJSON("./world_globalHungerIndex2016/country-details.json"); rows <- ghi$data$name_de; ISO3 <- ghi$data$id
+ghi <- ghi$data$score; ghi$ISO3 <- ISO3; rownames(ghi) <- rows; rm(rows, ISO3)
+for(i in 1:(ncol(ghi)-1)){
+  ghi[,i] <- gsub(pattern = "-", replacement = NA, x = ghi[,i]) # Omit empty data
+  ghi[,i] <- gsub(pattern = "<5", replacement = NA, x = ghi[,i]) # Omit values under detection limit
+  ghi[,i] <- as.numeric(ghi[,i])
+}; rm(i)
 
 # 2. Global Subnational Prevalence of Child Malnutrition (1990 - 2002)
 # From: http://sedac.ciesin.columbia.edu/data/set/povmap-global-subnational-prevalence-child-malnutrition/data-download
 
-chmalnutrition <- read.csv("./world_childMalnutrition/hunger_data.csv")
+chmalnutrition <- read.csv("./world_childMalnutrition/hunger_data.csv") # These data come from cities calculations
+
+# Obtain countries according to ISO3 codes
+aux <- countries@data %>% dplyr::select(ISO3, COUNTRY)
+chmalnutrition <- chmalnutrition %>% dplyr::left_join(x = chmalnutrition, y = aux, by = c("ISO3V10" = "ISO3")); rm(aux)
+
+# Define properly NAs
+chmalnutrition$UW[which(chmalnutrition$UW == -999)] <- NA
+chmalnutrition$PCTU5[which(chmalnutrition$PCTU5 == -999)] <- NA
+
+# Calculate mean data per country
+chmalnutrition <- chmalnutrition %>% dplyr::select(ISO3V10, COUNTRY, UW, PCTU5) %>% dplyr::group_by(ISO3V10, COUNTRY) %>% dplyr::summarise_all(mean, na.rm = T)
+names(chmalnutrition)[which(names(chmalnutrition) == "ISO3V10")] <- "ISO3"
 
 # 3. FAO's suite of Food Security Indicators
 fsecurity <- read.csv("./world_foodSecurity/FAOSTAT_data_2-20-2017.csv")
@@ -82,6 +136,19 @@ timeList <- unique(as.character(fsecurity$Year))
 fsecurityList <- lapply(1:length(timeList), function(i){
   df <- fsecurity %>% dplyr::select(Country.Code, Country, Item, Year, Value) %>% dplyr::filter(Year == timeList[i]) %>% tidyr::spread(key = Item, value = Value)
   return(df)
-}); rm(fsecurity)
-# It seems properly to use index 26 (2014-2016) indicators
-View(fsecurityList[[25]])
+}); names(fsecurityList) <- timeList; rm(fsecurity, timeList)
+
+# Year or periods to exclude
+ypList <- unlist(lapply(1:length(fsecurityList), function(i){
+  
+  x <- fsecurityList[[i]]
+  dim.mat <- nrow(x[,4:ncol(x)]) * ncol(x[,4:ncol(x)])
+  if(sum(is.na(x[,4:ncol(x)])) == dim.mat){
+    return(names(fsecurityList)[i])
+  } else {
+      return(cat(""))
+  }
+  
+}))
+fsecurityList <- fsecurityList[setdiff(x = names(fsecurityList), y = ypList)]; rm(ypList)
+
