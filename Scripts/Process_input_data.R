@@ -54,11 +54,11 @@ if(!file.exists('./world_cityAccess/countries_access.RDS')){
     cat(paste("Country: ", countryList[i], " done\n", sep = ""))
     return(country_data)
     
-  }
+  }; calc_median <- cmpfun(calc_median)
   
   # Parellize the process using 8 cores
   registerDoMC(8)
-  countries_access <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = access, i = i) }
+  countries_access <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = access, i = i) }; removeTmpFiles(h = 0)
   countries_access <- do.call(rbind, countries_access)
   saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
 } else {
@@ -87,11 +87,11 @@ if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
     cat(paste("Country: ", countryList[i], " done\n", sep = ""))
     return(country_data)
     
-  }
+  }; calc_median <- cmpfun(calc_median)
   
   # Parellize the process using 8 cores
   registerDoMC(8)
-  countries_footprint <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = hfootprint, i = i) }
+  countries_footprint <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = hfootprint, i = i) }; removeTmpFiles(h = 0)
   countries_footprint <- do.call(rbind, countries_footprint)
   saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
 } else {
@@ -159,4 +159,3 @@ for(i in 1:length(fsecurityList)){
   pairs(fsecurityList[[i]][,4:ncol(fsecurityList[[i]])])
   
 }
-
