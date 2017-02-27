@@ -4,7 +4,7 @@
 
 # R options
 options(warn = -1); options(scipen = 999)
-OSys <- "linux" # It could be linux (for servers) or windows (for local machine)
+OSys <- "windows" # It could be linux (for servers) or windows (for local machine)
 if(OSys == "linux"){
   wk_dir <- "/mnt/workspace_cluster_9/Sustainable_Food_System/Input_data/"; setwd(wk_dir); rm(wk_dir)
 } else {
@@ -37,6 +37,9 @@ countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 if(!file.exists('./world_cityAccess/countries_access.RDS')){
   
   # Accessibility to cities
+  tmpRaster <- paste(getwd(), "/tmpRaster", sep = "")
+  if(!dir.exists(tmpRaster)){dir.create(tmpRaster)}
+  rasterOptions(tmpdir = tmpRaster)
   access <- raster('./world_cityAccess/acc_50k')
   
   # List of countries (excluding Antarctica)
@@ -61,6 +64,7 @@ if(!file.exists('./world_cityAccess/countries_access.RDS')){
   countries_access <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = access, i = i) }; removeTmpFiles(h = 0)
   countries_access <- do.call(rbind, countries_access)
   saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
+  removeTmpFiles(h = 0)
 } else {
   readRDS(file = './world_cityAccess/countries_access.RDS')
 }
@@ -70,6 +74,9 @@ if(!file.exists('./world_cityAccess/countries_access.RDS')){
 if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
   
   # Human footprint raster
+  tmpRaster <- paste(getwd(), "/tmpRaster", sep = "")
+  if(!dir.exists(tmpRaster)){dir.create(tmpRaster)}
+  rasterOptions(tmpdir = tmpRaster)
   hfootprint <- raster('./world_humanFootprint/hf_v2geo')
   
   # List of countries (excluding Antarctica)
@@ -94,6 +101,7 @@ if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
   countries_footprint <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = hfootprint, i = i) }; removeTmpFiles(h = 0)
   countries_footprint <- do.call(rbind, countries_footprint)
   saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
+  removeTmpFiles(h = 0)
 } else {
   readRDS(file = './world_humanFootprint/countries_foodprint.RDS')
 }
