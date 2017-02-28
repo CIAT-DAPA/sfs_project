@@ -23,6 +23,7 @@ suppressMessages(if(!require(ggplot2)){install.packages('ggplot2'); library(ggpl
 suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
 suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
 suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} else {library(doMC)})
+suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
 suppressMessages(library(compiler))
 
 # Worldwide shapefile
@@ -66,7 +67,7 @@ if(!file.exists('./world_cityAccess/countries_access.RDS')){
   saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
   removeTmpFiles(h = 0)
 } else {
-  readRDS(file = './world_cityAccess/countries_access.RDS')
+  countries_access <- readRDS(file = './world_cityAccess/countries_access.RDS')
 }
 
 # 2. Global Human Footprint (1995-2004) per country
@@ -103,7 +104,7 @@ if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
   saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
   removeTmpFiles(h = 0)
 } else {
-  readRDS(file = './world_humanFootprint/countries_foodprint.RDS')
+  countries_footprint <- readRDS(file = './world_humanFootprint/countries_foodprint.RDS')
 }
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
@@ -140,10 +141,25 @@ plot(chmalnutrition$PCTU5, chmalnutrition$UW, xlab = "% of population under age 
 
 # 3. FAO's suite of Food Security Indicators
 fsecurity <- read.csv("./world_foodSecurity/FAOSTAT_data_2-20-2017.csv")
-timeList <- unique(as.character(fsecurity$Year))
+timeList <- unique(as.character(fsecurity$Year)); fsecurity$Country <- as.character(fsecurity$Country)
+fsecurity$Country[which(fsecurity$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"; fsecurity$Country <- factor(fsecurity$Country)
+
+# Loading ISO3 codes for FAO information
+# From: http://www.fao.org/countryprofiles/iso3list/en/
+if(!file.exists('./world_foodSecurity/FAO_ISO3_codes.RDS')){
+  iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
+  iso3FAO <- iso3FAO$`NULL`
+  saveRDS(object = iso3FAO, file = './world_foodSecurity/FAO_ISO3_codes.RDS')
+} else {
+  iso3FAO <- readRDS(file = './world_foodSecurity/FAO_ISO3_codes.RDS')
+  iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
+}
+
+fsecurity <- dplyr::left_join(x = fsecurity, y = iso3FAO, by = c("Country" = "Short name")); rm(iso3FAO)
 
 fsecurityList <- lapply(1:length(timeList), function(i){
-  df <- fsecurity %>% dplyr::select(Country.Code, Country, Item, Year, Value) %>% dplyr::filter(Year == timeList[i]) %>% tidyr::spread(key = Item, value = Value)
+  df <- fsecurity %>% dplyr::select(ISO3, Country, Item, Year, Value) %>% dplyr::filter(Year == timeList[i]) %>% tidyr::spread(key = Item, value = Value)
+  df <- df[which(!is.na(df$ISO3)),]; rownames(df) <- 1:nrow(df)
   return(df)
 }); names(fsecurityList) <- timeList; rm(fsecurity, timeList)
 
