@@ -24,6 +24,7 @@ suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(js
 suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
 suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} else {library(doMC)})
 suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
+suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
 suppressMessages(library(compiler))
 
 # Worldwide shapefile
@@ -120,6 +121,8 @@ for(i in 1:(ncol(ghi)-1)){
   ghi[,i] <- gsub(pattern = "<5", replacement = NA, x = ghi[,i]) # Omit values under detection limit
   ghi[,i] <- as.numeric(ghi[,i])
 }; rm(i)
+ghi <- ghi[which(!is.na(ghi$ISO3)),]
+ghi <- ghi[,c("ISO3", "year2000")]; names(ghi)[2] <- "GHI_2000"
 
 # 2. Global Subnational Prevalence of Child Malnutrition (1990 - 2002)
 # From: http://sedac.ciesin.columbia.edu/data/set/povmap-global-subnational-prevalence-child-malnutrition/data-download
@@ -137,7 +140,9 @@ chmalnutrition$PCTU5[which(chmalnutrition$PCTU5 == -999)] <- NA
 # Calculate mean data per country
 chmalnutrition <- chmalnutrition %>% dplyr::select(ISO3V10, COUNTRY, UW, PCTU5) %>% dplyr::group_by(ISO3V10, COUNTRY) %>% dplyr::summarise_all(mean, na.rm = T)
 names(chmalnutrition)[which(names(chmalnutrition) == "ISO3V10")] <- "ISO3"
+chmalnutrition <- chmalnutrition[which(!is.na(chmalnutrition$ISO3)),]; rownames(chmalnutrition) <- 1:nrow(chmalnutrition)
 plot(chmalnutrition$PCTU5, chmalnutrition$UW, xlab = "% of population under age 5", ylab = "Percentage of children underweight", pch = 20)
+chmalnutrition <- chmalnutrition[,c("ISO3", "UW")]; names(chmalnutrition)[2] <- "ChldMalnutrition"
 
 # 3. FAO's suite of Food Security Indicators
 fsecurity <- read.csv("./world_foodSecurity/FAOSTAT_data_2-20-2017.csv")
@@ -183,3 +188,12 @@ for(i in 1:length(fsecurityList)){
   pairs(fsecurityList[[i]][,4:ncol(fsecurityList[[i]])])
   
 }
+
+complete_data <- dplyr::inner_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3"))
+fsec <- fsecurityList[[50]]; fsec
+
+### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
+### MODELING STEP                                                                                             ###
+### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
+
+
