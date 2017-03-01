@@ -63,7 +63,16 @@ if(!file.exists('./world_cityAccess/countries_access.RDS')){
   
   # Parellize the process using 8 cores
   registerDoMC(8)
-  countries_access <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = access, i = i) }; removeTmpFiles(h = 0)
+  countries_access <- foreach(i = 1:length(countryList)) %dopar% {
+    tryCatch(expr={
+      calc_median(rObject = access, i = i)
+    },
+    error=function(e){
+      cat("Cutting process failed:", countryList[i], "\n")
+      return("Done\n")
+    })
+  }; removeTmpFiles(h = 0)
+  
   countries_access <- do.call(rbind, countries_access)
   saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
   removeTmpFiles(h = 0)
@@ -100,7 +109,15 @@ if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
   
   # Parellize the process using 8 cores
   registerDoMC(8)
-  countries_footprint <- foreach(i = 1:length(countryList)) %dopar% { calc_median(rObject = hfootprint, i = i) }; removeTmpFiles(h = 0)
+  countries_footprint <- foreach(i = 1:length(countryList)) %dopar% {
+    tryCatch(expr={
+      calc_median(rObject = hfootprint, i = i)
+    },
+    error=function(e){
+      cat("Cutting process failed:", countryList[i], "\n")
+      return("Done\n")
+    })
+  }; removeTmpFiles(h = 0)
   countries_footprint <- do.call(rbind, countries_footprint)
   saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
   removeTmpFiles(h = 0)
