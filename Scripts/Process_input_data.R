@@ -28,7 +28,7 @@ suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} 
 suppressMessages(library(compiler))
 
 # Worldwide shapefile
-countries <- readOGR(dsn = "./world_shape", "all_countries")
+countries <- rgdal::readOGR(dsn = "./world_shape", "all_countries")
 countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
