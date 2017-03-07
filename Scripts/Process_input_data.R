@@ -4,11 +4,11 @@
 
 # R options
 options(warn = -1); options(scipen = 999)
-OSys <- "windows" # It could be linux (for servers) or windows (for local machine)
-if(OSys == "linux"){
+OSys <- Sys.info(); OSys <- OSys[names(OSys)=="sysname"]
+if(OSys == "Linux"){
   wk_dir <- "/mnt/workspace_cluster_9/Sustainable_Food_System/Input_data/"; setwd(wk_dir); rm(wk_dir)
 } else {
-  if(OSys == "windows"){
+  if(OSys == "Windows"){
     wk_dir <- "//dapadfs/workspace_cluster_9/Sustainable_Food_System/Input_data"; setwd(wk_dir); rm(wk_dir)
   }
 }
@@ -36,7 +36,7 @@ countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 
 # 1. Accessibility per country
-if(!file.exists('./world_cityAccess/countries_access.RDS')){
+if(!file.exists('./world_cityAccess/countries_access.txt')){
   
   # Accessibility to cities
   tmpRaster <- paste(getwd(), "/tmpRaster", sep = "")
@@ -77,12 +77,13 @@ if(!file.exists('./world_cityAccess/countries_access.RDS')){
   saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
   removeTmpFiles(h = 0)
 } else {
-  countries_access <- readRDS(file = './world_cityAccess/countries_access.RDS')
+  countries_access <- read.table(file = './world_cityAccess/countries_access.txt', sep = ",", header = T)
+  names(countries_access)[ncol(countries_access)] <- "Access_median"
 }
 
 # 2. Global Human Footprint (1995-2004) per country
 # From: http://sedac.ciesin.columbia.edu/data/set/wildareas-v2-human-footprint-geographic/data-download
-if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
+if(!file.exists('./world_humanFootprint/countries_foodprint.txt')){
   
   # Human footprint raster
   tmpRaster <- paste(getwd(), "/tmpRaster", sep = "")
@@ -122,8 +123,12 @@ if(!file.exists('./world_humanFootprint/countries_foodprint.RDS')){
   saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
   removeTmpFiles(h = 0)
 } else {
-  countries_footprint <- readRDS(file = './world_humanFootprint/countries_foodprint.RDS')
+  countries_footprint <- read.table(file = './world_humanFootprint/countries_foodprint.txt', sep = ",", header = T)
+  names(countries_footprint)[ncol(countries_footprint)] <- "Footprint_median"
 }
+
+h_interventions <- dplyr::inner_join(x = countries_access, y = countries_footprint, by = "ISO3")
+h_interventions <- h_interventions %>% dplyr::select(ISO3, Access_median, Footprint_median); rm(countries_access, countries_footprint)
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### DIMENSION: FOOD SECURITY                                                                                  ###
@@ -199,15 +204,16 @@ ypList <- unlist(lapply(1:length(fsecurityList), function(i){
 }))
 fsecurityList <- fsecurityList[setdiff(x = names(fsecurityList), y = ypList)]; rm(ypList)
 
-for(i in 1:length(fsecurityList)){
-  
-  Sys.sleep(1)
-  pairs(fsecurityList[[i]][,4:ncol(fsecurityList[[i]])])
-  
-}
+# for(i in 1:length(fsecurityList)){
+#   
+#   Sys.sleep(1)
+#   pairs(fsecurityList[[i]][,4:ncol(fsecurityList[[i]])])
+#   
+# }
 
 complete_data <- dplyr::inner_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3"))
-fsec <- fsecurityList[[50]]; fsec
+fsec <- fsecurityList[[50]]; fsec <- fsec[,c(1, 4, 5, 8, 16)]
+names(fsec)[2:ncol(fsec)] <- c("sanitation", "water_sources", "GDP", "political_stability")
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### MODELING STEP                                                                                             ###
