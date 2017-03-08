@@ -45,7 +45,8 @@ AirPassengers %>%
 ### Sustainable food system index by country
 
 ```{r}
-data("worldgeojson")
+# data("worldgeojson")
+data("usgeojson")
 
 USArrests <- USArrests %>%
   mutate(state = rownames(.))
@@ -57,7 +58,7 @@ colstops <- data.frame(
   list.parse2()
 
 highchart() %>%
-  hc_add_series_map(worldgeojson, USArrests, name = "Sales",
+  hc_add_series_map(usgeojson, USArrests, name = "Sales",
                     value = "Murder", joinBy = c("woename", "state"),
                     dataLabels = list(enabled = TRUE,
                                       format = '{point.properties.postalcode}')) %>%

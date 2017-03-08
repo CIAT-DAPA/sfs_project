@@ -25,6 +25,7 @@ suppressMessages(if(!require(foreach)){install.packages('foreach'); library(fore
 suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} else {library(doMC)})
 suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
 suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
+suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
 suppressMessages(library(compiler))
 
 # Worldwide shapefile
@@ -165,6 +166,7 @@ names(chmalnutrition)[which(names(chmalnutrition) == "ISO3V10")] <- "ISO3"
 chmalnutrition <- chmalnutrition[which(!is.na(chmalnutrition$ISO3)),]; rownames(chmalnutrition) <- 1:nrow(chmalnutrition)
 plot(chmalnutrition$PCTU5, chmalnutrition$UW, xlab = "% of population under age 5", ylab = "Percentage of children underweight", pch = 20)
 chmalnutrition <- chmalnutrition[,c("ISO3", "UW")]; names(chmalnutrition)[2] <- "ChldMalnutrition"
+chmalnutrition <- as.data.frame(chmalnutrition)
 
 # 3. FAO's suite of Food Security Indicators
 fsecurity <- read.csv("./world_foodSecurity/FAOSTAT_data_2-20-2017.csv")
@@ -211,31 +213,55 @@ fsecurityList <- fsecurityList[setdiff(x = names(fsecurityList), y = ypList)]; r
 #   
 # }
 
-complete_data <- dplyr::inner_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3"))
 fsec <- fsecurityList[[50]]; fsec <- fsec[,c(1, 4, 5, 8, 16)]
 names(fsec)[2:ncol(fsec)] <- c("sanitation", "water_sources", "GDP", "political_stability")
 
+complete_data <- dplyr::inner_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3")); rm(ghi, chmalnutrition)
+complete_data <- dplyr::inner_join(x = complete_data, y = h_interventions, by = c("ISO3" = "ISO3")); rm(h_interventions)
+complete_data <- dplyr::inner_join(x = complete_data, y = fsec, by = c("ISO3" = "ISO3")); rm(fsec)
+
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-### MODELING STEP                                                                                             ###
+### MODELING STEP: Using Repeated Indicators                                                                  ###
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 
 # Define path model matrix
 # path matrix (inner model realtionships) Here should be the dimensions of our model
-AGRIN = c(0, 0, 0)
-INDEV = c(0, 0, 0)
-POLINS = c(1, 1, 0)
-rus_path = rbind(AGRIN, INDEV, POLINS); rm(AGRIN, INDEV, POLINS)
+NUTR <- c(0, 0, 0, 0)
+HINT <- c(0, 0, 0, 0)
+FSCY <- c(0, 0, 0, 0)
+SUFS <- c(1, 1, 1, 0)
+sfs_path <- rbind(NUTR, HINT, FSCY, SUFS); rm(NUTR, HINT, FSCY, SUFS)
 # add optional column names
-colnames(rus_path) = rownames(rus_path)
-
-innerplot(rus_path)
+colnames(sfs_path) <- rownames(sfs_path)
+innerplot(sfs_path)
 
 # List of blocks for outer model
-rus_blocks <- list(1:3, 4:5, 6:11)
-rus_blocks <- list(c("varnames1"), c("varnames2"), c("varnames3"))
+sfs_blocks <- list(2:3, 4:5, 6:9, 2:9)
+# sfs_blocks <- list(c("varnames1"), c("varnames2"), c("varnames3"))
 
 # List of modes
-rus_modes <- rep("A", 3)
+sfs_modes <- rep("A", 4)
 
 # Running the model
-rus_pls <- plspm(russett, rus_path, rus_blocks, modes = rus_modes)
+sfs_pls <- plspm(complete_data[complete.cases(complete_data),], sfs_path, sfs_blocks, modes = sfs_modes)
+pairs(sfs_pls$scores)
+
+indices <- as.data.frame(sfs_pls$scores)
+indices$iso3 <- as.character(complete_data[complete.cases(complete_data),"ISO3"])
+
+xloads = melt(sfs_pls$crossloadings, id.vars = c("name", "block"))
+
+gg <- ggplot(data = xloads, aes(x = name, y = value, fill = block))
+gg <- gg + geom_hline(yintercept = 0, color = "gray75")
+gg <- gg + geom_hline(yintercept = c(-0.5, 0.5), color = "gray70", linetype = 2)
+gg <- gg + geom_bar(stat = 'identity', position = 'dodge')
+gg <- gg + facet_wrap(block ~ variable)
+gg <- gg + theme(axis.text.x = element_text(angle = 90), line = element_blank())
+gg <- gg + ggtitle("Crossloadings")
+gg
+
+highchart(type = "map") %>%
+hc_add_series_map(map = worldgeojson, df = indices, value = "SUFS", joinBy = "iso3") %>%
+hc_colorAxis(stops = color_stops()) %>%
+hc_tooltip(useHTML = TRUE, headerFormat = "",
+pointFormat = "this is {point.name} and have {point.population} people with gni of {point.GNI}")
