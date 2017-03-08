@@ -179,7 +179,7 @@ if(!file.exists('./world_foodSecurity/FAO_ISO3_codes.RDS')){
   saveRDS(object = iso3FAO, file = './world_foodSecurity/FAO_ISO3_codes.RDS')
 } else {
   iso3FAO <- readRDS(file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-  iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
+  iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Cï¿½te d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
 }
 
 fsecurity <- dplyr::left_join(x = fsecurity, y = iso3FAO, by = c("Country" = "Short name")); rm(iso3FAO)
@@ -219,4 +219,23 @@ names(fsec)[2:ncol(fsec)] <- c("sanitation", "water_sources", "GDP", "political_
 ### MODELING STEP                                                                                             ###
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 
+# Define path model matrix
+# path matrix (inner model realtionships) Here should be the dimensions of our model
+AGRIN = c(0, 0, 0)
+INDEV = c(0, 0, 0)
+POLINS = c(1, 1, 0)
+rus_path = rbind(AGRIN, INDEV, POLINS); rm(AGRIN, INDEV, POLINS)
+# add optional column names
+colnames(rus_path) = rownames(rus_path)
 
+innerplot(rus_path)
+
+# List of blocks for outer model
+rus_blocks <- list(1:3, 4:5, 6:11)
+rus_blocks <- list(c("varnames1"), c("varnames2"), c("varnames3"))
+
+# List of modes
+rus_modes <- rep("A", 3)
+
+# Running the model
+rus_pls <- plspm(russett, rus_path, rus_blocks, modes = rus_modes)
