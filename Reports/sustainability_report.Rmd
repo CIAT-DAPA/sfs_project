@@ -9,12 +9,12 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-library(highcharter)
-library(dplyr)
-library(viridisLite)
-library(forecast)
-library(treemap)
-library(flexdashboard)
+suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
+suppressMessages(if(!require(dplyr)){install.packages('dplyr'); library(dplyr)} else {library(dplyr)})
+suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
+suppressMessages(if(!require(forecast)){install.packages('forecast'); library(forecast)} else {library(forecast)})
+suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
+suppressMessages(if(!require(flexdashboard)){install.packages('flexdashboard'); library(flexdashboard)} else {library(flexdashboard)})
 
 thm <- 
   hc_theme(
@@ -45,11 +45,10 @@ AirPassengers %>%
 ### Sustainable food system index by country
 
 ```{r}
-# data("worldgeojson")
-data("usgeojson")
+# data("usgeojson")
+data("worldgeojson")
 
-USArrests <- USArrests %>%
-  mutate(state = rownames(.))
+indices <- readRDS(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Results/sfs_index_v0.RDS")
 
 n <- 4
 colstops <- data.frame(
@@ -58,8 +57,8 @@ colstops <- data.frame(
   list.parse2()
 
 highchart() %>%
-  hc_add_series_map(usgeojson, USArrests, name = "Sales",
-                    value = "Murder", joinBy = c("woename", "state"),
+  hc_add_series_map(worldgeojson, indices, name = "Sustainable food systems index",
+                    value = "SUFS", joinBy = c("iso3"),
                     dataLabels = list(enabled = TRUE,
                                       format = '{point.properties.postalcode}')) %>%
   hc_colorAxis(stops = colstops) %>%

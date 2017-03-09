@@ -11,7 +11,7 @@ if(OSys == "Linux"){
   if(OSys == "Windows"){
     wk_dir <- "//dapadfs/workspace_cluster_9/Sustainable_Food_System/Input_data"; setwd(wk_dir); rm(wk_dir)
   }
-}
+}; rm(OSys)
 
 # Load packages
 suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
@@ -244,10 +244,13 @@ sfs_modes <- rep("A", 4)
 
 # Running the model
 sfs_pls <- plspm(complete_data[complete.cases(complete_data),], sfs_path, sfs_blocks, modes = sfs_modes)
+plot(sfs_pls)
 pairs(sfs_pls$scores)
 
 indices <- as.data.frame(sfs_pls$scores)
 indices$iso3 <- as.character(complete_data[complete.cases(complete_data),"ISO3"])
+
+saveRDS(object = indices, file = "../Results/sfs_index_v0.RDS")
 
 xloads = melt(sfs_pls$crossloadings, id.vars = c("name", "block"))
 
@@ -265,3 +268,21 @@ hc_add_series_map(map = worldgeojson, df = indices, value = "SUFS", joinBy = "is
 hc_colorAxis(stops = color_stops()) %>%
 hc_tooltip(useHTML = TRUE, headerFormat = "",
 pointFormat = "this is {point.name} and have {point.population} people with gni of {point.GNI}")
+
+### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
+### MODELING STEP: Using Repeated Indicators                                                                  ###
+### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
+
+data_test <- complete_data[complete.cases(complete_data),]; rownames(data_test) <- data_test$ISO3
+
+library(cluster)
+library(factoextra)
+
+res_dist <- get_dist(data_test[,-1], stand = TRUE, method = "pearson")
+fviz_dist(dist.obj = res_dist, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+# Using k-means
+fviz_nbclust(data_test[,-1], kmeans, method = "gap_stat")
+
+get_clust_tendency(scale(data_test[,-1]), n = 50,
+                   gradient = list(low = "steelblue",  high = "white"))
