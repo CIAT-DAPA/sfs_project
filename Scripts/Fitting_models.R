@@ -26,17 +26,37 @@ suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} els
 suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
 suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
 suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
+suppressMessages(if(!require(VIM)){install.packages('VIM'); library(VIM)} else {library(VIM)})
 suppressMessages(library(compiler))
 
 # Worldwide shapefile
 countries <- rgdal::readOGR(dsn = "./world_shape", "all_countries")
 countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
+complete_data <- readRDS(file = "data_joined.RDS")
+
+# Missing values analysis
+
+# Include some plots to explain this
+
+# Method 1: Imputing missing values using k nearest neighbors
+complete_data1 <- VIM::kNN(data = complete_data)
+
+# Method 2: mice package (assumption of linear regression) 3.
+
+# Method 3: Amelia package (assumption of multivariate normality)
+
+# Method 4: missForest package 2.
+
+# Method 5: Hmisc package 1.
+
+# Method 6: mi package
+
+# Method 7: simputation package
+
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### PLS-PM: Using repeated indicators                                                                         ###
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-
-complete_data <- readRDS(file = "data_joined.RDS")
 
 # Define path model matrix
 # path matrix (inner model realtionships) Here should be the dimensions of our model
