@@ -3,7 +3,7 @@
 # CIAT, 2017
 
 # R options
-options(warn = -1); options(scipen = 999)
+g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 OSys <- Sys.info(); OSys <- OSys[names(OSys)=="sysname"]
 if(OSys == "Linux"){
   wk_dir <- "/mnt/workspace_cluster_9/Sustainable_Food_System/Input_data/"; setwd(wk_dir); rm(wk_dir)
@@ -216,8 +216,11 @@ fsecurityList <- fsecurityList[setdiff(x = names(fsecurityList), y = ypList)]; r
 fsec <- fsecurityList[[50]]; fsec <- fsec[,c(1, 4, 5, 8, 16)]
 names(fsec)[2:ncol(fsec)] <- c("sanitation", "water_sources", "GDP", "political_stability")
 
-complete_data <- dplyr::inner_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3")); rm(ghi, chmalnutrition)
-complete_data <- dplyr::inner_join(x = complete_data, y = h_interventions, by = c("ISO3" = "ISO3")); rm(h_interventions)
-complete_data <- dplyr::inner_join(x = complete_data, y = fsec, by = c("ISO3" = "ISO3")); rm(fsec)
+complete_data <- dplyr::full_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3")); rm(ghi, chmalnutrition)
+complete_data <- dplyr::full_join(x = complete_data, y = h_interventions, by = c("ISO3" = "ISO3")); rm(h_interventions)
+complete_data <- dplyr::full_join(x = complete_data, y = fsec, by = c("ISO3" = "ISO3")); rm(fsec)
+
+complete_data <- complete_data[-which(apply(X = complete_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}) >= 7),]
+rownames(complete_data) <- 1:nrow(complete_data)
 
 saveRDS(object = complete_data, file = "data_joined.RDS")

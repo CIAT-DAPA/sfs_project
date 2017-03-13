@@ -45,10 +45,10 @@ AirPassengers %>%
 ### Sustainable food system index by country
 
 ```{r}
-# data("usgeojson")
 data("worldgeojson")
 
-indices <- readRDS(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Results/sfs_index_v0.RDS")
+indices <- readRDS(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Results/sfs_index_knn_imputed.RDS")
+indices[,1:(ncol(indices)-1)] <- round(indices[,1:(ncol(indices)-1)], 2)
 
 n <- 4
 colstops <- data.frame(
@@ -56,11 +56,11 @@ colstops <- data.frame(
   c = substring(viridis(n + 1), 0, 7)) %>%
   list.parse2()
 
-highchart() %>%
-  hc_add_series_map(worldgeojson, indices, name = "Sustainable food systems index",
-                    value = "SUFS", joinBy = c("iso3"),
-                    dataLabels = list(enabled = TRUE,
-                                      format = '{point.properties.postalcode}')) %>%
+highchart(type = "map") %>%
+  hc_add_series_map(map = worldgeojson, df = indices, value = "SUFS", joinBy = "iso3") %>%
+  hc_colorAxis(stops = color_stops()) %>%
+  hc_tooltip(useHTML = TRUE, headerFormat = "",
+             pointFormat = "{point.name} has a SFS index of {point.SUFS}") %>%
   hc_colorAxis(stops = colstops) %>%
   hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
   hc_mapNavigation(enabled = TRUE) %>%

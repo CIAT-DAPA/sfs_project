@@ -3,7 +3,7 @@
 # CIAT, 2017
 
 # R options
-options(warn = -1); options(scipen = 999)
+g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 OSys <- Sys.info(); OSys <- OSys[names(OSys)=="sysname"]
 if(OSys == "Linux"){
   wk_dir <- "/mnt/workspace_cluster_9/Sustainable_Food_System/Input_data/"; setwd(wk_dir); rm(wk_dir)
@@ -27,30 +27,38 @@ suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {
 suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
 suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
 suppressMessages(if(!require(VIM)){install.packages('VIM'); library(VIM)} else {library(VIM)})
+suppressMessages(if(!require(mice)){install.packages('mice'); library(mice)} else {library(mice)})
+suppressMessages(if(!require(Amelia)){install.packages('Amelia'); library(Amelia)} else {library(Amelia)})
+suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
+suppressMessages(if(!require(Hmisc)){install.packages('Hmisc'); library(Hmisc)} else {library(Hmisc)})
+suppressMessages(if(!require(mi)){install.packages('mi'); library(mi)} else {library(mi)})
+suppressMessages(if(!require(simputation)){install.packages('simputation', dependencies = T); library(simputation)} else {library(simputation)})
+suppressMessages(if(!require(highcharter)){install.packages('highcharter', dependencies = T); library(highcharter)} else {library(highcharter)})
 suppressMessages(library(compiler))
 
-# Worldwide shapefile
-countries <- rgdal::readOGR(dsn = "./world_shape", "all_countries")
-countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
-
+# Load joined data
 complete_data <- readRDS(file = "data_joined.RDS")
 
 # Missing values analysis
+# Percent of missing values per variable and combination
+VIM::aggr(complete_data)
 
-# Include some plots to explain this
+# Method 1: k nearest neighbors (non-parametric alternative)
+complete_data1 <- VIM::kNN(data = complete_data); complete_data1 <- complete_data1[,colnames(complete_data)]
 
-# Method 1: Imputing missing values using k nearest neighbors
-complete_data1 <- VIM::kNN(data = complete_data)
+# 3. Method 2: mice (assumption of LM for continuous data and GLM for categorical)
 
-# Method 2: mice package (assumption of linear regression) 3.
+# Method 3: Amelia package (assumption of multivariate normality and LM)
 
-# Method 3: Amelia package (assumption of multivariate normality)
+# 2. Method 4: missForest (Uses random forest)
+complete_data2 <- missForest::missForest(xmis = complete_data) # Does not work. Check!!!
 
-# Method 4: missForest package 2.
-
-# Method 5: Hmisc package 1.
+# 1. Method 5: Hmisc (Uses bootstrap sampling and predictive mean matching to impute missing values)
+complete_data3 <- Hmisc::aregImpute(formula = ~ GHI_2000 + ChldMalnutrition + Access_median + Footprint_median + sanitation + water_sources + GDP + political_stability, data = complete_data)
+# Requires a function to arrange imputed data after process
 
 # Method 6: mi package
+complete_data4 <- mi::mi(complete_data, seed = 335) # Does not work. Check!!!
 
 # Method 7: simputation package
 
@@ -77,14 +85,16 @@ sfs_blocks <- list(2:3, 4:5, 6:9, 2:9)
 sfs_modes <- rep("A", 4)
 
 # Running the model
-sfs_pls <- plspm(complete_data[complete.cases(complete_data),], sfs_path, sfs_blocks, modes = sfs_modes)
+# sfs_pls <- plspm(complete_data[complete.cases(complete_data),], sfs_path, sfs_blocks, modes = sfs_modes)
+sfs_pls <- plspm(complete_data1, sfs_path, sfs_blocks, modes = sfs_modes)
 plot(sfs_pls)
 pairs(sfs_pls$scores)
 
 indices <- as.data.frame(sfs_pls$scores)
-indices$iso3 <- as.character(complete_data[complete.cases(complete_data),"ISO3"])
+indices$iso3 <- as.character(complete_data1$ISO3)
 
-saveRDS(object = indices, file = "../Results/sfs_index_v0.RDS")
+saveRDS(object = indices, file = "../Results/sfs_index_knn_imputed.RDS")
+indices[,1:(ncol(indices)-1)] <- round(indices[,1:(ncol(indices)-1)], 2)
 
 xloads = melt(sfs_pls$crossloadings, id.vars = c("name", "block"))
 
@@ -101,7 +111,7 @@ highchart(type = "map") %>%
   hc_add_series_map(map = worldgeojson, df = indices, value = "SUFS", joinBy = "iso3") %>%
   hc_colorAxis(stops = color_stops()) %>%
   hc_tooltip(useHTML = TRUE, headerFormat = "",
-             pointFormat = "this is {point.name} and have {point.population} people with gni of {point.GNI}")
+             pointFormat = "{point.name} has a SFS index of {point.SUFS}")
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### Clustering methodologies                                                                                  ###
