@@ -1,5 +1,5 @@
 ---
-title: "Sustainable food systems - Preliminar analysis"
+title: "Sustainable food systems"
 author: "Harold Achicanoy"
 output: 
   flexdashboard::flex_dashboard:
@@ -9,12 +9,20 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
-suppressMessages(if(!require(dplyr)){install.packages('dplyr'); library(dplyr)} else {library(dplyr)})
-suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
-suppressMessages(if(!require(forecast)){install.packages('forecast'); library(forecast)} else {library(forecast)})
-suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
-suppressMessages(if(!require(flexdashboard)){install.packages('flexdashboard'); library(flexdashboard)} else {library(flexdashboard)})
+suppressMessages(library(highcharter))
+suppressMessages(library(dplyr))
+suppressMessages(library(viridisLite))
+suppressMessages(library(forecast))
+suppressMessages(library(treemap))
+suppressMessages(library(flexdashboard))
+suppressMessages(library(VIM))
+suppressMessages(library(plspm))
+suppressMessages(library(FactoMineR))
+suppressMessages(library(networkD3))
+suppressMessages(library(igraph))
+suppressMessages(library(plyr))
+suppressMessages(library(cluster))
+suppressMessages(library(plotly))
 
 thm <- 
   hc_theme(
@@ -70,46 +78,82 @@ highchart(type = "map") %>%
 Column {.tabset data-width=400}
 -----------------------------------------------------------------------
 
-### Sales by Category
-
-```{r, fig.keep='none'}
-data("Groceries", package = "arules")
-dfitems <- tbl_df(Groceries@itemInfo)
-
-set.seed(10)
-
-dfitemsg <- dfitems %>%
-  mutate(category = gsub(" ", "-", level1),
-         subcategory = gsub(" ", "-", level2)) %>%
-  group_by(category, subcategory) %>% 
-  summarise(sales = n() ^ 3 ) %>% 
-  ungroup() %>% 
-  sample_n(31)
-
-tm <- treemap(dfitemsg, index = c("category", "subcategory"),
-              vSize = "sales", vColor = "sales",
-              type = "value", palette = rev(viridis(6)))
-
-highchart() %>% 
-  hc_add_series_treemap(tm, allowDrillToNode = TRUE,
-                        layoutAlgorithm = "squarified") %>% 
-  hc_add_theme(thm)
-```
-
-### Best Sellers
+### PLS-PM 1 - Estimations
 
 ```{r}
-set.seed(2)
+complete_data <- readRDS(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data/data_joined.RDS")
 
-nprods <- 10
+# Method 1: k nearest neighbors (non-parametric alternative)
+complete_data1 <- VIM::kNN(data = complete_data); complete_data1 <- complete_data1[,colnames(complete_data)]
 
-dfitems %>% 
-  sample_n(nprods) %>% 
-  .$labels %>% 
-  rep(times = sort(sample( 1e4:2e4, size = nprods), decreasing = TRUE)) %>% 
-  factor(levels = unique(.)) %>% 
-  hchart(showInLegend = FALSE, name = "Sales", pointWidth = 10) %>% 
-  hc_add_theme(thm) %>% 
-  hc_chart(type = "bar")
-  
+# PLS-PM: Using repeated indicators
+# Define path model matrix (inner model)
+NUTR <- c(0, 0, 0, 0)
+HINT <- c(0, 0, 0, 0)
+FSCY <- c(0, 0, 0, 0)
+SUFS <- c(1, 1, 1, 0)
+sfs_path <- rbind(NUTR, HINT, FSCY, SUFS); rm(NUTR, HINT, FSCY, SUFS)
+colnames(sfs_path) <- rownames(sfs_path)
+sfs_blocks <- list(2:3, 4:5, 6:9, 2:9)
+sfs_modes <- rep("A", 4)
+sfs_pls <- plspm(complete_data1, sfs_path, sfs_blocks, modes = sfs_modes)
+plot(sfs_pls)
+```
+
+### PLS-PM 1 - Indices correlations
+
+```{r}
+pairs(sfs_pls$scores, pch = 20)
+```
+
+### PLS-PM 1 - Crossloadings analysis
+
+```{r}
+xloads = melt(sfs_pls$crossloadings, id.vars = c("name", "block"))
+gg <- ggplot(data = xloads, aes(x = name, y = value, fill = block))
+gg <- gg + geom_hline(yintercept = 0, color = "gray75")
+gg <- gg + geom_hline(yintercept = c(-0.5, 0.5), color = "gray70", linetype = 2)
+gg <- gg + geom_bar(stat = 'identity', position = 'dodge')
+gg <- gg + facet_wrap(block ~ variable)
+gg <- gg + theme(axis.text.x = element_text(angle = 90), line = element_blank())
+ggplotly(gg)
+```
+
+### Network analysis
+
+```{r}
+rownames(complete_data1) <- complete_data1$ISO3
+
+# Calculate similarity measure
+sfs_dis <- cluster::daisy(x = complete_data1[,-1], metric = c("gower"), stand = FALSE)
+sfs_dis <- 1 - as.matrix(sfs_dis)
+
+# Do cluster analysis
+sfs_pca <- FactoMineR::PCA(X = complete_data1[,-1], scale.unit = T, graph = F)
+sfs_hpc <- FactoMineR::HCPC(res = sfs_pca, nb.clust = -1, graph = F)
+complete_data1$cluster <- sfs_hpc$data.clust$clust
+
+# Visualize using networkD3
+sfs_dis[lower.tri(sfs_dis, diag = TRUE)] <- NA
+sfs_dis <- na.omit(data.frame(as.table(sfs_dis))); names(sfs_dis) <- c("from", "to", "similarity")
+sfs_dis <- sfs_dis[sfs_dis$similarity >= .98,] # Filter by more than 98 degree of similarity
+
+gD <- igraph::simplify(igraph::graph.data.frame(sfs_dis, directed = FALSE))
+nodeList <- data.frame(id = c(0:(igraph::vcount(gD) - 1)), name = igraph::V(gD)$name) # because networkD3 library requires IDs to start at 0
+getNodeID <- function(x){ which(x == igraph::V(gD)$name) - 1 } # to ensure that IDs start at 0
+edgeList <- plyr::ddply(sfs_dis, .variables = c("from", "to", "similarity"), 
+                        function (x) data.frame(fromID = getNodeID(x$from), 
+                                                toID = getNodeID(x$to)))
+nodeList <- cbind(nodeList, nodeDegree = igraph::degree(gD, v = igraph::V(gD), mode = "all")); rm(gD, getNodeID)
+nodeList$cluster <- as.numeric(as.character(complete_data1$cluster))[match(nodeList$name, complete_data1$ISO3)]
+
+networkD3::forceNetwork(Links = edgeList,
+                        Nodes = nodeList,
+                        Source = "fromID",
+                        Target = "toID",
+                        Value = "similarity",
+                        NodeID = "name",
+                        Group = "cluster",
+                        opacity = 1,
+                        fontSize = 15)
 ```

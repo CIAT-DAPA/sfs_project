@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Sustainable food systems Preliminary analysis</title>
+  <title>Sustainable food systems Analysis</title>
 
   <meta charset="utf-8">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
@@ -20,7 +20,7 @@
     var SLIDE_CONFIG = {
       // Slide settings
       settings: {
-                title: 'Sustainable food systems Preliminary analysis',
+                title: 'Sustainable food systems Analysis',
                         useBuilds: true,
         usePrettify: true,
         enableSlideAreas: true,
@@ -30,7 +30,7 @@
       // Author information
       presenters: [
             {
-        name:  'Harold Achicanoy, Patricia Alvarez and Lea Lamotte' ,
+        name:  'Harold Achicanoy &amp; Patricia Alvarez' ,
         company: '',
         gplus: '',
         twitter: '',
@@ -93,29 +93,56 @@
       <h1 data-config-title><!-- populated from slide_config.json --></h1>
       <h2 data-config-subtitle><!-- populated from slide_config.json --></h2>
       <p data-config-presenter><!-- populated from slide_config.json --></p>
-            <p style="margin-top: 6px; margin-left: -2px;">3/10/2017</p>
+            <p style="margin-top: 6px; margin-left: -2px;">3/15/2017</p>
           </hgroup>
   </slide>
 
 <slide class=''><hgroup><h2>Data we use</h2></hgroup><article  id="data-we-use">
 
-<p>This is an R Markdown presentation. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <a href='http://rmarkdown.rstudio.com' title=''>http://rmarkdown.rstudio.com</a>.</p>
+<p>For test purposes we define some theoretical dimensions could influence Sustainable Food Systems. These dimensions were:</p>
 
-<p>When you click the <strong>Knit</strong> button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.</p>
+<ul>
+<li><strong>Nutritional aspects (NUTR)</strong></li>
+<li><strong>Human interventions (HINT)</strong></li>
+<li><strong>Food security (FSCY)</strong></li>
+</ul>
 
-</article></slide><slide class=''><hgroup><h2>Missing values and what we did with them &#8230;</h2></hgroup><article  id="missing-values-and-what-we-did-with-them-...">
+<p>On the other hand, <strong>Sustainable Food Systems (SUFS)</strong> is defined as the objective dimension.</p>
 
-<p>This is an R Markdown presentation. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <a href='http://rmarkdown.rstudio.com' title=''>http://rmarkdown.rstudio.com</a>.</p>
+</article></slide><slide class=''><hgroup><h2>Nutritional aspects (NUTR)</h2></hgroup><article  id="nutritional-aspects-nutr">
 
-<p>When you click the <strong>Knit</strong> button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.</p>
+<p>Uses indicators of:</p>
+
+<ul>
+<li>Prevalence of Child Malnutrition (1990 - 2002)</li>
+<li>Global hunger index (2016)</li>
+</ul>
+
+</article></slide><slide class=''><hgroup><h2>Human interventions (HINT)</h2></hgroup><article  id="human-interventions-hint">
+
+<p>Uses indicators of:</p>
+
+<ul>
+<li>Accessibility travel time to major cities</li>
+<li>Human Influence Index (HII) normalized by biome and realm</li>
+</ul>
+
+</article></slide><slide class=''><hgroup><h2>Food security (FSCY)</h2></hgroup><article  id="food-security-fscy">
+
+<p>Uses indicators of:</p>
+
+<ul>
+<li>Access to improved sanitation facilities (%)</li>
+<li>Access to improved water sources (%)</li>
+<li>Gross domestic product per capita, PPP (constant 2011 international $)</li>
+<li>Political stability and absence of violence/terrorism (index)</li>
+</ul>
 
 </article></slide><slide class=''><hgroup><h2>PLS-PM in action</h2></hgroup><article  id="pls-pm-in-action">
 
-<ul>
-<li>Bullet 1</li>
-<li>Bullet 2</li>
-<li>Bullet 3</li>
-</ul>
+<p>Here it&#39;s very important to have or develop a theoretical model that link dimensions and take under consideration the relations between them.</p>
+
+<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABaAAAANgCAMAAADtRj90AAAAVFBMVEUAAAAAADoAAGYAOpAAZpAAZrY6AAA6ZmY6kNtmAABmZjpmtv+QOgCQkDqQkGaQ29uQ2/+2ZgC2/7a2///bkDrbtmbb////tmb/25D//7b//9v///9S12VNAAAACXBIWXMAAB2HAAAdhwGP5fFlAAAbC0lEQVR4nO3dC1caW5iuUUxaW9uc09Khg8b//z+bAuQiWFoBqfdbzDnGHjuKElYoHpeLukxeAYg0GfsBAHCcQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4T67kBPJ29uv/lvAmjMtwZ6Ntk3uNETgDLO3tBvDPTz3cHD//F70D2M8A8M8M/OXdHvC/TfX5O9Ir88LD7++WfIXXzDDySAb1Ip0PODHHfJfhxyFwIN1FEp0NPDBY3FJHrQMrRAA3UUCvRiunx/8MnZsDUOgQbqKBToxWz5cDljPuxtQoEG6hBogFCFAm2JA7guhQLtTULgulQK9PHd7A5n1T0EGqijUqCPHqgy7FBCgQbqqBToVZH33TwNugeBBuooFejdU9mtDD1ZkkAD4xl6ho1igX498XSjAg2MZvA5kOoF+iQCDYxlE+YvF1qgAS5hJ8sCfZRAAyPZzc8XUyTQAJdwfYF+vuvbEfoS1ycA+BKB3ifQQAyB/oxAAyO5vkAPJdDASAT6MwINjMRudp8RaGAsDlT5hEADo3Godz+BBsbT/smSTiLQQB0CDRBKoAFCCTRAqEKBPnLBq8nQixIKNFCHQAOEKhTo7sQbAg1cj0qBXs6h70+6B4EG6igV6K7QN0+n3IFAA3XUCnS3yvHzzwnfL9BAHcUC/TqbTB5P+HaBBuqoFuiXh5Om0AIN1FEt0CdOoQUaqKNcoE8j0EAdAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBghVNtDzycLt0O8SaKCOYoGeLar84/fr699fk5XHYd8v0EAdpQK9zvLN0+t0MvmnQgs0UEepQL9l+ef/Lv7787qcUHfz6a8TaKCOSoGer7L8fLdo9P3mU4Om0AIN1FEp0NPVtLkr9GbePB32RqFAA3UUCvTfX+t58+IPmyrP1tH+IoEG6igU6JeH9XLGptSv3RrHoEVogQbqEGiAUIUCbYkDuC6FAr15k3C+3blut9VfIdBAHZUCvd7NbnmQt93sgOZVCvTm+O7NgSpzB6oA7aoU6O5twtWh3ptUO9QbaFepQG9PlrROtZMlAQ0rFuitmdONAo0rG+h/I9BAHQINEEqgAUIJNECo4oHePfPoockRF3xwACcRaIBQTQf6kEADdRQP9FACDdQh0AChBBoglEADhKoX6Olmh4zBZ+IQaKCSYoGevdtpbmijBRqoo1Sgn+8Odmsedr5+gQYKqRTo5Wn6d4q8PCn0oGvGCjRQSKVAzw9y3CXbNQmBRlUK9PRwQWMxiXZVb6BRhQK9mC7fH3xyNmyNQ6CBOgoFejFbPlzOmDsXB9AqgQYIVSjQljiA61Io0N4kBK5LpUAf383ucFbdQ6CBOioF+uiBKsMOJRRooI5KgV4Ved/N06B7EGigjlKB3j2VnZMlAa0rFuhXpxsFrka9QJ9EoIE6BBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFDFAv3y8OP38g+zycLN09DvF2igjlqBnk4my0DPJ2vrXH+ZQAN1lAr0dD1r3vR58CRaoIE6KgX6+W4yuX3t1jnWU+e/v4bOoQUaqKNSoBcT6Mfu/7NVpzuLufT9kLsQaKCOQoFezJdv1//fTpunk59/BtyHQAN1FAr0y8NqAr34/zbKs2FrHAIN1FEz0LebT84FGmhVoUD//bVab35b6lgSaKBZhQL9Ol2Hebq3xGENGmhUpUDP13s9P9+t1jpet7PqrxJooI5Kge52e17OobfvDE4HHqki0EAdlQK9PFJluaSx7nJ3ROGgCbRAA4WUCvSq0HtuP/+mXQIN1FEr0KvTcex4/Pw79gg0UEe1QK/OxLEyaP+NFYEG6qgX6JMINFCHQAOEEmiAUAINEKp4oJ/v+s7F8X6fvM4FHxzASQQaIFTTgT4k0EAdxQM9lEADdQg0QCiBBggl0ACh6gV6e7qkgWey6wg0UEexQM9OO9uoQAOFlAr04emgh+1kJ9BAJZUC3V3yarfIyxOPDjvnqEADdVQK9Pwgx12yB52zX6CBOr430Is57j+8k/eR6eGCxtC/QKCBOgoFejFdPrxC7GzYGodAA3UUCvTizg6XM+bOxQG0SqABQhUKtCUO4LoUCrQ3CYHrUinQx3ezO5xV9xBooI5KgT56oMqwQwkFGqjj2wN9zMDjs/vu7uZp2IMTaKCMUoHePZWdkyUBrSsW6FenGwWuRqU16DMQaKAOgQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQlW6JuEZCDRQh0ADhBJogFD1zsVx2oMTaKAMgQYIJdAAoS68Bv181wV60FWqzkqggTouGujlNauGXYb7zAQaqOOSgZ79wzWqzkyggTouF+jVevTIBxYKNFDHxQI9HffdwTWBBuq4UKDny703Hs/9dw0m0EAdFwl0xOrGkkADdVwi0BmrG0sCDdTx/YEee9fnPQIN1PHdgR5/1+c9Ag3U8c2BDtj1eY9AA3U4FwdAKIEGCCXQAKFcUQUglEADhBJogFACDRBKoAFCCTRAKLvZAYQSaIBQAg0Qyho0QCiBBggl0AChBBoglEADhBJogFB2swMIJdAAoQQaINSl1qBnGdf2FmigDoEGCCXQAKEEGiCUQAOEEmiAUHUD/fIwuR/8TQIN1CHQAKEEGiBUoUCf47BEgQbqEGiAUJXOxTEXaOCaVAr08u5+/tl+YA0aaFmpQL++TiebpRKBBhpX7Yoqz3eTdZcFGmhctUC//v21XuYQaKBx5QLd7RAymTwKNNC8goFeLnPcCjTQuoqBXi5z/PgfgQbaVjLQq2WOiUADTSsa6OUyh0ADTasa6OUu0QINtKxuoP+JQAN1CDRAKIEGCCXQAKGKB/r5ru/MS8dO1HTBBwdwEoEGCNV0oA8JNFBH8UAPJdBAHQINEEqgAUIJNECoeoGebnbIuB3+zQIN1FEs0LN3O80NbbRAA3WUCvTyHKMnXSBcoIE6KgW6u5DKbpFfHibrC8h+mUADdVQK9Pwgx12yH4fchUADdVQK9PRwQWMxiR60DC3QQB2FAr2YLh9eQmU2bI1DoIE6CgV6MVs+XM6YOxcH0CqBBghVKNCWOIDrUijQ3iQErkulQB/fze5wVt1DoIE6KgX66IEqww4lFGigjkqBXhV5383ToHsQaKCOUoHePZWdkyUBrSsW6FenGwWuRr1An0SggToEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUMUC/Xw3mUx+/tl8/PfX5MfvAd8v0EAdtQI9nazcvn1CoIF2lQr0W5+3k2iBBtpVKdDd+sbj4v+zbaEFGmhXpUBPJzdPyz8ssrwutEAD7SoU6EWMN2vP03WhBRpoV6FAvzwsFzhW1oUWaKBdVQPdFfpWoIGWlQ10tw59L9BAwwoFencNevXh5FGggXYVCnS3e93OFLrb6+7mvwUaaFalQHf7Qd/vfDxfHrMi0ECjKgV6eYTK7jLHXKCBhpUK9LLQu3Pobk4t0ECjagW6e2fwfu8TM4EGWlUs0KcSaKAOgQYIJdAAoQQaIFTxQD/f9b1JODnigg8O4CQCDRCq6UAfEmigjuKBHkqggToEGiCUQAOEEmiAUPUCPd3skHH7+Re/J9BAHcUCPXu309zQRgs0UEepQHdnF31n0E52Ag1UUinQ3VUId4v88rD4+OefIXch0EAdlQI9P8jx8sKxQ+5CoIE6KgV6erigsZhED1qGFmigjkKBPriaSmc2bI1DoIE6CgV6MVs+XM6YOxcH0CqBBghVKNCWOIDrUijQ3iQErkulQB/fze5wVt1DoIE6KgX66IEqww4lFGigjkqBXhV5383ToHsQaKCOUoHePZWdkyUBrSsW6FenGwWuRr1An0SggToEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUPUCPZ28uR3+zQIN1FEs0LPJvqGNFmigjlKBfr6bvPfj96B7EGigjkqB/vtrv8gvD4uPf/4ZchcCDdRRKdDzgxx3yX4cchcCDdRRKdDTwwWNxSR60DK0QAN1FAr0Yrp8f/DJ2bA1DoEG6igU6MVs+XA5Yz7sbUKBBuoQaIBQhQJtiQO4LoUC7U1C4LpUCvTx3ewOZ9U9BBqoo1Kgjx6oMuxQQoEG6qgU6FWR9908DboHgQbqKBXo3VPZffPJkt7+gqEPEOBsigX69UKnG93+CBj+dwCcR71An+SLw92EWaGB8Qj00a+abP/4fQ8GoJdAf/JVCg2MRaA/+SqBBsZSPNDPd307Qh/slPfFJWWBBhII9NHvO/5ngEtqOtCHBBqoo3ighxJooA6BPvpVdrMDxifQx7/MgSrA6AT6g69zqDcwtnqBvsi5OJwsCRhfsUDPLnU2O4DRlQr0893Bbs3Dztcv0EAhlQJ99Ioqg64ZK9BAIZUCffyahI9D7kKggToqBdpVvYGrUijQi+ny4RW8Z8PWOAQaqKNQoBez5cPljPl3nIsDIIFAA4QqFGhLHMB1KRRobxIC16VSoI/vZnc4q+4h0EAdlQJ99ECVYYcSHrvGCkCqc2f0G+eoyyLvu3kadA8j/PsC/LNzV/RbFxGm7x78P5zQ7ssaXw4xvMLaHl3jwxt5dNGnGx2i7a3E8Cpre3SND6/xQF9M21uJ4VXW9ugaH55An0fbW4nhVdb26BofnkCfR9tbieFV1vboGh+eQJ9H21uJ4VXW9ugaH55An0fbW4nhVdb26BofnkCfR9tbieFV1vboGh+eQJ9H21uJ4VXW9ugaH55An0fbW4nhVdb26BofnkCfR9tbieFV1vboGh+eQJ9H21uJ4VXW9ugaH55An0fbW4nhVdb26BofnkCfR9tbieFV1vboGh+eQJ9H21uJ4VXW9ugaH55An0fbW4nhVdb26BofnkCfR9tbieFV1vboGh+eQJ9H21uJ4VXW9ugaH55An0fbW4nhVdb26BofnkADcIxAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQVQP98jBZuB94Uxk9Y3i+6266ebr0Qzqnz56ixRgfL/hwzqxvdPPupsqD+8K2eXvpR3RuLw8/fh/99AhhKRro6WTlSKd6birj4zGsNpLO0W2ohs+eom6QdRvWM7pVwFp98v7+ets26z55ncU4jj0/44SlZqBnb1vC4b9kz01lfDyGbZ8Lj+/Tp2ha+TXeM7pNnyeTn39GeXCn6xnedHNT3WevMz26YY4UlpKB7jb0bgufH/4+1XNTGT1j6LaS5e9Y07rj+/Qpmld+ifeMrvvpugzz5lmsp2d4b5/qhll28rD+PeDw8Y8VlpKBnr79Gy3+1d79wtFzUxkfj2Hnd/9Z2VfBZ0/R6reEqoHuGd1sM3Gel51C97/0Vj91Sq9QrX7LOXxpjRWWioFebABv/4Czd1ORnpvK6BnDfPvTu/tBX/JV8NlT1K0A/r+iY+sd3WJgb6/snT/W0vfkTTdjKvvSW00O/uPIGvRoYakY6MXPsNvtH/emIj03ldEzht1tY1o0Yp89RYsxPs6Kju2r22ZZfU/eXqCLPn3d4tPjsTcJRwtLxUDvZOr9v2XPTWV8cQzTopOwT4a32Pzva7/CPxrdvOy8cqvvydvcVvb3g24Mt8c3y9HCUjTQby/f99tCz01lfG0Mi9+5av6C0D+8xacWwyod6N5tc7UrWtHB9T953fLA7c7/y/og0OOEpWKgd3+5fzeP7LmpjK+Noew6X//wVp+pG+jebfPmaTbGnlpn1PvkbfcBLd3no4EeLSw1A739BzryIvjgpjK+NIayK+z9w1svA1QOdN+2+V/Vd2L/ZNucNrAX9EeBHiks9QO9tzn03FTGV8aw6HPRl3jv8N7WbVoJ9O4oVosby+HV3Um/d9vcHqhSc2b05vNAX3DrrB/oa5xBz8tOwfqHN10Pq5VA745uGej1qlTZnfT7n7zV+LqB1hzdmhn0ia4+0JX73De8TZdbDHQXsM2qVBu/3e0Nb+eHzqzscThLAn2ia9+LY1p6+/94eNt9TesGuufJm+68rVt1l7v+l979BzcVYy+OE82/tK9p2f2gPxlD9xtkzQXMlY+Htz0dzUrFhPU8ebMGAt0zvN15Zd0fsJ1jr7rRwlIx0Nd7JOHqUzVf228+Hl4Lge558naO0y8b6J7htR1oRxIOcL3n4ij89tLGx8NrIdA9T97unjdV16B7hre/xFFzeCvHAu1cHENc7dnsuu2k6qg2vvAUFZ6BfWXbLLyX5MfDm0923yQsOrylo2sYzmY3wNWeD7r41GTlC09R4UB/Ydtc3lbx14PXz7bNzW52VYe3dDTQzgc9xMHVDbYzyyavqPI2vPn+GkDRiPU8e9uvKDq2L26bRd8eee0b3s71YuoOr7Mb6NHDUjPQB9cH23mJt3hNwvXwthd9Kx3ovmdvpXKg+0a3+QFbOGAfD297Lo7Cw3v9KNCuSTjIuyvs7r7EG7yq93p4u1ckrBzovmdvqXSge0c3vfgU7Ox6hvfR5Uhq+SDQruoNwA6BBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACTTNmk8mP39sP55PJ/frT96/vP7345DsHn/z558KPH94TaJrR9fV2++Gpgd67MxiDQNOMZV8fNx+eHui974PLE2iasezrdpGjN9BrLw+7qyJ7Xzmf7K+YwOUJNM2Y7a9LnBjo7jZTaMYl0DRj0df/vNsucpwa6O5Dq9CMSqBpRtfXnT05Tg70XKAZmUDTjK6vf39tqnpyoKcCzcgEmmYs+/q8WeQ4NdDdPVmDZlQCTTNmb/vKrZp7YqBn9uJgdAJNM1Z97RY5lpn9p0Dve3yFMQk0zViX+PlucvP0eo5A6zMjE2iaMdsWuTuPxqmBlmdGJ9A0463E60WOE9agZ/pMBIGmGZu+rhY55u/Wot9/VeejNwm7PTjsYsfoBJpmbPu6XOT4INDT3cnxh3txzJ0qiQACTTO2fV0ucryFeTEb3jm18+Km5VuIKx/vZmeVgwACTTN2+totcvz/9YeLCO8keXHLTpI/DnTXeLtBMzKBphnvJ8BvH053ro6ycyh4p+dAFcvQjE+gacZuX7tzhe68Z/j2x25peWc63Xuot0UORifQNOPgfPs77xl+cJmUvkBb5GB0Ak0z9vs6nezvk3H0+JPes9lZ5GBsAk0z+i6Islzm2F/eWH/Rx4G2yMHYBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBoglEADhBJogFACDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEEqgAUIJNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QCiBBggl0AChBBog1P8BF/Sf6+sh3OEAAAAASUVORK5CYII=" width="720" /></p>
 
 </article></slide><slide class=''><hgroup><h2>Results</h2></hgroup><article  id="results">
 

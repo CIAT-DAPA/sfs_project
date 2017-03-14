@@ -34,6 +34,11 @@ suppressMessages(if(!require(Hmisc)){install.packages('Hmisc'); library(Hmisc)} 
 suppressMessages(if(!require(mi)){install.packages('mi'); library(mi)} else {library(mi)})
 suppressMessages(if(!require(simputation)){install.packages('simputation', dependencies = T); library(simputation)} else {library(simputation)})
 suppressMessages(if(!require(highcharter)){install.packages('highcharter', dependencies = T); library(highcharter)} else {library(highcharter)})
+suppressMessages(if(!require(igraph)){install.packages('igraph', dependencies = T); library(igraph)} else {library(igraph)})
+suppressMessages(if(!require(networkD3)){install.packages('networkD3', dependencies = T); library(networkD3)} else {library(networkD3)})
+suppressMessages(if(!require(cluster)){install.packages('cluster', dependencies = T); library(cluster)} else {library(cluster)})
+suppressMessages(if(!require(factoextra)){install.packages('factoextra', dependencies = T); library(factoextra)} else {library(factoextra)})
+suppressMessages(if(!require(FactoMineR)){install.packages('FactoMineR', dependencies = T); library(FactoMineR)} else {library(FactoMineR)})
 suppressMessages(library(compiler))
 
 # Load joined data
@@ -62,24 +67,19 @@ complete_data4 <- mi::mi(complete_data, seed = 335) # Does not work. Check!!!
 
 # Method 7: simputation package
 
-### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-### PLS-PM: Using repeated indicators                                                                         ###
-### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 
-# Define path model matrix
-# path matrix (inner model realtionships) Here should be the dimensions of our model
+# PLS-PM: Using repeated indicators
+# Define path model matrix (inner model)
 NUTR <- c(0, 0, 0, 0)
 HINT <- c(0, 0, 0, 0)
 FSCY <- c(0, 0, 0, 0)
 SUFS <- c(1, 1, 1, 0)
 sfs_path <- rbind(NUTR, HINT, FSCY, SUFS); rm(NUTR, HINT, FSCY, SUFS)
-# add optional column names
 colnames(sfs_path) <- rownames(sfs_path)
 innerplot(sfs_path)
 
 # List of blocks for outer model
 sfs_blocks <- list(2:3, 4:5, 6:9, 2:9)
-# sfs_blocks <- list(c("varnames1"), c("varnames2"), c("varnames3"))
 
 # List of modes
 sfs_modes <- rep("A", 4)
@@ -88,12 +88,17 @@ sfs_modes <- rep("A", 4)
 # sfs_pls <- plspm(complete_data[complete.cases(complete_data),], sfs_path, sfs_blocks, modes = sfs_modes)
 sfs_pls <- plspm(complete_data1, sfs_path, sfs_blocks, modes = sfs_modes)
 plot(sfs_pls)
-pairs(sfs_pls$scores)
+pairs(sfs_pls$scores, pch = 20, cex = 2)
 
 indices <- as.data.frame(sfs_pls$scores)
 indices$iso3 <- as.character(complete_data1$ISO3)
 
-saveRDS(object = indices, file = "../Results/sfs_index_knn_imputed.RDS")
+if(!file.exists("../Results/sfs_index_knn_imputed.RDS")){
+  saveRDS(object = indices, file = "../Results/sfs_index_knn_imputed.RDS")
+} else {
+  indices <- readRDS(file = "../Results/sfs_index_knn_imputed.RDS")
+}
+
 indices[,1:(ncol(indices)-1)] <- round(indices[,1:(ncol(indices)-1)], 2)
 
 xloads = melt(sfs_pls$crossloadings, id.vars = c("name", "block"))
@@ -117,10 +122,93 @@ highchart(type = "map") %>%
 ### Clustering methodologies                                                                                  ###
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 
-data_test <- complete_data[complete.cases(complete_data),]; rownames(data_test) <- data_test$ISO3
+rownames(complete_data1) <- complete_data1$ISO3
 
-library(cluster)
-library(factoextra)
+# Calculate similarity measure
+sfs_dis <- cluster::daisy(x = complete_data1[,-1], metric = c("gower"), stand = FALSE)
+sfs_dis <- 1 - as.matrix(sfs_dis)
+
+# Do cluster analysis
+sfs_pca <- FactoMineR::PCA(X = complete_data1[,-1], scale.unit = T, graph = F)
+sfs_hpc <- FactoMineR::HCPC(res = sfs_pca, nb.clust = -1, graph = F)
+complete_data1$cluster <- sfs_hpc$data.clust$clust
+
+# Visualize using networkD3
+sfs_dis[lower.tri(sfs_dis, diag = TRUE)] <- NA
+sfs_dis <- na.omit(data.frame(as.table(sfs_dis))); names(sfs_dis) <- c("from", "to", "similarity")
+sfs_dis <- sfs_dis[sfs_dis$similarity >= .98,] # Filter by more than 98 degree of similarity
+
+gD <- igraph::simplify(igraph::graph.data.frame(sfs_dis, directed = FALSE))
+nodeList <- data.frame(id = c(0:(igraph::vcount(gD) - 1)), name = igraph::V(gD)$name) # because networkD3 library requires IDs to start at 0
+getNodeID <- function(x){ which(x == igraph::V(gD)$name) - 1 } # to ensure that IDs start at 0
+edgeList <- plyr::ddply(sfs_dis, .variables = c("from", "to", "similarity"), 
+                        function (x) data.frame(fromID = getNodeID(x$from), 
+                                                toID = getNodeID(x$to)))
+nodeList <- cbind(nodeList, nodeDegree = igraph::degree(gD, v = igraph::V(gD), mode = "all")); rm(gD, getNodeID)
+nodeList$cluster <- as.numeric(as.character(complete_data1$cluster))[match(nodeList$name, complete_data1$ISO3)]
+
+networkD3::forceNetwork(Links = edgeList,
+                        Nodes = nodeList,
+                        Source = "fromID",
+                        Target = "toID",
+                        Value = "similarity",
+                        NodeID = "name",
+                        Group = "cluster",
+                        opacity = 1,
+                        fontSize = 15)
+
+# Dynamic time wrapping
+sfs_dtw <- TSclust::diss(as.matrix(complete_data1[,-1]), METHOD = "DTWARP", normalize = TRUE)
+sfs_dtw_matrix <- as.matrix(sfs_dtw)
+sfs_dtw_matrix[lower.tri(sfs_dtw_matrix, diag = TRUE)] <- NA
+sfs_dtw_matrix <- na.omit(data.frame(as.table(sfs_dtw_matrix))); names(sfs_dtw_matrix) <- c("Origin", "Recipient", "Similarity")
+
+sfs_dtw_matrix2 <- sfs_dtw_matrix
+
+sfs_dtw_matrix2 <- sfs_dtw_matrix2[sfs_dtw_matrix2$Similarity <= 2000,]
+
+###
+gD <- igraph::simplify(igraph::graph.data.frame(sfs_dtw_matrix2, directed=FALSE))
+nodeList <- data.frame(ID = c(0:(igraph::vcount(gD) - 1)), # because networkD3 library requires IDs to start at 0
+                       nName = igraph::V(gD)$name)
+# Map node names from the edge list to node IDs
+getNodeID <- function(x){
+  which(x == igraph::V(gD)$name) - 1 # to ensure that IDs start at 0
+}
+# And add them to the edge list 
+edgeList <- plyr::ddply(sfs_dtw_matrix2, .variables = c("Origin", "Recipient", "Similarity"), 
+                        function (x) data.frame(SourceID = getNodeID(x$Origin), 
+                                                TargetID = getNodeID(x$Recipient)))
+
+nodeList <- cbind(nodeList, nodeDegree=igraph::degree(gD, v = igraph::V(gD), mode = "all"))
+
+networkD3::forceNetwork(Links = edgeList, Nodes = nodeList, Source = "SourceID",
+             Target = "TargetID", Value = "Similarity", NodeID = "nName",
+             Group = "nodeDegree", opacity = 0.4)
+
+library(visNetwork)
+visNetwork(nodeList, edgeList) %>%
+  visOptions(highlightNearest = TRUE, 
+             selectedBy = "type.label")
+
+
+edges <- edgeList[,4:5]; names(edges) <- c("from", "to")
+nodes <- data.frame(id = nodeList[,1])
+
+library(visNetwork)
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+
+###
+
+library("corrplot")
+corrplot(as.matrix(sfs_dtw), is.corr = FALSE, method = "color", type = "upper")
+
+plot(hclust(sfs_dtw, method = "ward.D2"))
+
+library(igraph)
+
+head(get.data.frame(as.matrix(sfs_dtw)))
 
 res_dist <- get_dist(data_test[,-1], stand = TRUE, method = "pearson")
 fviz_dist(dist.obj = res_dist, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))

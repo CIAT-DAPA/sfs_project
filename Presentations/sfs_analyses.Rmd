@@ -1,7 +1,7 @@
 ---
-title: "Sustainable food systems\nPreliminary analysis"
-author: "Harold Achicanoy, Patricia Alvarez and Lea Lamotte"
-date: "3/10/2017"
+title: "Sustainable food systems\nAnalysis"
+author: "Harold Achicanoy & Patricia Alvarez"
+date: "3/15/2017"
 output: ioslides_presentation
 ---
 
@@ -11,21 +11,51 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## Data we use
 
-This is an R Markdown presentation. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+For test purposes we define some theoretical dimensions could influence Sustainable Food Systems. These dimensions were:
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+- **Nutritional aspects (NUTR)**
+- **Human interventions (HINT)**
+- **Food security (FSCY)**
 
-## Missing values and what we did with them ...
+On the other hand, **Sustainable Food Systems (SUFS)** is defined as the objective dimension.
 
-This is an R Markdown presentation. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+## Nutritional aspects (NUTR)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+Uses indicators of:
+
+- Prevalence of Child Malnutrition (1990 - 2002)
+- Global hunger index (2016)
+
+## Human interventions (HINT)
+
+Uses indicators of:
+
+- Accessibility travel time to major cities
+- Human Influence Index (HII) normalized by biome and realm
+
+## Food security (FSCY)
+
+Uses indicators of:
+
+- Access to improved sanitation facilities (%)
+- Access to improved water sources (%)
+- Gross domestic product per capita, PPP (constant 2011 international $)
+- Political stability and absence of violence/terrorism (index)
 
 ## PLS-PM in action
 
-- Bullet 1
-- Bullet 2
-- Bullet 3
+Here it's very important to have or develop a theoretical model that link dimensions and take under consideration the relations between them.
+
+```{r, include = TRUE}
+suppressMessages(library(plspm))
+NUTR <- c(0, 0, 0, 0)
+HINT <- c(0, 0, 0, 0)
+FSCY <- c(0, 0, 0, 0)
+SUFS <- c(1, 1, 1, 0)
+sfs_path <- rbind(NUTR, HINT, FSCY, SUFS); rm(NUTR, HINT, FSCY, SUFS)
+colnames(sfs_path) <- rownames(sfs_path)
+plot(sfs_path)
+```
 
 ## Results
 
