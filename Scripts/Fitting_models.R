@@ -72,7 +72,7 @@ complete_data4 <- mi::mi(complete_data, seed = 335) # Does not work. Check!!!
 # Define path model matrix (inner model)
 NUTR <- c(0, 0, 0, 0)
 HINT <- c(0, 0, 0, 0)
-FSCY <- c(0, 0, 0, 0)
+FSCY <- c(0, 0, 0, 0) # FSCY <- c(1, 1, 0, 0)
 SUFS <- c(1, 1, 1, 0)
 sfs_path <- rbind(NUTR, HINT, FSCY, SUFS); rm(NUTR, HINT, FSCY, SUFS)
 colnames(sfs_path) <- rownames(sfs_path)
@@ -84,9 +84,13 @@ sfs_blocks <- list(2:3, 4:5, 6:9, 2:9)
 # List of modes
 sfs_modes <- rep("A", 4)
 
+complete_data1$Access_median <- (-complete_data1$Access_median)
+
 # Running the model
 # sfs_pls <- plspm(complete_data[complete.cases(complete_data),], sfs_path, sfs_blocks, modes = sfs_modes)
 sfs_pls <- plspm(complete_data1, sfs_path, sfs_blocks, modes = sfs_modes)
+outerplot(sfs_pls)
+
 plot(sfs_pls)
 pairs(sfs_pls$scores, pch = 20, cex = 2)
 
@@ -94,7 +98,7 @@ indices <- as.data.frame(sfs_pls$scores)
 indices$iso3 <- as.character(complete_data1$ISO3)
 
 if(!file.exists("../Results/sfs_index_knn_imputed.RDS")){
-  saveRDS(object = indices, file = "../Results/sfs_index_knn_imputed.RDS")
+  saveRDS(object = indices, file = "../Results/sfs_index_knn_imputed.RDS") # saveRDS(object = indices, file = "../Results/sfs_index_knn_imputed_model2.RDS")
 } else {
   indices <- readRDS(file = "../Results/sfs_index_knn_imputed.RDS")
 }
