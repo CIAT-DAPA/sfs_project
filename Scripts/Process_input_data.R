@@ -4,14 +4,10 @@
 
 # R options
 g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
-OSys <- Sys.info(); OSys <- OSys[names(OSys)=="sysname"]
-if(OSys == "Linux"){
-  wk_dir <- "/mnt/workspace_cluster_9/Sustainable_Food_System/Input_data/"; setwd(wk_dir); rm(wk_dir)
-} else {
-  if(OSys == "Windows"){
-    wk_dir <- "//dapadfs/workspace_cluster_9/Sustainable_Food_System/Input_data"; setwd(wk_dir); rm(wk_dir)
-  }
-}; rm(OSys)
+OSys <- Sys.info()[1]
+OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
+wk_dir <- paste0(OSysPath, "/workspace_cluster_9/Sustainable_Food_System/Input_data/"); setwd(wk_dir)
+rm(wk_dir, OSysPath, OSys)
 
 # Load packages
 suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
@@ -32,6 +28,27 @@ suppressMessages(library(compiler))
 # Worldwide shapefile
 countries <- rgdal::readOGR(dsn = "./world_shape", "all_countries")
 countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
+
+# Country codes FAO
+if(!file.exists('./world_foodSecurity/FAO_ISO3_codes.RDS')){
+  iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
+  iso3FAO <- iso3FAO$`NULL`
+  saveRDS(object = iso3FAO, file = './world_foodSecurity/FAO_ISO3_codes.RDS')
+} else {
+  iso3FAO <- readRDS(file = './world_foodSecurity/FAO_ISO3_codes.RDS')
+  iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
+}
+
+# Country codes World Bank
+iso3WBK <- readHTMLTable('http://wits.worldbank.org/wits/wits/witshelp/content/codes/country_codes.htm')
+iso3WBK <- iso3WBK$`NULL`
+iso3WBK$V3 <- NULL
+colnames(iso3WBK) <- c("Country", "ISO3")
+iso3WBK <- iso3WBK[-1,]; rownames(iso3WBK) <- 1:nrow(iso3WBK)
+
+dim(inner_join(x = iso3FAO, y = iso3WBK, by = "ISO3"))[1]
+
+iso3FAO[which(is.na(match(iso3FAO$ISO3, iso3WBK$ISO3))),] %>% View
 
 # ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 # ### DIMENSION: HUMAN INTERVENTIONS                                                                            ###
