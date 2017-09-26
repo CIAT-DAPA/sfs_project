@@ -1,54 +1,185 @@
-# Processing data sources for sustainable food systems project
-# Implemented by: H. Achicanoy, P. Alvarez & L. Lamotte
+# Processing and integrating data: SFS project
+# Implemented by: H. Achicanoy & P. Alvarez
 # CIAT, 2017
 
 # R options
 g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 OSys <- Sys.info()[1]
 OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
-wk_dir <- paste0(OSysPath, "/workspace_cluster_9/Sustainable_Food_System/Input_data/"); setwd(wk_dir)
+wk_dir <- paste0(OSysPath, "/workspace_cluster_9/Sustainable_Food_System/"); setwd(wk_dir)
 rm(wk_dir, OSysPath, OSys)
 
 # Load packages
 suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
 suppressMessages(if(!require(rgdal)){install.packages('rgdal'); library(rgdal)} else {library(rgdal)})
 suppressMessages(if(!require(maptools)){install.packages('maptools'); library(maptools)} else {library(maptools)})
-suppressMessages(if(!require(dplyr)){install.packages('dplyr'); library(dplyr)} else {library(dplyr)})
-suppressMessages(if(!require(tidyr)){install.packages('tidyr'); library(tidyr)} else {library(tidyr)})
-suppressMessages(if(!require(ggplot2)){install.packages('ggplot2'); library(ggplot2)} else {library(ggplot2)})
 suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
 suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
 suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} else {library(doMC)})
 suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
 suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
 suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
-suppressMessages(if(!require(reshape)){install.packages('tidyverse'); library(tidyverse)} else {library(tidyverse)})
+suppressMessages(if(!require(tidyverse)){install.packages('tidyverse'); library(tidyverse)} else {library(tidyverse)})
+suppressMessages(if(!require(countrycode)){install.packages('countrycode'); library(countrycode)} else {library(countrycode)})
 suppressMessages(library(compiler))
 
+## ========================================================================== ##
+## Define countries to work with
+## ========================================================================== ##
+
 # Worldwide shapefile
-countries <- rgdal::readOGR(dsn = "./world_shape", "all_countries")
+countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
 countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
-# Country codes FAO
-if(!file.exists('./world_foodSecurity/FAO_ISO3_codes.RDS')){
-  iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
-  iso3FAO <- iso3FAO$`NULL`
-  saveRDS(object = iso3FAO, file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-} else {
-  iso3FAO <- readRDS(file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-  iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
-}
+# Country code translation
+country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
+country_codes$country.name.en <- country_codes$country.name.en %>% as.character
+country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
+country_codes$fao[which(country_codes == "Reunion")] <- 182
 
-# Country codes World Bank
-iso3WBK <- readHTMLTable('http://wits.worldbank.org/wits/wits/witshelp/content/codes/country_codes.htm')
-iso3WBK <- iso3WBK$`NULL`
-iso3WBK$V3 <- NULL
-colnames(iso3WBK) <- c("Country", "ISO3")
-iso3WBK <- iso3WBK[-1,]; rownames(iso3WBK) <- 1:nrow(iso3WBK)
+# # Country codes FAO
+# if(!file.exists('./Results/_fixed_data/FAO_ISO3_codes.RDS')){
+#   iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
+#   iso3FAO <- iso3FAO$`NULL`
+#   saveRDS(object = iso3FAO, file = './Results/_fixed_data/FAO_ISO3_codes.RDS')
+# } else {
+#   iso3FAO <- readRDS(file = './Results/_fixed_data/FAO_ISO3_codes.RDS')
+#   iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
+# }
 
-dim(inner_join(x = iso3FAO, y = iso3WBK, by = "ISO3"))[1]
+# # Country codes World Bank
+# if(!file.exists('./Results/_fixed_data/WBK_ISO3_codes.RDS')){
+#   iso3WBK <- readHTMLTable(getURL('https://wits.worldbank.org/wits/wits/witshelp/content/codes/country_codes.htm', .opts = list(ssl.verifypeer = FALSE)))
+#   iso3WBK <- iso3WBK$`NULL`
+#   iso3WBK$V3 <- NULL
+#   colnames(iso3WBK) <- c("Country", "ISO3")
+#   iso3WBK <- iso3WBK[-1,]; rownames(iso3WBK) <- 1:nrow(iso3WBK)
+#   saveRDS(object = iso3WBK, file = './Results/_fixed_data/WBK_ISO3_codes.RDS')
+# } else {
+#   iso3WBK <- readRDS(file = './Results/_fixed_data/WBK_ISO3_codes.RDS')
+#   iso3WBK$Country <- as.character(iso3WBK$Country); iso3WBK$Country[which(iso3WBK$Country == "Côte d'Ivoire")] <- "Ivory Coast"; iso3WBK$Country <- as.factor(iso3WBK$Country)
+# }
 
-iso3FAO[which(is.na(match(iso3FAO$ISO3, iso3WBK$ISO3))),] %>% View
+## ========================================================================== ##
+## ENVIRONMENT
+## ========================================================================== ##
+
+## 1. Soil carbon content
+## Original name: Average carbon content in the topsoil as a % in weight
+## Units: (%)
+## Years: 2008
+## Countries with data: 202
+
+carbon_soil <- read.csv("./Input_data_final/Environment/soil_carbon.csv")
+carbon_soil <- carbon_soil %>% dplyr::select(Country.Code, Country, Value)
+colnames(carbon_soil)[3] <- "Soil.carbon.content"
+carbon_soil$Country <- as.character(carbon_soil$Country)
+carbon_soil$Country[which(carbon_soil$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+carbon_soil$Country[which(carbon_soil$Country == "RÃ©union")] <- "Reunion"
+carbon_soil$Country[which(carbon_soil$Country == "Sudan (former)")] <- "Sudan"
+carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
+
+carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
+  geom_bar(stat = "identity") +
+  xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
+  coord_flip() + theme_bw()
+
+# Please doing merge
+
+## 2. Emissions (CO2eq)
+## Original name: Emissions by sector
+## Sectors: agriculture, energy, forest, industrial processes, land use, other sources, residential, transport, waste
+## Units: gigagrams
+## Years: 1990:2010
+## Countries with data: 231
+
+emission <- read.csv("./Input_data_final/Environment/emission.csv")
+# yearsList <- unique(as.character(emission$Year))
+emission <- emission %>% dplyr::select(Country, Item, Year, Value)
+emission <- emission %>% spread(Item, Value)
+colnames(emission)[3:ncol(emission)] <- c("Emissions.agriculture.total",
+                                          "Emissions.energy",
+                                          "Emissions.forest",
+                                          "Emissions.industrial",
+                                          "Emissions.land.use",
+                                          "Emissions.other",
+                                          "Emissions.residential",
+                                          "Emissions.transport",
+                                          "Emissions.waste")
+# emission %>% filter(Country == "Colombia") %>% ggparcoord(data = ., columns = 3:ncol(.), groupColumn = 2, order = "anyClass")
+emission <- emission %>% gather(Source, Emission, Emissions.agriculture.total:Emissions.waste)
+emission %>% ggplot(aes(x = Year, y = Emission, group = Country)) + geom_line(alpha = .2) +
+  facet_wrap(~Source, scales = "free") + theme_bw()
+emission <- emission %>% spread(Source, Emission)
+emission$Country <- emission$Country %>% as.character
+emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
+emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
+
+# Please doing merge
+
+## 3. Arable land
+## Original name: Arable land
+## Units: (%)
+## Years: 1961:2014
+## Countries with data: 227
+
+arable_land <- read.csv("./Input_data_final/Environment/arable_land.csv")
+arable_land <- arable_land %>% dplyr::select(Country, Year, Value)
+arable_land$Country <- as.character(arable_land$Country)
+arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
+colnames(arable_land)[3] <- "Arable.land"
+
+arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
+  geom_line(alpha = .2) + 
+  theme_bw()
+
+# Please doing merge
+
+## 4. Energy used in agriculture and forestry
+## Original name: Agriculture and forestry energy use as a % of total Energy use
+## Units: (%)
+## Years: 1971:2009
+## Countries with data: 122
+
+energy <- read.csv("./Input_data_final/Environment/energy.csv")
+energy <- energy %>% dplyr::select(Country, Year, Value)
+energy$Country <- as.character(energy$Country)
+energy$Country[which(energy$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+energy$Country[which(energy$Country == "Sudan (former)")] <- "Sudan"
+colnames(energy)[3] <- "Energy.agriculture"
+
+energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
+  geom_line(alpha = .2) + 
+  theme_bw()
+
+# Please doing merge
+
+## 5. Water withdrawal
+## Original name: Agricultural water withdrawal as % of total water withdrawal (%)
+## Units: (%)
+## Years: 1988:2016 (not all years have data)
+## Countries with data: 178 (not all countries have data)
+
+water <- readxl::read_excel(path = "./Input_data_final/Environment/water.xlsx", sheet = 1, col_names = T)
+water <- water[1:200,]
+names(water)[1] <- "Country"
+water$X__3 <- NULL
+
+water_aux <- lapply(1:nrow(water), function(i){
+  df <- data.frame(Country = water$Country[i],
+                   Year = c(water$year[i], water$year__1[i], water$year__2[i], water$year__3[i], water$year__4[i], water$year__5[i]),
+                   Water.withdrawal = c(water$`1988-1992`[i], water$`1993-1997`[i], water$`1998-2002`[i], water$`2003-2007`[i], water$`2008-2012`[i], water$`2013-2017`[i]))
+  return(df)
+})
+water <- do.call(rbind, water_aux); rm(water_aux)
+water <- water[which(apply(X = water, MARGIN = 1, FUN = function(x){sum(is.na(x))}) != 2),]
+rownames(water) <- 1:nrow(water)
+
+water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
+  geom_line(alpha = .2) + 
+  theme_bw()
 
 # ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 # ### DIMENSION: HUMAN INTERVENTIONS                                                                            ###
