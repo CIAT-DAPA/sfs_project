@@ -35,6 +35,12 @@ countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
 country_codes$country.name.en <- country_codes$country.name.en %>% as.character
 country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
+country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
+country_codes$country.name.en[which(country_codes$country.name.en == "Gambia (Islamic Republic of the)")] <- "Gambia"
+country_codes$country.name.en[which(country_codes$country.name.en == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, U.S.")] <- "United States Virgin Islands"
+country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela, Bolivarian Republic of")] <- "Venezuela"
+country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
 country_codes$fao[which(country_codes == "Reunion")] <- 182
 
 # # Country codes FAO
@@ -77,6 +83,10 @@ carbon_soil$Country <- as.character(carbon_soil$Country)
 carbon_soil$Country[which(carbon_soil$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
 carbon_soil$Country[which(carbon_soil$Country == "RÃ©union")] <- "Reunion"
 carbon_soil$Country[which(carbon_soil$Country == "Sudan (former)")] <- "Sudan"
+carbon_soil$Country[which(carbon_soil$Country == "Czechia")] <- "Czech Republic"
+carbon_soil$Country[which(carbon_soil$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+carbon_soil$Country[which(carbon_soil$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+carbon_soil$Country[which(carbon_soil$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
 carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
 
 carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
@@ -84,7 +94,8 @@ carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.c
   xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
   coord_flip() + theme_bw()
 
-# Please doing merge
+carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("country.name.en" = "Country"))
+
 
 ## 2. Emissions (CO2eq)
 ## Original name: Emissions by sector
@@ -116,7 +127,18 @@ emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
 emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
 emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
 
-# Please doing merge
+yearsList <- emission$Year %>% unique %>% sort
+emissionList <- lapply(1:length(yearsList), function(i){
+  df <- emission %>% filter(Year == yearsList[i])
+  return(df)
+})
+lapply(emissionList, dim)
+
+
+emission2 <- emission %>% select(Country) %>% unique
+dplyr::inner_join(x = country_codes, y = emission %>% select(Country) %>% unique, by = c("country.name.en" = "Country")) %>% dim
+emission2$Country[which(is.na(match(emission2$Country, country_codes$country.name.en)))]
+
 
 ## 3. Arable land
 ## Original name: Arable land
@@ -129,13 +151,35 @@ arable_land <- arable_land %>% dplyr::select(Country, Year, Value)
 arable_land$Country <- as.character(arable_land$Country)
 arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
 arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
+arable_land$Country[which(arable_land$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
+arable_land$Country[which(arable_land$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+arable_land$Country[which(arable_land$Country == "Czechia")] <- "Czech Republic"
+arable_land$Country[which(arable_land$Country == "Ethiopia PDR")] <- "Ethiopia"
+arable_land$Country[which(arable_land$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+arable_land$Country[which(arable_land$Country == "Occupied Palestinian Territory")] <- "Palestine"
+arable_land$Country[which(arable_land$Country == "Sudan (former)")] <- "Sudan"
+
 colnames(arable_land)[3] <- "Arable.land"
 
 arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
   geom_line(alpha = .2) + 
   theme_bw()
 
-# Please doing merge
+yearsList <- arable_land$Year %>% unique %>% sort
+arable_landList <- lapply(1:length(yearsList), function(i){
+  df <- arable_land %>% filter(Year == yearsList[i])
+  return(df)
+})
+lapply(arable_landList, dim)
+
+arable_land2 <- arable_land %>% select(Country) %>% unique
+dplyr::inner_join(x = country_codes, y = arable_land %>% select(Country) %>% unique, by = c("country.name.en" = "Country")) %>% dim
+arable_land2$Country[which(is.na(match(arable_land2$Country, country_codes$country.name.en)))]
+
+arable_land[which(arable_land$Country == "Belgium" | arable_land$Country == "Luxembourg" | arable_land$Country == "Belgium-Luxembourg"),]
+arable_land[which(arable_land$Country == "Serbia" | arable_land$Country == "Montenegro" | arable_land$Country == "Serbia and Montenegro"),]
+arable_land[which(arable_land$Country == "Sudan" | arable_land$Country == "Sudan (former)"),]
+arable_land[which(arable_land$Country == "USSR"),]
 
 ## 4. Energy used in agriculture and forestry
 ## Original name: Agriculture and forestry energy use as a % of total Energy use
@@ -181,198 +225,34 @@ water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
   geom_line(alpha = .2) + 
   theme_bw()
 
-# ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-# ### DIMENSION: HUMAN INTERVENTIONS                                                                            ###
-# ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-# 
-# # 1. Accessibility per country
-# if(!file.exists('./world_cityAccess/countries_access.txt')){
-#   
-#   # Accessibility to cities
-#   tmpRaster <- paste(getwd(), "/tmpRaster", sep = "")
-#   if(!dir.exists(tmpRaster)){dir.create(tmpRaster)}
-#   rasterOptions(tmpdir = tmpRaster)
-#   access <- raster('./world_cityAccess/acc_50k')
-#   
-#   # List of countries (excluding Antarctica)
-#   countryList <- countries@data$COUNTRY
-#   countryList <- countryList[which(countryList!="Antarctica")]
-#   
-#   # Function to calculate median per country
-#   calc_median <- function(rObject, i){
-#     
-#     country <- countries[countries@data$COUNTRY==countryList[i],]
-#     country_data <- raster::crop(rObject, extent(country))
-#     country_data <- raster::mask(x = country_data, mask = country)
-#     values <- country_data[!is.na(country_data[])]
-#     country_data <- data.frame(ISO3 = countries@data$ISO3[which(countries@data$COUNTRY == countryList[i])], Country = countryList[i], Median = median(values, na.rm = T)); rm(values, country)
-#     cat(paste("Country: ", countryList[i], " done\n", sep = ""))
-#     return(country_data)
-#     
-#   }; calc_median <- cmpfun(calc_median)
-#   
-#   # Parellize the process using 8 cores
-#   registerDoMC(8)
-#   countries_access <- foreach(i = 1:length(countryList)) %dopar% {
-#     tryCatch(expr={
-#       calc_median(rObject = access, i = i)
-#     },
-#     error=function(e){
-#       cat("Cutting process failed:", countryList[i], "\n")
-#       return("Done\n")
-#     })
-#   }; removeTmpFiles(h = 0)
-#   
-#   countries_access <- do.call(rbind, countries_access)
-#   saveRDS(object = countries_access, file = './world_cityAccess/countries_access.RDS')
-#   removeTmpFiles(h = 0)
-# } else {
-#   countries_access <- read.table(file = './world_cityAccess/countries_access.txt', sep = ",", header = T)
-#   names(countries_access)[ncol(countries_access)] <- "Access_median"
-# }
-# 
-# # 2. Global Human Footprint (1995-2004) per country
-# # From: http://sedac.ciesin.columbia.edu/data/set/wildareas-v2-human-footprint-geographic/data-download
-# if(!file.exists('./world_humanFootprint/countries_foodprint.txt')){
-#   
-#   # Human footprint raster
-#   tmpRaster <- paste(getwd(), "/tmpRaster", sep = "")
-#   if(!dir.exists(tmpRaster)){dir.create(tmpRaster)}
-#   rasterOptions(tmpdir = tmpRaster)
-#   hfootprint <- raster('./world_humanFootprint/hf_v2geo')
-#   
-#   # List of countries (excluding Antarctica)
-#   countryList <- countries@data$COUNTRY
-#   countryList <- countryList[which(countryList!="Antarctica")]
-#   
-#   # Function to calculate median per country
-#   calc_median <- function(rObject, i){
-#     
-#     country <- countries[countries@data$COUNTRY==countryList[i],]
-#     country_data <- raster::crop(rObject, extent(country))
-#     country_data <- raster::mask(x = country_data, mask = country)
-#     values <- country_data[!is.na(country_data[])]
-#     data.frame(ISO3 = countries@data$ISO3[which(countries@data$COUNTRY == countryList[i])], Country = countryList[i], Median = median(values, na.rm = T)); rm(values, country)
-#     cat(paste("Country: ", countryList[i], " done\n", sep = ""))
-#     return(country_data)
-#     
-#   }; calc_median <- cmpfun(calc_median)
-#   
-#   # Parellize the process using 8 cores
-#   registerDoMC(8)
-#   countries_footprint <- foreach(i = 1:length(countryList)) %dopar% {
-#     tryCatch(expr={
-#       calc_median(rObject = hfootprint, i = i)
-#     },
-#     error=function(e){
-#       cat("Cutting process failed:", countryList[i], "\n")
-#       return("Done\n")
-#     })
-#   }; removeTmpFiles(h = 0)
-#   countries_footprint <- do.call(rbind, countries_footprint)
-#   saveRDS(object = countries_footprint, file = './world_humanFootprint/countries_foodprint.RDS')
-#   removeTmpFiles(h = 0)
-# } else {
-#   countries_footprint <- read.table(file = './world_humanFootprint/countries_foodprint.txt', sep = ",", header = T)
-#   names(countries_footprint)[ncol(countries_footprint)] <- "Footprint_median"
-# }
-# 
-# h_interventions <- dplyr::inner_join(x = countries_access, y = countries_footprint, by = "ISO3")
-# h_interventions <- h_interventions %>% dplyr::select(ISO3, Access_median, Footprint_median); rm(countries_access, countries_footprint)
-# 
-# ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-# ### DIMENSION: FOOD SECURITY                                                                                  ###
-# ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
-# 
-# # 1. Global Hunger Index Data 2016
-# # From: https://github.com/IFPRI/Global-Hunger-Index/tree/master/data
-# ghi <- jsonlite::fromJSON("./world_globalHungerIndex2016/country-details.json"); rows <- ghi$data$name_de; ISO3 <- ghi$data$id
-# ghi <- ghi$data$score; ghi$ISO3 <- ISO3; rownames(ghi) <- rows; rm(rows, ISO3)
-# for(i in 1:(ncol(ghi)-1)){
-#   ghi[,i] <- gsub(pattern = "-", replacement = NA, x = ghi[,i]) # Omit empty data
-#   ghi[,i] <- gsub(pattern = "<5", replacement = NA, x = ghi[,i]) # Omit values under detection limit
-#   ghi[,i] <- as.numeric(ghi[,i])
-# }; rm(i)
-# ghi <- ghi[which(!is.na(ghi$ISO3)),]
-# ghi <- ghi[,c("ISO3", "year2000")]; names(ghi)[2] <- "GHI_2000"
-# 
-# # 2. Global Subnational Prevalence of Child Malnutrition (1990 - 2002)
-# # From: http://sedac.ciesin.columbia.edu/data/set/povmap-global-subnational-prevalence-child-malnutrition/data-download
-# 
-# chmalnutrition <- read.csv("./world_childMalnutrition/hunger_data.csv") # These data come from cities calculations
-# 
-# # Obtain countries according to ISO3 codes
-# aux <- countries@data %>% dplyr::select(ISO3, COUNTRY)
-# chmalnutrition <- chmalnutrition %>% dplyr::left_join(x = chmalnutrition, y = aux, by = c("ISO3V10" = "ISO3")); rm(aux)
-# 
-# # Define properly NAs
-# chmalnutrition$UW[which(chmalnutrition$UW == -999)] <- NA
-# chmalnutrition$PCTU5[which(chmalnutrition$PCTU5 == -999)] <- NA
-# 
-# # Calculate mean data per country
-# chmalnutrition <- chmalnutrition %>% dplyr::select(ISO3V10, COUNTRY, UW, PCTU5) %>% dplyr::group_by(ISO3V10, COUNTRY) %>% dplyr::summarise_all(mean, na.rm = T)
-# names(chmalnutrition)[which(names(chmalnutrition) == "ISO3V10")] <- "ISO3"
-# chmalnutrition <- chmalnutrition[which(!is.na(chmalnutrition$ISO3)),]; rownames(chmalnutrition) <- 1:nrow(chmalnutrition)
-# plot(chmalnutrition$PCTU5, chmalnutrition$UW, xlab = "% of population under age 5", ylab = "Percentage of children underweight", pch = 20)
-# chmalnutrition <- chmalnutrition[,c("ISO3", "UW")]; names(chmalnutrition)[2] <- "ChldMalnutrition"
-# chmalnutrition <- as.data.frame(chmalnutrition)
-# 
-# # 3. FAO's suite of Food Security Indicators
-# fsecurity <- read.csv("./world_foodSecurity/FAOSTAT_data_2-20-2017.csv")
-# timeList <- unique(as.character(fsecurity$Year)); fsecurity$Country <- as.character(fsecurity$Country)
-# fsecurity$Country[which(fsecurity$Country == "Côte d'Ivoire")] <- "Ivory Coast"; fsecurity$Country <- factor(fsecurity$Country)
-# 
-# # Loading ISO3 codes for FAO information
-# # From: http://www.fao.org/countryprofiles/iso3list/en/
-# if(!file.exists('./world_foodSecurity/FAO_ISO3_codes.RDS')){
-#   iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
-#   iso3FAO <- iso3FAO$`NULL`
-#   saveRDS(object = iso3FAO, file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-# } else {
-#   iso3FAO <- readRDS(file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-#   iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "C�te d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
-# }
-# 
-# fsecurity <- dplyr::left_join(x = fsecurity, y = iso3FAO, by = c("Country" = "Short name")); rm(iso3FAO)
-# 
-# fsecurityList <- lapply(1:length(timeList), function(i){
-#   df <- fsecurity %>% dplyr::select(ISO3, Country, Item, Year, Value) %>% dplyr::filter(Year == timeList[i]) %>% tidyr::spread(key = Item, value = Value)
-#   df <- df[which(!is.na(df$ISO3)),]; rownames(df) <- 1:nrow(df)
-#   return(df)
-# }); names(fsecurityList) <- timeList; rm(fsecurity, timeList)
-# 
-# # Year or periods to exclude
-# ypList <- unlist(lapply(1:length(fsecurityList), function(i){
-#   
-#   x <- fsecurityList[[i]]
-#   dim.mat <- nrow(x[,4:ncol(x)]) * ncol(x[,4:ncol(x)])
-#   if(sum(is.na(x[,4:ncol(x)])) == dim.mat){
-#     return(names(fsecurityList)[i])
-#   } else {
-#       return(cat(""))
-#   }
-#   
-# }))
-# fsecurityList <- fsecurityList[setdiff(x = names(fsecurityList), y = ypList)]; rm(ypList)
-# 
-# # for(i in 1:length(fsecurityList)){
-# #   
-# #   Sys.sleep(1)
-# #   pairs(fsecurityList[[i]][,4:ncol(fsecurityList[[i]])])
-# #   
-# # }
-# 
-# fsec <- fsecurityList[[50]]; fsec <- fsec[,c(1, 4, 5, 8, 16)]
-# names(fsec)[2:ncol(fsec)] <- c("sanitation", "water_sources", "GDP", "political_stability")
-# 
-# complete_data <- dplyr::full_join(x = ghi, y = chmalnutrition, by = c("ISO3" = "ISO3")); rm(ghi, chmalnutrition)
-# complete_data <- dplyr::full_join(x = complete_data, y = h_interventions, by = c("ISO3" = "ISO3")); rm(h_interventions)
-# complete_data <- dplyr::full_join(x = complete_data, y = fsec, by = c("ISO3" = "ISO3")); rm(fsec)
-# 
-# complete_data <- complete_data[-which(apply(X = complete_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}) >= 7),]
-# rownames(complete_data) <- 1:nrow(complete_data)
-# 
-# saveRDS(object = complete_data, file = "data_joined.RDS")
+## 6. Total population with access to safe drinking-water
+## Original name: Total population with access to safe drinking-water (JMP)
+## Units: (%)
+## Years: 1992:2015 (not all years have data)
+## Countries with data: 195 (not all countries have data)
+
+safe_water <- read.csv("./Input_data_final/Environment/aquastat_access_safe_water.csv")
+safe_water <- safe_water %>% dplyr::select(Area, Year, Value)
+colnames(safe_water)[c(1, 3)] <- c("Country", "Access.safe.water")
+
+safe_water %>% ggplot(aes(x = Year, y = Access.safe.water, group = Country)) +
+  geom_line(alpha = .2) + 
+  theme_bw()
+
+# 7. GEF biodiversity index
+## Original name: Total population with access to safe drinking-water (JMP)
+## Units: (%)
+## Years: 2008
+## Countries with data: 195 (not all countries have data)
+
+GBI <- read.csv("./Input_data_final/Environment/GEF_Biodiversity.csv")
+GBI$Country <- as.character(GBI$Country)
+GBI$Country[which(GBI$Country == "Côte d'ivoire")] <- "Ivory Coast"
+
+GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
+  geom_bar(stat = "identity") +
+  xlab("Country") + ylab("GBI biodiversity index") +
+  coord_flip() + theme_bw()
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### DIMENSION: ECONOMICS
