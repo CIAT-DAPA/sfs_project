@@ -92,7 +92,8 @@ carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
 carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
   geom_bar(stat = "identity") +
   xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
-  coord_flip() + theme_bw()
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90))
 
 carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("country.name.en" = "Country"))
 
@@ -101,12 +102,13 @@ carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("cou
 ## Original name: Emissions by sector
 ## Sectors: agriculture, energy, forest, industrial processes, land use, other sources, residential, transport, waste
 ## Units: gigagrams
-## Years: 1990:2010
+## Years: 1990:2010 (Selected period: 2000:2010)
 ## Countries with data: 231
 
 emission <- read.csv("./Input_data_final/Environment/emission.csv")
 # yearsList <- unique(as.character(emission$Year))
 emission <- emission %>% dplyr::select(Country, Item, Year, Value)
+emission <- emission %>% filter(Year >= 2000)
 emission <- emission %>% spread(Item, Value)
 colnames(emission)[3:ncol(emission)] <- c("Emissions.agriculture.total",
                                           "Emissions.energy",
@@ -126,18 +128,25 @@ emission$Country <- emission$Country %>% as.character
 emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
 emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
 emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
+emission$Country[which(emission$Country == "Czechia")] <- "Czech Republic"
+emission$Country[which(emission$Country == "French Southern and Antarctic Territories")] <- "French Southern Territories"
+emission$Country[which(emission$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+emission$Country[which(emission$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+emission$Country[which(emission$Country == "Pitcairn Islands")] <- "Pitcairn"
+emission$Country[which(emission$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+emission$Country[which(emission$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
 
 yearsList <- emission$Year %>% unique %>% sort
 emissionList <- lapply(1:length(yearsList), function(i){
   df <- emission %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
   return(df)
 })
 lapply(emissionList, dim)
 
-
-emission2 <- emission %>% select(Country) %>% unique
-dplyr::inner_join(x = country_codes, y = emission %>% select(Country) %>% unique, by = c("country.name.en" = "Country")) %>% dim
-emission2$Country[which(is.na(match(emission2$Country, country_codes$country.name.en)))]
+# emission2 <- emission %>% select(Country) %>% unique
+# dplyr::inner_join(x = country_codes, y = emission %>% select(Country) %>% unique, by = c("country.name.en" = "Country")) %>% dim
+# emission2$Country[which(is.na(match(emission2$Country, country_codes$country.name.en)))]
 
 
 ## 3. Arable land
@@ -148,6 +157,7 @@ emission2$Country[which(is.na(match(emission2$Country, country_codes$country.nam
 
 arable_land <- read.csv("./Input_data_final/Environment/arable_land.csv")
 arable_land <- arable_land %>% dplyr::select(Country, Year, Value)
+arable_land <- arable_land %>% filter(Year >= 2000)
 arable_land$Country <- as.character(arable_land$Country)
 arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
 arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
@@ -158,6 +168,7 @@ arable_land$Country[which(arable_land$Country == "Ethiopia PDR")] <- "Ethiopia"
 arable_land$Country[which(arable_land$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
 arable_land$Country[which(arable_land$Country == "Occupied Palestinian Territory")] <- "Palestine"
 arable_land$Country[which(arable_land$Country == "Sudan (former)")] <- "Sudan"
+arable_land$Country[which(arable_land$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
 
 colnames(arable_land)[3] <- "Arable.land"
 
@@ -252,7 +263,8 @@ GBI$Country[which(GBI$Country == "Côte d'ivoire")] <- "Ivory Coast"
 GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
   geom_bar(stat = "identity") +
   xlab("Country") + ylab("GBI biodiversity index") +
-  coord_flip() + theme_bw()
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90))
 
 ### =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ###
 ### DIMENSION: ECONOMICS
