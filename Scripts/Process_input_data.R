@@ -113,7 +113,7 @@ emission$Country[which(emission$Country == "Wallis and Futuna Islands")] <- "Wal
 
 yearsList <- emission$Year %>% unique %>% sort
 emissionList <- lapply(1:length(yearsList), function(i){
-  df <- emission %>% filter(Year == yearsList[i])
+  df <- emission %>% select(Country, Year, Emissions.agriculture.total) %>% filter(Year == yearsList[i])
   df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
   return(df)
 })
