@@ -4,10 +4,11 @@
 
 # R options
 g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
+
 OSys <- Sys.info()[1]
 OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
-wk_dir <- paste0(OSysPath, "/workspace_cluster_9/Sustainable_Food_System/"); setwd(wk_dir)
-rm(wk_dir, OSysPath, OSys)
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System")
+setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
 suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
@@ -15,7 +16,7 @@ suppressMessages(if(!require(rgdal)){install.packages('rgdal'); library(rgdal)} 
 suppressMessages(if(!require(maptools)){install.packages('maptools'); library(maptools)} else {library(maptools)})
 suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
 suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
-suppressMessages(if(!require(doMC)){install.packages('doMC'); library(doMC)} else {library(doMC)})
+suppressMessages(if(!require(doParallel)){install.packages('doParallel'); library(doParallel)} else {library(doParallel)})
 suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
 suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
 suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
@@ -43,29 +44,6 @@ country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela,
 country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
 country_codes$country.name.en[which(country_codes$country.name.en == "Bolivia (Plurinational State of)")] <- "Bolivia"
 country_codes$fao[which(country_codes == "Reunion")] <- 182
-
-# # Country codes FAO
-# if(!file.exists('./Results/_fixed_data/FAO_ISO3_codes.RDS')){
-#   iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
-#   iso3FAO <- iso3FAO$`NULL`
-#   saveRDS(object = iso3FAO, file = './Results/_fixed_data/FAO_ISO3_codes.RDS')
-# } else {
-#   iso3FAO <- readRDS(file = './Results/_fixed_data/FAO_ISO3_codes.RDS')
-#   iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
-# }
-
-# # Country codes World Bank
-# if(!file.exists('./Results/_fixed_data/WBK_ISO3_codes.RDS')){
-#   iso3WBK <- readHTMLTable(getURL('https://wits.worldbank.org/wits/wits/witshelp/content/codes/country_codes.htm', .opts = list(ssl.verifypeer = FALSE)))
-#   iso3WBK <- iso3WBK$`NULL`
-#   iso3WBK$V3 <- NULL
-#   colnames(iso3WBK) <- c("Country", "ISO3")
-#   iso3WBK <- iso3WBK[-1,]; rownames(iso3WBK) <- 1:nrow(iso3WBK)
-#   saveRDS(object = iso3WBK, file = './Results/_fixed_data/WBK_ISO3_codes.RDS')
-# } else {
-#   iso3WBK <- readRDS(file = './Results/_fixed_data/WBK_ISO3_codes.RDS')
-#   iso3WBK$Country <- as.character(iso3WBK$Country); iso3WBK$Country[which(iso3WBK$Country == "Côte d'Ivoire")] <- "Ivory Coast"; iso3WBK$Country <- as.factor(iso3WBK$Country)
-# }
 
 ## ========================================================================== ##
 ## ENVIRONMENT
@@ -119,10 +97,7 @@ emissionList <- lapply(1:length(yearsList), function(i){
 })
 lapply(emissionList, dim)
 
-# emission2 <- emission %>% select(Country) %>% unique
-# dplyr::inner_join(x = country_codes, y = emission %>% select(Country) %>% unique, by = c("country.name.en" = "Country")) %>% dim
-# emission2$Country[which(is.na(match(emission2$Country, country_codes$country.name.en)))]
-
+recentEmission <- emissionList[[length(emissionList)]]
 
 ## 2. Total population with access to safe drinking-water
 ## Measure: Water quality
@@ -154,9 +129,6 @@ safe_waterList <- lapply(1:length(yearsList), function(i){
 })
 lapply(safe_waterList, dim)
 
-# safe_water2 <- safe_water %>% select(Country) %>% unique
-# safe_water2$Country[which(is.na(match(safe_water2$Country, country_codes$country.name.en)))]
-
 
 ## 3. Water withdrawal
 ## Measure: Water use
@@ -186,13 +158,19 @@ water$Country[which(water$Country == "Czechia")] <- "Czech Republic"
 water$Country[which(water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
 water$Country[which(water$Country == "Occupied Palestinian Territory")] <- "Palestine"
 water$Country[which(water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+water$Country[which(water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
 
 water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
   geom_line(alpha = .2) + 
   theme_bw()
 
-# water2 <- water %>% select(Country) %>% unique
-# water2$Country[which(is.na(match(water2$Country, country_codes$country.name.en)))]
+yearsList <- water$Year %>% unique %>% sort
+waterList <- lapply(1:length(yearsList), function(i){
+  df <- water %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(waterList, dim)
 
 
 ## 4. Soil carbon content
@@ -261,9 +239,6 @@ arable_landList <- lapply(1:length(yearsList), function(i){
 })
 lapply(arable_landList, dim)
 
-# arable_land2 <- arable_land %>% select(Country) %>% unique
-# arable_land2$Country[which(is.na(match(arable_land2$Country, country_codes$country.name.en)))]
-
 
 ## 6. GEF biodiversity index
 ## Measure: Biodiversity wildlife (plants, animals)
@@ -275,6 +250,25 @@ lapply(arable_landList, dim)
 GBI <- read.csv("./Input_data_final/Environment/GEF_Biodiversity.csv")
 GBI$Country <- as.character(GBI$Country)
 GBI$Country[which(GBI$Country == "Côte d'ivoire")] <- "Ivory Coast"
+GBI$Country[which(GBI$Country == "Cape Verde")] <- "Cabo Verde"
+GBI$Country[which(GBI$Country == "Congo DR")] <- "Democratic Republic of the Congo"
+GBI$Country[which(GBI$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+GBI$Country[which(GBI$Country == "Iran")] <- "Iran (Islamic Republic of)"
+GBI$Country[which(GBI$Country == "Korea DPR")] <- "Democratic People's Republic of Korea"
+GBI$Country[which(GBI$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+GBI$Country[which(GBI$Country == "Laos")] <- "Lao People's Democratic Republic"
+GBI$Country[which(GBI$Country == "Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+GBI$Country[which(GBI$Country == "Micronesia")] <- "Micronesia (Federated States of)"
+GBI$Country[which(GBI$Country == "Moldova")] <- "Republic of Moldova"
+GBI$Country[which(GBI$Country == "Russia")] <- "Russian Federation"
+GBI$Country[which(GBI$Country == "Slovak Republic")] <- "Slovakia"
+GBI$Country[which(GBI$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+GBI$Country[which(GBI$Country == "St. Lucia")] <- "Saint Lucia"
+GBI$Country[which(GBI$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+GBI$Country[which(GBI$Country == "Syria")] <- "Syrian Arab Republic"
+GBI$Country[which(GBI$Country == "Tanzania")] <- "United Republic of Tanzania"
+GBI$Country[which(GBI$Country == "Timor Leste")] <- "Timor-Leste"
+GBI$Country[which(GBI$Country == "Vietnam")] <- "Viet Nam"
 
 GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
   geom_bar(stat = "identity") +
@@ -282,13 +276,12 @@ GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90))
 
-GBI2 <- GBI %>% select(Country) %>% unique
-GBI2$Country[which(is.na(match(GBI2$Country, country_codes$country.name.en)))]
+GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
 
 
 ## 7. Energy used in agriculture and forestry
 ## Measure: energy use
-## Original name: Agriculture and forestry energy use as a % of total Energy use
+## Original name: Agriculture and forestry energy use as a % of total energy use
 ## Units: (%)
 ## Years: 1971:2009
 ## Countries with data: 122
@@ -298,11 +291,22 @@ energy <- energy %>% dplyr::select(Country, Year, Value)
 energy$Country <- as.character(energy$Country)
 energy$Country[which(energy$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
 energy$Country[which(energy$Country == "Sudan (former)")] <- "Sudan"
+energy$Country[which(energy$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+energy$Country[which(energy$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+energy$Country[which(energy$Country == "Czechia")] <- "Czech Republic"
 colnames(energy)[3] <- "Energy.agriculture"
 
 energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
   geom_line(alpha = .2) + 
   theme_bw()
+
+yearsList <- energy$Year %>% unique %>% sort
+energyList <- lapply(1:length(yearsList), function(i){
+  df <- energy %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(energyList, dim)
 
 
 ## ========================================================================== ##
