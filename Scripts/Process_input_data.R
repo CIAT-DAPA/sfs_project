@@ -98,6 +98,8 @@ emissionList <- lapply(1:length(yearsList), function(i){
 lapply(emissionList, dim)
 
 recentEmission <- emissionList[[length(emissionList)]]
+recentEmission <- recentEmission %>% dplyr::select(country.name.en, iso3c, Emissions.agriculture.total)
+
 
 ## 2. Total population with access to safe drinking-water
 ## Measure: Water quality
@@ -128,6 +130,9 @@ safe_waterList <- lapply(1:length(yearsList), function(i){
   return(df)
 })
 lapply(safe_waterList, dim)
+
+recentSafe_water <- safe_waterList[[length(safe_waterList)]]
+recentSafe_water <- recentSafe_water %>% dplyr::select(country.name.en, iso3c, Access.safe.water)
 
 
 ## 3. Water withdrawal
@@ -172,6 +177,13 @@ waterList <- lapply(1:length(yearsList), function(i){
 })
 lapply(waterList, dim)
 
+water <- water %>% tidyr::spread(key = Year, value = Water.withdrawal)
+water$Water.withdrawal <- rowMeans(water[,2:ncol(water)], na.rm = T)
+water <- water %>% dplyr::select(Country, Water.withdrawal)
+
+water <- dplyr::inner_join(x = country_codes, y = water, by = c("country.name.en" = "Country"))
+water <- water %>% dplyr::select(country.name.en, iso3c, Water.withdrawal)
+
 
 ## 4. Soil carbon content
 ## Measure: Soil and land quality
@@ -200,6 +212,7 @@ carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.c
   theme(axis.text.x = element_text(angle = 90))
 
 carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("country.name.en" = "Country"))
+carbon_soil <- carbon_soil %>% dplyr::select(country.name.en, iso3c, Soil.carbon.content)
 
 
 ## 5. Arable land
@@ -239,6 +252,9 @@ arable_landList <- lapply(1:length(yearsList), function(i){
 })
 lapply(arable_landList, dim)
 
+recentArable_land <- arable_landList[[length(arable_landList)]]
+recentArable_land <- recentArable_land %>% dplyr::select(country.name.en, iso3c, Arable.land)
+
 
 ## 6. GEF biodiversity index
 ## Measure: Biodiversity wildlife (plants, animals)
@@ -277,6 +293,7 @@ GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
   theme(axis.text.x = element_text(angle = 90))
 
 GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
+GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GBI)
 
 
 ## 7. Energy used in agriculture and forestry
@@ -308,6 +325,39 @@ energyList <- lapply(1:length(yearsList), function(i){
 })
 lapply(energyList, dim)
 
+recentEnergy <- energyList[[length(energyList)]]
+recentEnergy <- recentEnergy %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
+
+environmentDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentEmission, by = c("country.name.en", "iso3c"))
+environmentDim <- dplyr::left_join(x = environmentDim, y = recentSafe_water, by = c("country.name.en", "iso3c"))
+environmentDim <- dplyr::left_join(x = environmentDim, y = water, by = c("country.name.en", "iso3c"))
+environmentDim <- dplyr::left_join(x = environmentDim, y = carbon_soil, by = c("country.name.en", "iso3c"))
+environmentDim <- dplyr::left_join(x = environmentDim, y = recentArable_land, by = c("country.name.en", "iso3c"))
+environmentDim <- dplyr::left_join(x = environmentDim, y = GBI, by = c("country.name.en", "iso3c"))
+environmentDim <- dplyr::left_join(x = environmentDim, y = recentEnergy, by = c("country.name.en", "iso3c"))
+
+environmentDim <- environmentDim[-which(apply(X = environmentDim[,3:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 7),]
+rownames(environmentDim) <- environmentDim$country.name.en
+environmentDim$country.name.en <- NULL
+
+rm(recentEmission, recentSafe_water, water, carbon_soil, recentArable_land, GBI, recentEnergy)
+rm(emission, safe_water, arable_land, energy)
+rm(arable_landList, emissionList, energyList, safe_waterList, waterList, yearsList)
+
+suppressMessages(library(tabplot))
+suppressMessages(library(GGally))
+suppressMessages(library(corrplot))
+
+tableplot(environmentDim[,-1], nBins = nrow(environmentDim)) # Distributions and missing values representation
+
+# Correlation
+ggpairs(environmentDim[,-1])
+M <- cor(environmentDim[,-1], use = "complete.obs")
+corrplot(M, method = "square")
+plot(environmentDim$Emissions.agriculture.total, environmentDim$GBI, pch = 20)
+
+# PCA
+FactoMineR::PCA(X = environmentDim[complete.cases(environmentDim),-1])
 
 ## ========================================================================== ##
 ## ECONOMICS
@@ -341,6 +391,16 @@ employment <- employment %>% spread(Indicator, Value)
 names(employment)[3:5] <- c("Ag_value_added", "Time_underemployment", "Wage_employment")
 
 cor(employment[,3:5], method = "spearman", use = "complete.obs")
+
+yearsList <- employment$Year %>% unique %>% sort
+employmentList <- lapply(1:length(yearsList), function(i){
+  df <- employment %>% filter(Year == yearsList[i])
+  #df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(employmentList, dim)
+
+View(employmentList[[63]])
 
 ## ========================================================================== ##
 ## SOCIAL
