@@ -426,23 +426,148 @@ lf_female %>% filter(Year > 1989) %>% ggplot(aes(x = Year, y = Labor_force_femal
   geom_point() + theme(legend.position = 'none')
 
 ## ========================================================================== ##
-## Food and Nutrition
+## FOOD AND NUTRITION
 ## ========================================================================== ##
 
-# Loading ISO3 codes for FAO information
-# From: http://www.fao.org/countryprofiles/iso3list/en/
-if(!file.exists('./world_foodSecurity/FAO_ISO3_codes.RDS')){
-  iso3FAO <- readHTMLTable('http://www.fao.org/countryprofiles/iso3list/en/')
-  iso3FAO <- iso3FAO$`NULL`
-  saveRDS(object = iso3FAO, file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-} else {
-  iso3FAO <- readRDS(file = './world_foodSecurity/FAO_ISO3_codes.RDS')
-  iso3FAO$`Short name` <- as.character(iso3FAO$`Short name`); iso3FAO$`Short name`[which(iso3FAO$`Short name` == "Côte d'Ivoire")] <- "Ivory Coast"; iso3FAO$`Short name` <- as.factor(iso3FAO$`Short name`)
-}
+## 1. GHG Emissions (CO2eq)
+## Measure: Air quality
+## Original name: GHG emissions by sector
+## Sectors: agriculture, energy, forest, industrial processes, land use, other sources, residential, transport, waste
+## Units: gigagrams
+## Years: 1990:2010 (Selected period: 2000:2010)
+## Countries with data: 231
 
-# Food security access:
-# Estimated travel time to the nearest city
+## 1. Food available for human consumption
+## Measure: Food security availability
+## Original name: Per capita food available for human consumption
+## Units: ???
+## Years: 1990:2010 (Selected period: 2000:2010)
+## Countries with data: 231
+
+## 2. Food consumption
+## Measure: Food security access
+## Original name: Food consumption as share of total income
+## Units: ???
+## Years: 1990:2010 (Selected period: 2000:2010)
+## Countries with data: 231
+
+## 3. City access
+## Measure: Food security access
+## Original name: Estimated travel time to the nearest city of 50,000 or more people in year 2000
+## Units: minutes of travel time
+## Years: 2000
+## Countries with data: 247
+
 city_access <- read.table("./Input_data_final/Food_Nutrition/countries_access.txt", header = T, sep = ",")
+names(city_access)[ncol(city_access)] <- "City.access"
+
+city_access <- dplyr::inner_join(x = country_codes, y = city_access, by = c("iso3c" = "ISO3"))
+city_access <- city_access %>% dplyr::select(country.name.en, iso3c, City.access)
+
+## 4. Access to improved water resource
+## Measure: Food security utilization
+## Original name: Access to improved water resource
+## Units: (%)
+## Years: 1995:2015 (Selected period: 2000:2015)
+## Countries with data: 226
+
+improved_water <- read_csv(file = "./Input_data_final/Food_Nutrition/Access_improved_water.csv", col_names = T)
+improved_water <- improved_water %>% select(Country, Year, Value)
+names(improved_water)[3] <- "Access.improved.water"
+improved_water$Country <- as.character(improved_water$Country)
+improved_water$Country[which(improved_water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+improved_water$Country[which(improved_water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+improved_water$Country[which(improved_water$Country == "Czechia")] <- "Czech Republic"
+improved_water$Country[which(improved_water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+improved_water$Country[which(improved_water$Country == "Holy See")] <- "Holy See (Vatican City State)"
+improved_water$Country[which(improved_water$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+improved_water$Country[which(improved_water$Country == "Réunion")] <- "Reunion"
+improved_water$Country[which(improved_water$Country == "Sudan (former)")] <- "Sudan"
+improved_water$Country[which(improved_water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+improved_water$Country[which(improved_water$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
+improved_water$Country[which(improved_water$Country == "West Bank and Gaza Strip")] <- "Palestine"
+improved_water <- improved_water %>% filter(Country != "Serbia and Montenegro" & Year >= 2000)
+
+improved_water %>% ggplot(aes(x = Year, y = Access.improved.water, group = Country)) +
+  geom_line(alpha = .2) + 
+  theme_bw()
+
+yearsList <- improved_water$Year %>% unique %>% sort
+improved_waterList <- lapply(1:length(yearsList), function(i){
+  df <- improved_water %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(improved_waterList, dim)
+
+recentImprovedWater <- improved_waterList[[length(improved_waterList)-1]]
+recentImprovedWater <- recentImprovedWater %>% dplyr::select(country.name.en, iso3c, Access.improved.water)
+
+## 5. Access to electricity
+## Measure: Food security utilization
+## Original name: Access to electricity
+## Units: (%)
+## Years: 1995:2015 (Selected period: 2000:2015)
+## Countries with data: 226
+
+access_electricity <- readxl::read_xls(path = "./Input_data_final/Food_Nutrition/Access_to_electricity.xls", sheet = 1, col_names = T, skip = 3)
+names(access_electricity)[1:2] <- c("Country", "ISO3")
+access_electricity <- access_electricity %>% select(Country, ISO3, which(names(access_electricity)=="2000"):ncol(access_electricity))
+access_electricity <- access_electricity %>% gather(Year, Value, -(Country:ISO3))
+access_electricity <- access_electricity %>% select(ISO3, Country, Year, Value)
+names(access_electricity)[4] <- "Access.electricity"
+
+access_electricity$Country <- as.character(access_electricity$Country)
+access_electricity$Country[which(access_electricity$Country == "Bahamas, The")] <- "Bahamas"
+access_electricity$Country[which(access_electricity$Country == "Cote d'Ivoire")] <- "Ivory Coast"
+access_electricity$Country[which(access_electricity$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
+access_electricity$Country[which(access_electricity$Country == "Congo, Rep.")] <- "Congo"
+access_electricity$Country[which(access_electricity$Country == "Egypt, Arab Rep.")] <- "Egypt"
+access_electricity$Country[which(access_electricity$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
+access_electricity$Country[which(access_electricity$Country == "Gambia, The")] <- "Gambia"
+access_electricity$Country[which(access_electricity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+access_electricity$Country[which(access_electricity$Country == "Hong Kong SAR, China")] <- "Hong Kong"
+access_electricity$Country[which(access_electricity$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
+access_electricity$Country[which(access_electricity$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+access_electricity$Country[which(access_electricity$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+access_electricity$Country[which(access_electricity$Country == "Korea, Rep.")] <- "Republic of Korea"
+access_electricity$Country[which(access_electricity$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
+access_electricity$Country[which(access_electricity$Country == "St. Lucia")] <- "Saint Lucia"
+access_electricity$Country[which(access_electricity$Country == "Macao SAR, China")] <- "Macao"
+access_electricity$Country[which(access_electricity$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
+access_electricity$Country[which(access_electricity$Country == "Moldova")] <- "Republic of Moldova"
+access_electricity$Country[which(access_electricity$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
+access_electricity$Country[grep(pattern = "Korea, Dem. People", x = access_electricity$Country)] <- "Democratic People's Republic of Korea"
+access_electricity$Country[which(access_electricity$Country == "West Bank and Gaza")] <- "Palestine"
+access_electricity$Country[which(access_electricity$Country == "Slovak Republic")] <- "Slovakia"
+access_electricity$Country[which(access_electricity$Country == "Tanzania")] <- "United Republic of Tanzania"
+access_electricity$Country[which(access_electricity$Country == "United States")] <- "United States of America"
+access_electricity$Country[which(access_electricity$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+access_electricity$Country[which(access_electricity$Country == "Venezuela, RB")] <- "Venezuela"
+access_electricity$Country[which(access_electricity$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
+access_electricity$Country[which(access_electricity$Country == "Vietnam")] <- "Viet Nam"
+access_electricity$Country[which(access_electricity$Country == "Yemen, Rep.")] <- "Yemen"
+
+access_electricity2 <- access_electricity %>% select(Country) %>% unique
+regionsToExclude <- access_electricity2$Country[which(is.na(match(access_electricity2$Country, country_codes$country.name.en)))]
+
+access_electricity <- access_electricity %>% filter(!(Country %in% regionsToExclude)) %>% dim
+
+access_electricity %>% ggplot(aes(x = Year, y = Access.electricity, group = Country)) +
+  geom_line(alpha = .2) + 
+  theme_bw()
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Obesity
 obesity <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Obesity.csv", col_names = T, skip = 2)
@@ -537,26 +662,9 @@ fsvar$Country[which(fsvar$Country == "Faroe Islands")] <- "Faroe Islands (Associ
 fsvar <- dplyr::left_join(x = fsvar, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
 fsvar <- fsvar %>% select(ISO3, Country, Year, Food_supply_variability)
 
-# Access to electricity
-access_electricity <- readxl::read_xls(path = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Access_to_electricity.xls", sheet = 1, col_names = T, skip = 3)
-names(access_electricity)[1:2] <- c("Country", "ISO3")
-access_electricity <- access_electricity %>% select(Country, ISO3, 5:ncol(access_electricity))
-access_electricity <- access_electricity %>% gather(Year, Value, -(Country:ISO3))
-access_electricity <- access_electricity %>% select(ISO3, Country, Year, Value)
-names(access_electricity)[4] <- "Access_electricity"
 
-access_electricity %>% ggplot(aes(x = Year, y = Value)) + geom_point()
 
-# Improved water sources
-improved_water <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Access_improved_water.csv", col_names = T)
-improved_water <- improved_water %>% select(Country, Year, Value)
-names(improved_water)[3] <- "Improved_water"
-improved_water$Country <- as.character(improved_water$Country)
-improved_water$Country[which(improved_water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-improved_water <- dplyr::left_join(x = improved_water, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
-improved_water <- improved_water %>% select(ISO3, Country, Year, Improved_water)
 
-improved_water %>% ggplot(aes(x = Year, y = Improved_water)) + geom_point()
 
 # Vitamin A deficiency
 vitamin_A <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Vitamin_A_deficiency.csv", col_names = T)
