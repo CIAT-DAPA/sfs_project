@@ -732,11 +732,61 @@ recentDietDiv <- recentDietDiv %>% dplyr::select(country.name.en, iso3c, Diet.di
 ## Units: (%)
 ## Years: 2016
 ## Countries with data: 
-### Voy aquí
-crop_diversity <- read_csv(file = "./Input_data_final/Food_Nutrition/Diet_diversification.csv", col_names = T)
+### FALTA HACER ESTA
+
+crop_diversity <- read_csv(file = "./Input_data_final/Food_Nutrition/Diversity_indexes_colin_study.csv", col_names = T)
 diet_div <- diet_div %>% select(Country, Year, Value)
 names(diet_div)[3] <- "Diet.diversification"
 diet_div$Country <- as.character(diet_div$Country)
+
+
+## 11. Stunting
+## Measure: Undernutrition
+## Original name: Children aged <5 years stunted
+## Units: (%)
+## Years: 
+## Countries with data: 
+
+stunting <- read_csv(file = "./Input_data_final/Food_Nutrition/Stunting.csv", col_names = T, skip = 1)
+names(stunting)[4] <- "Stunting"
+stunting <- stunting %>% select(Country, Year, Stunting)
+stunting$Country <- as.character(stunting$Country)
+stunting$Country[which(stunting$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+stunting$Country[which(stunting$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+stunting$Country[which(stunting$Country == "Czechia")] <- "Czech Republic"
+stunting$Country[which(stunting$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+stunting$Country[which(stunting$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+stunting$Country[which(stunting$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+stunting$Country[which(stunting$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+stunting <- stunting %>% filter(Year >= 2000)
+stunting$Year <- as.numeric(as.character(stunting$Year))
+
+# Sacar promedio
+stunting %>% spread(key = Year, value = Stunting) %>% View
+
+yearsList <- stunting$Year %>% unique %>% sort
+diet_divList <- lapply(1:length(yearsList), function(i){
+  df <- diet_div %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(diet_divList, dim)
+
+recentDietDiv <- diet_divList[[length(diet_divList)]]
+recentDietDiv <- recentDietDiv %>% dplyr::select(country.name.en, iso3c, Diet.diversification)
+
+
+
+stunting <- dplyr::left_join(x = stunting, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
+stunting <- stunting %>% select(ISO3, Country, Year, Stunting)
+
+stunting %>%
+  split(.$Year) %>%
+  lapply(., dim)
+
+
+
+
 
 
 # Obesity
@@ -771,20 +821,7 @@ obesity %>%
   split(.$Year) %>%
   lapply(., dim)
 
-# Stunting
-stunting <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Stunting.csv", col_names = T, skip = 1)
-names(stunting)[4] <- "Stunting"
-stunting <- stunting %>% select(Country, Year, Stunting)
-stunting$Country <- as.character(stunting$Country)
-stunting$Country[which(stunting$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-stunting$Country[which(stunting$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
-stunting$Country[which(stunting$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
-stunting <- dplyr::left_join(x = stunting, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
-stunting <- stunting %>% select(ISO3, Country, Year, Stunting)
 
-stunting %>%
-  split(.$Year) %>%
-  lapply(., dim)
 
 # GFSI indices 2016
 gfsi <- readxl::read_excel(path = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/GFSI_2016.xlsx", sheet = 2, skip = 5)
