@@ -370,7 +370,7 @@ FactoMineR::PCA(X = environmentDim[complete.cases(environmentDim),-1])
 ## 3. Wage employment distribution in agriculture
 ## Measure: Economic distribution
 
-employment <- read.csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Economic/Employment_Indicators_E_All_Data.csv")
+employment <- read.csv(file = "./Input_data_final/Economic/Employment_Indicators_E_All_Data.csv")
 employment <- employment %>% filter(Indicator == "Agriculture value added per worker (constant 2005 US$)" |
                                       Indicator == "Wage employment distribution, agriculture" |
                                       Indicator == "Time related underemployment in agriculture")
@@ -383,24 +383,46 @@ employment$Value <- employment$Value %>% as.character %>% as.numeric
 employment <- employment %>% group_by(Country, Indicator, Year) %>% summarise(Value = mean(Value, na.rm = T))
 employment$Year <- gsub(pattern = "Y", replacement = "", x = employment$Year) %>% as.character %>% as.numeric
 
-employment %>% ggplot(aes(x = Year, y = Value, colour = Indicator)) +
-  geom_point() + facet_wrap(~Indicator, scales = "free") + 
+employment %>% ggplot(aes(x = Year, y = Value, colour = Indicator, group = Country)) +
+  geom_line(alpha = .5) + facet_wrap(~Indicator, scales = "free") + 
   theme_bw()
 
 employment <- employment %>% spread(Indicator, Value)
-names(employment)[3:5] <- c("Ag_value_added", "Time_underemployment", "Wage_employment")
+names(employment)[3:5] <- c("AgValue.added", "Time.underemployment", "Wage.employment")
+employment <- employment %>% filter(Year >= 2000 & Country != "Serbia and Montenegro")
+employment$Country <- as.character(employment$Country)
+employment$Country[which(employment$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+employment$Country[which(employment$Country == "China, Macao SAR")] <- "Macao"
+employment$Country[which(employment$Country == "China, mainland")] <- "China"
+employment$Country[which(employment$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+employment$Country[which(employment$Country == "Ethiopia PDR")] <- "Ethiopia"
+employment$Country[which(employment$Country == "Occupied Palestinian Territory")] <- "Palestine"
+employment$Country[which(employment$Country == "Réunion")] <- "Reunion"
+employment$Country[which(employment$Country == "Sudan (former)")] <- "Sudan"
+employment$Country[which(employment$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+employment <- employment[which(employment %>% select(Country, Year) %>% duplicated() == FALSE),]
 
-cor(employment[,3:5], method = "spearman", use = "complete.obs")
+AgValueAdded <- employment %>% select(Country, Year, AgValue.added) %>% spread(., key = Year, value = AgValue.added)
+TimeUnderemployment <- employment %>% select(Country, Year, Time.underemployment) %>% spread(., key = Year, value = Time.underemployment)
+WageEmployment <- employment %>% select(Country, Year, Wage.employment) %>% spread(., key = Year, value = Wage.employment)
+
+AgValueAdded$AgValue.added <- rowMeans(x = AgValueAdded[,2:ncol(AgValueAdded)], na.rm = T)
+sum(!is.na(AgValueAdded$AgValue.added))
+TimeUnderemployment$Time.underemployment <- rowMeans(x = TimeUnderemployment[,2:ncol(TimeUnderemployment)], na.rm = T)
+sum(!is.na(TimeUnderemployment$Time.underemployment))
+WageEmployment$Wage.employment <- rowMeans(x = WageEmployment[,2:ncol(WageEmployment)], na.rm = T)
+sum(!is.na(WageEmployment$Wage.employment))
 
 yearsList <- employment$Year %>% unique %>% sort
 employmentList <- lapply(1:length(yearsList), function(i){
   df <- employment %>% filter(Year == yearsList[i])
-  #df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
   return(df)
 })
 lapply(employmentList, dim)
 
-View(employmentList[[63]])
+recentEmployment <- employmentList[[length(employmentList)]]
+recentEmployment <- recentEmployment %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
 
 ## ========================================================================== ##
 ## SOCIAL
@@ -735,17 +757,17 @@ recentDietDiv <- recentDietDiv %>% dplyr::select(country.name.en, iso3c, Diet.di
 ### FALTA HACER ESTA
 
 crop_diversity <- read_csv(file = "./Input_data_final/Food_Nutrition/Diversity_indexes_colin_study.csv", col_names = T)
-diet_div <- diet_div %>% select(Country, Year, Value)
-names(diet_div)[3] <- "Diet.diversification"
-diet_div$Country <- as.character(diet_div$Country)
+crop_diversity <- crop_diversity %>% select(Country, Year, Value)
+names(crop_diversity)[3] <- "Diet.diversification"
+crop_diversity$Country <- as.character(crop_diversity$Country)
 
 
 ## 11. Stunting
 ## Measure: Undernutrition
 ## Original name: Children aged <5 years stunted
 ## Units: (%)
-## Years: 
-## Countries with data: 
+## Years: 2000-2014 (An average of this period has been calculated in order to have more data)
+## Countries with data: 143
 
 stunting <- read_csv(file = "./Input_data_final/Food_Nutrition/Stunting.csv", col_names = T, skip = 1)
 names(stunting)[4] <- "Stunting"
@@ -761,70 +783,118 @@ stunting$Country[which(stunting$Country == "Venezuela (Bolivarian Republic of)")
 stunting <- stunting %>% filter(Year >= 2000)
 stunting$Year <- as.numeric(as.character(stunting$Year))
 
-# Sacar promedio
-stunting %>% spread(key = Year, value = Stunting) %>% View
+# Calculate average 2000 - 2014
+stunting <- stunting %>% spread(key = Year, value = Stunting)
+stunting$Stunting <- rowMeans(stunting[,2:ncol(stunting)], na.rm = T)
+stunting <- stunting %>% dplyr::select(Country, Stunting)
 
-yearsList <- stunting$Year %>% unique %>% sort
-diet_divList <- lapply(1:length(yearsList), function(i){
-  df <- diet_div %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(diet_divList, dim)
+stunting <- dplyr::inner_join(x = country_codes, y = stunting, by = c("country.name.en" = "Country"))
+stunting <- stunting %>% dplyr::select(country.name.en, iso3c, Stunting)
 
-recentDietDiv <- diet_divList[[length(diet_divList)]]
-recentDietDiv <- recentDietDiv %>% dplyr::select(country.name.en, iso3c, Diet.diversification)
+## 11. Obesity
+## Measure: Overnutrition
+## Original name: Prevalence of Obesity, percentage of the population, over 18 years of age
+## Units: (%)
+## Years: 2000:2014
+## Countries with data: 195
 
-
-
-stunting <- dplyr::left_join(x = stunting, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
-stunting <- stunting %>% select(ISO3, Country, Year, Stunting)
-
-stunting %>%
-  split(.$Year) %>%
-  lapply(., dim)
-
-
-
-
-
-
-# Obesity
-obesity <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Obesity.csv", col_names = T, skip = 2)
+obesity <- read_csv(file = "./Input_data_final/Food_Nutrition/Obesity.csv", col_names = T, skip = 2)
 names(obesity)[1] <- "Country"
 names(obesity)[2:ncol(obesity)] <- gsub(pattern = "_1", replacement = "", x = names(obesity)[2:ncol(obesity)])
 obesity <- obesity[-1,]
 names(obesity)[2:ncol(obesity)] <- paste0(names(obesity)[2:ncol(obesity)], "-", obesity[1,2:ncol(obesity)])
 obesity <- obesity[-1,]
-
 obesity <- obesity %>% gather(year_sex, Value, -Country) %>% separate(year_sex, c("Year", "Sex"))
 obesity$Value <- gsub(pattern = " \\[*.*?\\]", replacement = "", x = obesity$Value) %>% as.character %>% as.numeric
-
 aux <- obesity %>% group_by(Country, Year) %>% summarise(Value = mean(Value, na.rm = T))
 aux$Sex <- "Average"
-
 obesity <- rbind(obesity %>% as.data.frame, aux %>% as.data.frame); rm(aux)
-obesity %>% filter(Sex == "Average") %>% ggplot(aes(x = Year, y = Value)) + geom_point()
 
 obesity <- obesity %>% filter(Sex == "Average")
 obesity$Country <- as.character(obesity$Country)
+obesity$Year <- as.numeric(as.character(obesity$Year))
+obesity$Sex <- NULL
+colnames(obesity)[3] <- "Obesity"
+obesity$Country[which(obesity$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
 obesity$Country[which(obesity$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-obesity <- obesity[setdiff(1:nrow(obesity), grep(pattern = "^Sudan$", x = obesity$Country)),]; rownames(obesity) <- 1:nrow(obesity)
+obesity$Country[which(obesity$Country == "Czechia")] <- "Czech Republic"
+obesity$Country[which(obesity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
 obesity$Country[which(obesity$Country == "Sudan (former)")] <- "Sudan"
 obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
 obesity$Country[which(obesity$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
-obesity <- dplyr::left_join(x = obesity, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
-obesity <- obesity %>% select(ISO3, Country, Year, Value)
-names(obesity)[ncol(obesity)] <- "Obesity"
+obesity$Country[which(obesity$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+obesity <- obesity %>% filter(Year >= 2000)
 
-obesity %>%
-  split(.$Year) %>%
-  lapply(., dim)
+obesity %>% ggplot(aes(x = Year, y = Obesity, group = Country)) + geom_line(alpha = .2) + theme_bw()
+
+yearsList <- obesity$Year %>% unique %>% sort
+obesityList <- lapply(1:length(yearsList), function(i){
+  df <- obesity %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(obesityList, dim)
+
+recentObesity <- obesityList[[length(obesityList)]]
+recentObesity <- recentObesity %>% dplyr::select(country.name.en, iso3c, Obesity)
+
+
+
+foodNutDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = city_access, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = recentImprovedWater, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = recentAccessElectricity, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = recentPriceVolatility, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = recentFoodSupplyVar, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = food_loss, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = recentDietDiv, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = stunting, by = c("country.name.en", "iso3c"))
+foodNutDim <- dplyr::left_join(x = foodNutDim, y = recentObesity, by = c("country.name.en", "iso3c"))
+
+foodNutDim <- foodNutDim[-which(apply(X = foodNutDim[,3:ncol(foodNutDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 9),]
+rownames(foodNutDim) <- foodNutDim$foodNutDim
+foodNutDim$country.name.en <- NULL
+
+rm(city_access, recentImprovedWater, recentAccessElectricity, recentPriceVolatility, recentFoodSupplyVar, food_loss, recentDietDiv, stunting, recentObesity)
+rm(access_electricity, crop_diversity, diet_div, fsvar, improved_water, obesity, price_volatility)
+rm(access_electricityList, diet_divList, fsvarList, improved_waterList, obesityList, price_volatilityList)
+rm(yearsList)
+
+suppressMessages(library(tabplot))
+suppressMessages(library(GGally))
+suppressMessages(library(corrplot))
+
+tableplot(foodNutDim[,-1], nBins = nrow(foodNutDim)) # Distributions and missing values representation
+
+
+
+
+## 12. Nutrient deficiency
+## Measure: Hidden hunger
+## Original name: Nutrient deficiency (Iodine/vitamin A)
+## Units: (%)
+## Years: 2000:2014
+## Countries with data: 195
+
+nutrientDeficiency <- read_csv(file = "./Input_data_final/Food_Nutrition/Vitamin_A_deficiency.csv", col_names = T)
+nutrientDeficiency <- nutrientDeficiency %>% select(Country, Item, Year, Value)
+nutrientDeficiency <- nutrientDeficiency %>% spread(Item, Value)
+names(nutrientDeficiency)[3:4] <- c("Iodine.deficiency", "VitaminA.deficiency")
+nutrientDeficiency$Country <- as.character(nutrientDeficiency$Country)
+nutrientDeficiency <- nutrientDeficiency %>% filter(Year >= 2000)
+
+nutrientDeficiency$Country[which(nutrientDeficiency$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+nutrientDeficiency <- dplyr::left_join(x = vitamin_A, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
+vitamin_A <- vitamin_A %>% select(ISO3, Country, Year, Iodine_deficiency, Vitamin_A_deficiency)
+
+vitamin_A %>% ggplot(aes(x = Year, y = Vitamin_A_deficiency)) + geom_point()
+
+
+
 
 
 
 # GFSI indices 2016
-gfsi <- readxl::read_excel(path = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/GFSI_2016.xlsx", sheet = 2, skip = 5)
+gfsi <- readxl::read_excel(path = "./Input_data_final/Food_Nutrition/GFSI_2016.xlsx", sheet = 2, skip = 5)
 gfsi <- gfsi[,10:ncol(gfsi)]
 gfsi <- gfsi[-c(1:4),]
 gfsi <- gfsi[-c(7:8),]
@@ -858,21 +928,3 @@ gfsi$Country[which(gfsi$Country == "Vietnam")] <- "Viet Nam"
 gfsi <- dplyr::left_join(x = gfsi, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
 
 colnames(gfsi)[grep(pattern = "consumption", x = colnames(gfsi))]
-
-
-
-
-
-
-
-# Vitamin A deficiency
-vitamin_A <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Food_Nutrition/Vitamin_A_deficiency.csv", col_names = T)
-vitamin_A <- vitamin_A %>% select(Country, Item, Year, Value)
-vitamin_A <- vitamin_A %>% spread(Item, Value)
-names(vitamin_A)[3:4] <- c("Iodine_deficiency", "Vitamin_A_deficiency")
-vitamin_A$Country <- as.character(vitamin_A$Country)
-vitamin_A$Country[which(vitamin_A$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-vitamin_A <- dplyr::left_join(x = vitamin_A, y = iso3FAO %>% select(`Short name`, ISO3), by = c("Country" = "Short name"))
-vitamin_A <- vitamin_A %>% select(ISO3, Country, Year, Iodine_deficiency, Vitamin_A_deficiency)
-
-vitamin_A %>% ggplot(aes(x = Year, y = Vitamin_A_deficiency)) + geom_point()
