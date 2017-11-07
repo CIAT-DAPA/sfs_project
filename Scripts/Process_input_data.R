@@ -365,10 +365,74 @@ FactoMineR::PCA(X = environmentDim[complete.cases(environmentDim),-1])
 
 ## 1. Agriculture value-added per worker
 ## Measure: Financial performance
+## Original name: Agriculture value-added per worker (constant 2010 US$)
+## Units: Constant 2010 US$
+## Years: 2000:2016
+## Countries with data: 137
+
+AgValueAdded <- read.csv("./Input_data_final/Economic/AgValue_added-WorldBank.csv")
+AgValueAdded$Indicator.Name <- AgValueAdded$Indicator.Code <- NULL
+names(AgValueAdded)[1:2] <- c("Country", "ISO3")
+AgValueAdded <- AgValueAdded %>% gather(key = Year, value = AgValueAdded, 3:ncol(AgValueAdded))
+AgValueAdded$Year <- gsub(pattern = "X", replacement = "", x = AgValueAdded$Year) %>% as.character %>% as.numeric
+AgValueAdded <- AgValueAdded %>% filter(Year >= 2000)
+
+AgValueAdded %>% ggplot(aes(x = Year, y = AgValueAdded, group = Country)) +
+  geom_line(alpha = .5) + theme_bw()
+
+AgValueAdded$Country <- AgValueAdded$Country %>% as.character
+AgValueAdded$Country[which(AgValueAdded$Country == "Bahamas, The")] <- "Bahamas"
+AgValueAdded$Country[which(AgValueAdded$Country == "Cote d'Ivoire")] <- "Ivory Coast"
+AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
+AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Rep.")] <- "Congo"
+AgValueAdded$Country[which(AgValueAdded$Country == "Egypt, Arab Rep.")] <- "Egypt"
+AgValueAdded$Country[which(AgValueAdded$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
+AgValueAdded$Country[which(AgValueAdded$Country == "Gambia, The")] <- "Gambia"
+AgValueAdded$Country[which(AgValueAdded$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+AgValueAdded$Country[which(AgValueAdded$Country == "Hong Kong SAR, China")] <- "Hong Kong"
+AgValueAdded$Country[which(AgValueAdded$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
+AgValueAdded$Country[which(AgValueAdded$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+AgValueAdded$Country[which(AgValueAdded$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+AgValueAdded$Country[which(AgValueAdded$Country == "Korea, Rep.")] <- "Republic of Korea"
+AgValueAdded$Country[which(AgValueAdded$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
+AgValueAdded$Country[which(AgValueAdded$Country == "St. Lucia")] <- "Saint Lucia"
+AgValueAdded$Country[which(AgValueAdded$Country == "Macao SAR, China")] <- "Macao"
+AgValueAdded$Country[which(AgValueAdded$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
+AgValueAdded$Country[which(AgValueAdded$Country == "Moldova")] <- "Republic of Moldova"
+AgValueAdded$Country[which(AgValueAdded$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
+AgValueAdded$Country[grep(pattern = "Korea, Dem. People", x = AgValueAdded$Country)] <- "Democratic People's Republic of Korea"
+AgValueAdded$Country[which(AgValueAdded$Country == "West Bank and Gaza")] <- "Palestine"
+AgValueAdded$Country[which(AgValueAdded$Country == "Slovak Republic")] <- "Slovakia"
+AgValueAdded$Country[which(AgValueAdded$Country == "Tanzania")] <- "United Republic of Tanzania"
+AgValueAdded$Country[which(AgValueAdded$Country == "United States")] <- "United States of America"
+AgValueAdded$Country[which(AgValueAdded$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+AgValueAdded$Country[which(AgValueAdded$Country == "Venezuela, RB")] <- "Venezuela"
+AgValueAdded$Country[which(AgValueAdded$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
+AgValueAdded$Country[which(AgValueAdded$Country == "Vietnam")] <- "Viet Nam"
+AgValueAdded$Country[which(AgValueAdded$Country == "Yemen, Rep.")] <- "Yemen"
+AgValueAdded$ISO3 <- NULL
+
+yearsList <- AgValueAdded$Year %>% unique %>% sort
+AgValueAddedList <- lapply(1:length(yearsList), function(i){
+  df <- AgValueAdded %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(AgValueAddedList, dim)
+
+recentAgValueAdded <- AgValueAddedList[[length(AgValueAddedList)]]
+recentAgValueAdded <- recentAgValueAdded %>% dplyr::select(country.name.en, iso3c, AgValueAdded)
+
+
 ## 2. Agriculture under-employment
 ## Measure: Employment rate
+
 ## 3. Wage employment distribution in agriculture
 ## Measure: Economic distribution
+## Original name: Wage employment distribution in agriculture
+## Units: Constant 2010 US$
+## Years: 2000:2016
+## Countries with data: 137
 
 employment <- read.csv(file = "./Input_data_final/Economic/Employment_Indicators_E_All_Data.csv")
 employment <- employment %>% filter(Indicator == "Agriculture value added per worker (constant 2005 US$)" |
@@ -402,41 +466,34 @@ employment$Country[which(employment$Country == "Sudan (former)")] <- "Sudan"
 employment$Country[which(employment$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
 employment <- employment[which(employment %>% select(Country, Year) %>% duplicated() == FALSE),]
 
-AgValueAdded <- employment %>% select(Country, Year, AgValue.added) %>% spread(., key = Year, value = AgValue.added)
-TimeUnderemployment <- employment %>% select(Country, Year, Time.underemployment) %>% spread(., key = Year, value = Time.underemployment)
+# AgValueAdded <- employment %>% select(Country, Year, AgValue.added) %>% spread(., key = Year, value = AgValue.added)
+# TimeUnderemployment <- employment %>% select(Country, Year, Time.underemployment) %>% spread(., key = Year, value = Time.underemployment)
 WageEmployment <- employment %>% select(Country, Year, Wage.employment) %>% spread(., key = Year, value = Wage.employment)
 
-AgValueAdded$AgValue.added <- rowMeans(x = AgValueAdded[,2:ncol(AgValueAdded)], na.rm = T)
-sum(!is.na(AgValueAdded$AgValue.added))
-TimeUnderemployment$Time.underemployment <- rowMeans(x = TimeUnderemployment[,2:ncol(TimeUnderemployment)], na.rm = T)
-sum(!is.na(TimeUnderemployment$Time.underemployment))
+# AgValueAdded$AgValue.added <- rowMeans(x = AgValueAdded[,2:ncol(AgValueAdded)], na.rm = T)
+# sum(!is.na(AgValueAdded$AgValue.added))
+# TimeUnderemployment$Time.underemployment <- rowMeans(x = TimeUnderemployment[,2:ncol(TimeUnderemployment)], na.rm = T)
+# sum(!is.na(TimeUnderemployment$Time.underemployment))
 WageEmployment$Wage.employment <- rowMeans(x = WageEmployment[,2:ncol(WageEmployment)], na.rm = T)
-sum(!is.na(WageEmployment$Wage.employment))
+WageEmployment <- WageEmployment %>% select(Country, Wage.employment)
+# sum(!is.na(WageEmployment$Wage.employment))
 
-yearsList <- employment$Year %>% unique %>% sort
-employmentList <- lapply(1:length(yearsList), function(i){
-  df <- employment %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(employmentList, dim)
+WageEmployment <- dplyr::inner_join(x = country_codes, y = WageEmployment, by = c("country.name.en" = "Country"))
+WageEmployment <- WageEmployment %>% dplyr::select(country.name.en, iso3c, Wage.employment)
 
-recentEmployment <- employmentList[[length(employmentList)]]
-recentEmployment <- recentEmployment %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
 
 ## ========================================================================== ##
 ## SOCIAL
 ## ========================================================================== ##
 
-## 1. Participation rate of women in farming
-## Measure: Gender/equity
-## 2. Number of fair trade producer organizations
-## Measure: Inclusion
-## 3. Participation of youth in farming
-## Measure: Inclusion
+## 1. Employment in agriculture female (% of female employment)
+## Measure: Gender/Equity
+## Original name: Employment in agriculture female (% of female employment)
+## Units: (%)
+## Years: 1990:2010 (Selected period: 2000:2010)
+## Countries with data: 231
 
-# Labor force female
-lf_female <- read_csv(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Input_data_final/Social/Labor_force_female.csv", col_names = T, skip = 4)
+lf_female <- read_csv(file = "./Input_data_final/Social/Labor_force_female.csv", col_names = T, skip = 4)
 names(lf_female)[1:2] <- c("Country", "ISO3")
 lf_female <- cbind(lf_female[,1:2], lf_female[,5:ncol(lf_female)])
 lf_female <- lf_female %>% gather(Year, Value, -(Country:ISO3))
@@ -446,6 +503,67 @@ lf_female$Labor_force_female <- as.numeric(lf_female$Labor_force_female)
 
 lf_female %>% filter(Year > 1989) %>% ggplot(aes(x = Year, y = Labor_force_female, colour = Country)) +
   geom_point() + theme(legend.position = 'none')
+
+
+## 2. Number of fair trade producer organizations
+## Measure: Inclusion
+
+
+## 3. Employment in agriculture
+## Measure: Inclusion
+## Original name: Employment in agriculture (% of total employment)
+## Units: (%)
+## Years: 
+## Countries with data: 
+
+AgEmployment <- readxl::read_excel(path = "./Input_data_final/Social/employment_agriculture.xlsx", sheet = 1)
+AgEmployment <- AgEmployment[1:217,]
+AgEmployment$`Series Name` <- NULL
+AgEmployment$`Series Code` <- NULL
+AgEmployment$`Country Code` <- NULL
+AgEmployment$`1990` <- NULL
+names(AgEmployment)[1] <- "Country"
+
+AgEmployment$Agr.employment <- rowMeans(x = AgEmployment[,2:ncol(AgEmployment)], na.rm = T)
+AgEmployment <- AgEmployment %>% select(Country, Agr.employment)
+AgEmployment$Country <- AgEmployment$Country %>% as.character
+AgEmployment$Country[which(AgEmployment$Country == "Bahamas, The")] <- "Bahamas"
+AgEmployment$Country[which(AgEmployment$Country == "Cote d'Ivoire")] <- "Ivory Coast"
+AgEmployment$Country[which(AgEmployment$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
+AgEmployment$Country[which(AgEmployment$Country == "Congo, Rep.")] <- "Congo"
+AgEmployment$Country[which(AgEmployment$Country == "Egypt, Arab Rep.")] <- "Egypt"
+AgEmployment$Country[which(AgEmployment$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
+AgEmployment$Country[which(AgEmployment$Country == "Gambia, The")] <- "Gambia"
+AgEmployment$Country[which(AgEmployment$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+AgEmployment$Country[which(AgEmployment$Country == "Hong Kong SAR, China")] <- "Hong Kong"
+AgEmployment$Country[which(AgEmployment$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
+AgEmployment$Country[which(AgEmployment$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+AgEmployment$Country[which(AgEmployment$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+AgEmployment$Country[which(AgEmployment$Country == "Korea, Rep.")] <- "Republic of Korea"
+AgEmployment$Country[which(AgEmployment$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
+AgEmployment$Country[which(AgEmployment$Country == "St. Lucia")] <- "Saint Lucia"
+AgEmployment$Country[which(AgEmployment$Country == "Macao SAR, China")] <- "Macao"
+AgEmployment$Country[which(AgEmployment$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
+AgEmployment$Country[which(AgEmployment$Country == "Moldova")] <- "Republic of Moldova"
+AgEmployment$Country[which(AgEmployment$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
+AgEmployment$Country[which(AgEmployment$Country == "Macedonia, FYR")] <- "Democratic People's Republic of Korea"
+AgEmployment$Country[which(AgEmployment$Country == "West Bank and Gaza")] <- "Palestine"
+AgEmployment$Country[which(AgEmployment$Country == "Slovak Republic")] <- "Slovakia"
+AgEmployment$Country[which(AgEmployment$Country == "Tanzania")] <- "United Republic of Tanzania"
+AgEmployment$Country[which(AgEmployment$Country == "United States")] <- "United States of America"
+AgEmployment$Country[which(AgEmployment$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+AgEmployment$Country[which(AgEmployment$Country == "Venezuela, RB")] <- "Venezuela"
+AgEmployment$Country[which(AgEmployment$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
+AgEmployment$Country[which(AgEmployment$Country == "Vietnam")] <- "Viet Nam"
+AgEmployment$Country[which(AgEmployment$Country == "Yemen, Rep.")] <- "Yemen"
+
+
+
+AgEmployment2 <- AgEmployment %>% select(Country) %>% unique
+AgEmployment2$Country[which(is.na(match(AgEmployment2$Country, country_codes$country.name.en)))]
+
+AgEmployment <- dplyr::inner_join(x = country_codes, y = AgEmployment, by = c("country.name.en" = "Country"))
+AgEmployment <- AgEmployment %>% dplyr::select(country.name.en, iso3c, Agr.employment)
 
 ## ========================================================================== ##
 ## FOOD AND NUTRITION
