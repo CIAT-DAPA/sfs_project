@@ -49,310 +49,318 @@ country_codes$fao[which(country_codes == "Reunion")] <- 182
 ## ENVIRONMENT
 ## ========================================================================== ##
 
-## 1. GHG Emissions (CO2eq)
-## Measure: Air quality
-## Original name: GHG emissions by sector
-## Sectors: agriculture, energy, forest, industrial processes, land use, other sources, residential, transport, waste
-## Units: gigagrams
-## Years: 1990:2010 (Selected period: 2000:2010)
-## Countries with data: 231
-
-emission <- read.csv("./Input_data_final/Environment/emission.csv")
-emission <- emission %>% dplyr::select(Country, Item, Year, Value)
-emission <- emission %>% filter(Year >= 2000)
-emission <- emission %>% spread(Item, Value)
-colnames(emission)[3:ncol(emission)] <- c("Emissions.agriculture.total",
-                                          "Emissions.energy",
-                                          "Emissions.forest",
-                                          "Emissions.industrial",
-                                          "Emissions.land.use",
-                                          "Emissions.other",
-                                          "Emissions.residential",
-                                          "Emissions.transport",
-                                          "Emissions.waste")
-# emission %>% filter(Country == "Colombia") %>% ggparcoord(data = ., columns = 3:ncol(.), groupColumn = 2, order = "anyClass")
-emission <- emission %>% gather(Source, Emission, Emissions.agriculture.total:Emissions.waste)
-emission %>% ggplot(aes(x = Year, y = Emission, group = Country)) + geom_line(alpha = .2) +
-  facet_wrap(~Source, scales = "free") +
-  scale_x_continuous(breaks = 2000:2010, limits = c(2000, 2010)) +
-  theme_bw()
-emission <- emission %>% spread(Source, Emission)
-emission$Country <- emission$Country %>% as.character
-emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
-emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
-emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
-emission$Country[which(emission$Country == "Czechia")] <- "Czech Republic"
-emission$Country[which(emission$Country == "French Southern and Antarctic Territories")] <- "French Southern Territories"
-emission$Country[which(emission$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-emission$Country[which(emission$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
-emission$Country[which(emission$Country == "Pitcairn Islands")] <- "Pitcairn"
-emission$Country[which(emission$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-emission$Country[which(emission$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
-
-yearsList <- emission$Year %>% unique %>% sort
-emissionList <- lapply(1:length(yearsList), function(i){
-  df <- emission %>% select(Country, Year, Emissions.agriculture.total) %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(emissionList, dim)
-
-recentEmission <- emissionList[[length(emissionList)]]
-recentEmission <- recentEmission %>% dplyr::select(country.name.en, iso3c, Emissions.agriculture.total)
-
-
-## 2. Total population with access to safe drinking-water
-## Measure: Water quality
-## Original name: Total population with access to safe drinking-water (JMP)
-## Units: (%)
-## Years: 1992:2015 (not all years have data)
-## Countries with data: 195 (not all countries have data)
-
-safe_water <- read.csv("./Input_data_final/Environment/aquastat_access_safe_water.csv")
-safe_water <- safe_water %>% dplyr::select(Area, Year, Value)
-safe_water <- safe_water %>% filter(Year >= 2000)
-colnames(safe_water)[c(1, 3)] <- c("Country", "Access.safe.water")
-safe_water$Country <- safe_water$Country %>% as.character
-safe_water$Country[which(safe_water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-safe_water$Country[which(safe_water$Country == "Czechia")] <- "Czech Republic"
-safe_water$Country[which(safe_water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-safe_water$Country[which(safe_water$Country == "Occupied Palestinian Territory")] <- "Palestine"
-safe_water$Country[which(safe_water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-
-safe_water %>% ggplot(aes(x = Year, y = Access.safe.water, group = Country)) +
-  geom_line(alpha = .2) + 
-  theme_bw()
-
-yearsList <- safe_water$Year %>% unique %>% sort
-safe_waterList <- lapply(1:length(yearsList), function(i){
-  df <- safe_water %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(safe_waterList, dim)
-
-recentSafe_water <- safe_waterList[[length(safe_waterList)]]
-recentSafe_water <- recentSafe_water %>% dplyr::select(country.name.en, iso3c, Access.safe.water)
-
-
-## 3. Water withdrawal
-## Measure: Water use
-## Original name: Agricultural water withdrawal as % of total water withdrawal (%)
-## Units: (%)
-## Years: 1988:2016 (not all years have data)
-## Countries with data: 178 (not all countries have data)
-
-water <- readxl::read_excel(path = "./Input_data_final/Environment/water.xlsx", sheet = 1, col_names = T)
-water <- water[1:200,]
-names(water)[1] <- "Country"
-water$X__3 <- NULL
-
-water_aux <- lapply(1:nrow(water), function(i){
-  df <- data.frame(Country = water$Country[i],
-                   Year = c(water$year[i], water$year__1[i], water$year__2[i], water$year__3[i], water$year__4[i], water$year__5[i]),
-                   Water.withdrawal = c(water$`1988-1992`[i], water$`1993-1997`[i], water$`1998-2002`[i], water$`2003-2007`[i], water$`2008-2012`[i], water$`2013-2017`[i]))
-  return(df)
-})
-water <- do.call(rbind, water_aux); rm(water_aux)
-water <- water[which(apply(X = water, MARGIN = 1, FUN = function(x){sum(is.na(x))}) != 2),]
-rownames(water) <- 1:nrow(water)
-water <- water %>% filter(Year >= 2000)
-water$Country <- water$Country %>% as.character
-water$Country[which(water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-water$Country[which(water$Country == "Czechia")] <- "Czech Republic"
-water$Country[which(water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-water$Country[which(water$Country == "Occupied Palestinian Territory")] <- "Palestine"
-water$Country[which(water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-water$Country[which(water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-
-water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
-  geom_line(alpha = .2) + 
-  theme_bw()
-
-yearsList <- water$Year %>% unique %>% sort
-waterList <- lapply(1:length(yearsList), function(i){
-  df <- water %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(waterList, dim)
-
-water <- water %>% tidyr::spread(key = Year, value = Water.withdrawal)
-water$Water.withdrawal <- rowMeans(water[,2:ncol(water)], na.rm = T)
-water <- water %>% dplyr::select(Country, Water.withdrawal)
-
-water <- dplyr::inner_join(x = country_codes, y = water, by = c("country.name.en" = "Country"))
-water <- water %>% dplyr::select(country.name.en, iso3c, Water.withdrawal)
-
-
-## 4. Soil carbon content
-## Measure: Soil and land quality
-## Original name: Average carbon content in the topsoil as a % in weight
-## Units: (%)
-## Years: 2008
-## Countries with data: 202
-
-carbon_soil <- read.csv("./Input_data_final/Environment/soil_carbon.csv")
-carbon_soil <- carbon_soil %>% dplyr::select(Country.Code, Country, Value)
-colnames(carbon_soil)[3] <- "Soil.carbon.content"
-carbon_soil$Country <- as.character(carbon_soil$Country)
-carbon_soil$Country[which(carbon_soil$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
-carbon_soil$Country[which(carbon_soil$Country == "RÃ©union")] <- "Reunion"
-carbon_soil$Country[which(carbon_soil$Country == "Sudan (former)")] <- "Sudan"
-carbon_soil$Country[which(carbon_soil$Country == "Czechia")] <- "Czech Republic"
-carbon_soil$Country[which(carbon_soil$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-carbon_soil$Country[which(carbon_soil$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
-carbon_soil$Country[which(carbon_soil$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
-
-carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
-  geom_bar(stat = "identity") +
-  xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90))
-
-carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("country.name.en" = "Country"))
-carbon_soil <- carbon_soil %>% dplyr::select(country.name.en, iso3c, Soil.carbon.content)
-
-
-## 5. Arable land
-## Measure: Soil and land use
-## Original name: Arable land
-## Units: (%)
-## Years: 1961:2014
-## Countries with data: 227
-
-arable_land <- read.csv("./Input_data_final/Environment/arable_land.csv")
-arable_land <- arable_land %>% dplyr::select(Country, Year, Value)
-arable_land <- arable_land %>% filter(Year >= 2000)
-arable_land$Country <- as.character(arable_land$Country)
-arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
-arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
-arable_land$Country[which(arable_land$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
-arable_land$Country[which(arable_land$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-arable_land$Country[which(arable_land$Country == "Czechia")] <- "Czech Republic"
-arable_land$Country[which(arable_land$Country == "Ethiopia PDR")] <- "Ethiopia"
-arable_land$Country[which(arable_land$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
-arable_land$Country[which(arable_land$Country == "Occupied Palestinian Territory")] <- "Palestine"
-arable_land$Country[which(arable_land$Country == "Sudan (former)")] <- "Sudan"
-arable_land$Country[which(arable_land$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-
-colnames(arable_land)[3] <- "Arable.land"
-
-arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
-  geom_line(alpha = .2) +
-  scale_x_continuous(breaks = 2000:2014, limits = c(2000, 2014)) +
-  theme_bw()
-
-yearsList <- arable_land$Year %>% unique %>% sort
-arable_landList <- lapply(1:length(yearsList), function(i){
-  df <- arable_land %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(arable_landList, dim)
-
-recentArable_land <- arable_landList[[length(arable_landList)]]
-recentArable_land <- recentArable_land %>% dplyr::select(country.name.en, iso3c, Arable.land)
-
-
-## 6. GEF biodiversity index
-## Measure: Biodiversity wildlife (plants, animals)
-## Original name: Total population with access to safe drinking-water (JMP)
-## Units: (%)
-## Years: 2008
-## Countries with data: 195 (not all countries have data)
-
-GBI <- read.csv("./Input_data_final/Environment/GEF_Biodiversity.csv")
-GBI$Country <- as.character(GBI$Country)
-GBI$Country[which(GBI$Country == "Côte d'ivoire")] <- "Ivory Coast"
-GBI$Country[which(GBI$Country == "Cape Verde")] <- "Cabo Verde"
-GBI$Country[which(GBI$Country == "Congo DR")] <- "Democratic Republic of the Congo"
-GBI$Country[which(GBI$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-GBI$Country[which(GBI$Country == "Iran")] <- "Iran (Islamic Republic of)"
-GBI$Country[which(GBI$Country == "Korea DPR")] <- "Democratic People's Republic of Korea"
-GBI$Country[which(GBI$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-GBI$Country[which(GBI$Country == "Laos")] <- "Lao People's Democratic Republic"
-GBI$Country[which(GBI$Country == "Macedonia")] <- "The former Yugoslav Republic of Macedonia"
-GBI$Country[which(GBI$Country == "Micronesia")] <- "Micronesia (Federated States of)"
-GBI$Country[which(GBI$Country == "Moldova")] <- "Republic of Moldova"
-GBI$Country[which(GBI$Country == "Russia")] <- "Russian Federation"
-GBI$Country[which(GBI$Country == "Slovak Republic")] <- "Slovakia"
-GBI$Country[which(GBI$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-GBI$Country[which(GBI$Country == "St. Lucia")] <- "Saint Lucia"
-GBI$Country[which(GBI$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-GBI$Country[which(GBI$Country == "Syria")] <- "Syrian Arab Republic"
-GBI$Country[which(GBI$Country == "Tanzania")] <- "United Republic of Tanzania"
-GBI$Country[which(GBI$Country == "Timor Leste")] <- "Timor-Leste"
-GBI$Country[which(GBI$Country == "Vietnam")] <- "Viet Nam"
-
-GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
-  geom_bar(stat = "identity") +
-  xlab("Country") + ylab("GBI biodiversity index") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90))
-
-GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
-GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GBI)
-
-
-## 7. Energy used in agriculture and forestry
-## Measure: energy use
-## Original name: Agriculture and forestry energy use as a % of total energy use
-## Units: (%)
-## Years: 1971:2009
-## Countries with data: 122
-
-energy <- read.csv("./Input_data_final/Environment/energy.csv")
-energy <- energy %>% dplyr::select(Country, Year, Value)
-energy$Country <- as.character(energy$Country)
-energy$Country[which(energy$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
-energy$Country[which(energy$Country == "Sudan (former)")] <- "Sudan"
-energy$Country[which(energy$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-energy$Country[which(energy$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-energy$Country[which(energy$Country == "Czechia")] <- "Czech Republic"
-colnames(energy)[3] <- "Energy.agriculture"
-
-energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
-  geom_line(alpha = .2) + 
-  theme_bw()
-
-yearsList <- energy$Year %>% unique %>% sort
-energyList <- lapply(1:length(yearsList), function(i){
-  df <- energy %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(energyList, dim)
-
-recentEnergy <- energyList[[length(energyList)]]
-recentEnergy <- recentEnergy %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
-
-environmentDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentEmission, by = c("country.name.en", "iso3c"))
-environmentDim <- dplyr::left_join(x = environmentDim, y = recentSafe_water, by = c("country.name.en", "iso3c"))
-environmentDim <- dplyr::left_join(x = environmentDim, y = water, by = c("country.name.en", "iso3c"))
-environmentDim <- dplyr::left_join(x = environmentDim, y = carbon_soil, by = c("country.name.en", "iso3c"))
-environmentDim <- dplyr::left_join(x = environmentDim, y = recentArable_land, by = c("country.name.en", "iso3c"))
-environmentDim <- dplyr::left_join(x = environmentDim, y = GBI, by = c("country.name.en", "iso3c"))
-environmentDim <- dplyr::left_join(x = environmentDim, y = recentEnergy, by = c("country.name.en", "iso3c"))
-
-environmentDim <- environmentDim[-which(apply(X = environmentDim[,3:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 7),]
-rownames(environmentDim) <- environmentDim$country.name.en
-environmentDim$country.name.en <- NULL
-
-rm(recentEmission, recentSafe_water, water, carbon_soil, recentArable_land, GBI, recentEnergy)
-rm(emission, safe_water, arable_land, energy)
-rm(arable_landList, emissionList, energyList, safe_waterList, waterList, yearsList)
+# We need to include water quality indicators
+if(!file.exists("environmental_dimension.csv")){
+  
+  ## 1. GHG Emissions (CO2eq)
+  ## Measure: Air quality
+  ## Original name: GHG emissions by sector
+  ## Sectors: agriculture, energy, forest, industrial processes, land use, other sources, residential, transport, waste
+  ## Units: gigagrams
+  ## Years: 1990:2010 (Selected period: 2000:2010)
+  ## Countries with data: 231
+  
+  emission <- read.csv("./Input_data_final/Environment/emission.csv")
+  emission <- emission %>% dplyr::select(Country, Item, Year, Value)
+  emission <- emission %>% filter(Year >= 2000)
+  emission <- emission %>% spread(Item, Value)
+  colnames(emission)[3:ncol(emission)] <- c("Emissions.agriculture.total",
+                                            "Emissions.energy",
+                                            "Emissions.forest",
+                                            "Emissions.industrial",
+                                            "Emissions.land.use",
+                                            "Emissions.other",
+                                            "Emissions.residential",
+                                            "Emissions.transport",
+                                            "Emissions.waste")
+  # emission %>% filter(Country == "Colombia") %>% ggparcoord(data = ., columns = 3:ncol(.), groupColumn = 2, order = "anyClass")
+  emission <- emission %>% gather(Source, Emission, Emissions.agriculture.total:Emissions.waste)
+  emission %>% ggplot(aes(x = Year, y = Emission, group = Country)) + geom_line(alpha = .2) +
+    facet_wrap(~Source, scales = "free") +
+    scale_x_continuous(breaks = 2000:2010, limits = c(2000, 2010)) +
+    theme_bw()
+  emission <- emission %>% spread(Source, Emission)
+  emission$Country <- emission$Country %>% as.character
+  emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
+  emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
+  emission$Country[which(emission$Country == "Czechia")] <- "Czech Republic"
+  emission$Country[which(emission$Country == "French Southern and Antarctic Territories")] <- "French Southern Territories"
+  emission$Country[which(emission$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  emission$Country[which(emission$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  emission$Country[which(emission$Country == "Pitcairn Islands")] <- "Pitcairn"
+  emission$Country[which(emission$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  emission$Country[which(emission$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
+  
+  yearsList <- emission$Year %>% unique %>% sort
+  emissionList <- lapply(1:length(yearsList), function(i){
+    df <- emission %>% select(Country, Year, Emissions.agriculture.total) %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(emissionList, dim)
+  
+  recentEmission <- emissionList[[length(emissionList)]]
+  recentEmission <- recentEmission %>% dplyr::select(country.name.en, iso3c, Emissions.agriculture.total)
+  
+  
+  ## 2. Total population with access to safe drinking-water
+  ## Measure: Water quality
+  ## Original name: Total population with access to safe drinking-water (JMP)
+  ## Units: (%)
+  ## Years: 1992:2015 (not all years have data)
+  ## Countries with data: 195 (not all countries have data)
+  
+  safe_water <- read.csv("./Input_data_final/Environment/aquastat_access_safe_water.csv")
+  safe_water <- safe_water %>% dplyr::select(Area, Year, Value)
+  safe_water <- safe_water %>% filter(Year >= 2000)
+  colnames(safe_water)[c(1, 3)] <- c("Country", "Access.safe.water")
+  safe_water$Country <- safe_water$Country %>% as.character
+  safe_water$Country[which(safe_water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  safe_water$Country[which(safe_water$Country == "Czechia")] <- "Czech Republic"
+  safe_water$Country[which(safe_water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  safe_water$Country[which(safe_water$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  safe_water$Country[which(safe_water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  
+  safe_water %>% ggplot(aes(x = Year, y = Access.safe.water, group = Country)) +
+    geom_line(alpha = .2) + 
+    theme_bw()
+  
+  yearsList <- safe_water$Year %>% unique %>% sort
+  safe_waterList <- lapply(1:length(yearsList), function(i){
+    df <- safe_water %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(safe_waterList, dim)
+  
+  recentSafe_water <- safe_waterList[[length(safe_waterList)]]
+  recentSafe_water <- recentSafe_water %>% dplyr::select(country.name.en, iso3c, Access.safe.water)
+  
+  
+  ## 3. Water withdrawal
+  ## Measure: Water use
+  ## Original name: Agricultural water withdrawal as % of total water withdrawal (%)
+  ## Units: (%)
+  ## Years: 1988:2016 (not all years have data)
+  ## Countries with data: 178 (not all countries have data)
+  
+  water <- readxl::read_excel(path = "./Input_data_final/Environment/water.xlsx", sheet = 1, col_names = T)
+  water <- water[1:200,]
+  names(water)[1] <- "Country"
+  water$X__3 <- NULL
+  
+  water_aux <- lapply(1:nrow(water), function(i){
+    df <- data.frame(Country = water$Country[i],
+                     Year = c(water$year[i], water$year__1[i], water$year__2[i], water$year__3[i], water$year__4[i], water$year__5[i]),
+                     Water.withdrawal = c(water$`1988-1992`[i], water$`1993-1997`[i], water$`1998-2002`[i], water$`2003-2007`[i], water$`2008-2012`[i], water$`2013-2017`[i]))
+    return(df)
+  })
+  water <- do.call(rbind, water_aux); rm(water_aux)
+  water <- water[which(apply(X = water, MARGIN = 1, FUN = function(x){sum(is.na(x))}) != 2),]
+  rownames(water) <- 1:nrow(water)
+  water <- water %>% filter(Year >= 2000)
+  water$Country <- water$Country %>% as.character
+  water$Country[which(water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  water$Country[which(water$Country == "Czechia")] <- "Czech Republic"
+  water$Country[which(water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  water$Country[which(water$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  water$Country[which(water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  water$Country[which(water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  
+  water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
+    geom_line(alpha = .2) + 
+    theme_bw()
+  
+  yearsList <- water$Year %>% unique %>% sort
+  waterList <- lapply(1:length(yearsList), function(i){
+    df <- water %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(waterList, dim)
+  
+  water <- water %>% tidyr::spread(key = Year, value = Water.withdrawal)
+  water$Water.withdrawal <- rowMeans(water[,2:ncol(water)], na.rm = T)
+  water <- water %>% dplyr::select(Country, Water.withdrawal)
+  
+  water <- dplyr::inner_join(x = country_codes, y = water, by = c("country.name.en" = "Country"))
+  water <- water %>% dplyr::select(country.name.en, iso3c, Water.withdrawal)
+  
+  
+  ## 4. Soil carbon content
+  ## Measure: Soil and land quality
+  ## Original name: Average carbon content in the topsoil as a % in weight
+  ## Units: (%)
+  ## Years: 2008
+  ## Countries with data: 202
+  
+  carbon_soil <- read.csv("./Input_data_final/Environment/soil_carbon.csv")
+  carbon_soil <- carbon_soil %>% dplyr::select(Country.Code, Country, Value)
+  colnames(carbon_soil)[3] <- "Soil.carbon.content"
+  carbon_soil$Country <- as.character(carbon_soil$Country)
+  carbon_soil$Country[which(carbon_soil$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  carbon_soil$Country[which(carbon_soil$Country == "RÃ©union")] <- "Reunion"
+  carbon_soil$Country[which(carbon_soil$Country == "Sudan (former)")] <- "Sudan"
+  carbon_soil$Country[which(carbon_soil$Country == "Czechia")] <- "Czech Republic"
+  carbon_soil$Country[which(carbon_soil$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  carbon_soil$Country[which(carbon_soil$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  carbon_soil$Country[which(carbon_soil$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
+  
+  carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
+    geom_bar(stat = "identity") +
+    xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90))
+  
+  carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("country.name.en" = "Country"))
+  carbon_soil <- carbon_soil %>% dplyr::select(country.name.en, iso3c, Soil.carbon.content)
+  
+  
+  ## 5. Arable land
+  ## Measure: Soil and land use
+  ## Original name: Arable land
+  ## Units: (%)
+  ## Years: 1961:2014
+  ## Countries with data: 227
+  
+  arable_land <- read.csv("./Input_data_final/Environment/arable_land.csv")
+  arable_land <- arable_land %>% dplyr::select(Country, Year, Value)
+  arable_land <- arable_land %>% filter(Year >= 2000)
+  arable_land$Country <- as.character(arable_land$Country)
+  arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
+  arable_land$Country[which(arable_land$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
+  arable_land$Country[which(arable_land$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  arable_land$Country[which(arable_land$Country == "Czechia")] <- "Czech Republic"
+  arable_land$Country[which(arable_land$Country == "Ethiopia PDR")] <- "Ethiopia"
+  arable_land$Country[which(arable_land$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  arable_land$Country[which(arable_land$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  arable_land$Country[which(arable_land$Country == "Sudan (former)")] <- "Sudan"
+  arable_land$Country[which(arable_land$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  
+  colnames(arable_land)[3] <- "Arable.land"
+  
+  arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
+    geom_line(alpha = .2) +
+    scale_x_continuous(breaks = 2000:2014, limits = c(2000, 2014)) +
+    theme_bw()
+  
+  yearsList <- arable_land$Year %>% unique %>% sort
+  arable_landList <- lapply(1:length(yearsList), function(i){
+    df <- arable_land %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(arable_landList, dim)
+  
+  recentArable_land <- arable_landList[[length(arable_landList)]]
+  recentArable_land <- recentArable_land %>% dplyr::select(country.name.en, iso3c, Arable.land)
+  
+  
+  ## 6. GEF biodiversity index
+  ## Measure: Biodiversity wildlife (plants, animals)
+  ## Original name: Total population with access to safe drinking-water (JMP)
+  ## Units: (%)
+  ## Years: 2008
+  ## Countries with data: 195 (not all countries have data)
+  
+  GBI <- read.csv("./Input_data_final/Environment/GEF_Biodiversity.csv")
+  GBI$Country <- as.character(GBI$Country)
+  GBI$Country[which(GBI$Country == "Côte d'ivoire")] <- "Ivory Coast"
+  GBI$Country[which(GBI$Country == "Cape Verde")] <- "Cabo Verde"
+  GBI$Country[which(GBI$Country == "Congo DR")] <- "Democratic Republic of the Congo"
+  GBI$Country[which(GBI$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  GBI$Country[which(GBI$Country == "Iran")] <- "Iran (Islamic Republic of)"
+  GBI$Country[which(GBI$Country == "Korea DPR")] <- "Democratic People's Republic of Korea"
+  GBI$Country[which(GBI$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+  GBI$Country[which(GBI$Country == "Laos")] <- "Lao People's Democratic Republic"
+  GBI$Country[which(GBI$Country == "Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+  GBI$Country[which(GBI$Country == "Micronesia")] <- "Micronesia (Federated States of)"
+  GBI$Country[which(GBI$Country == "Moldova")] <- "Republic of Moldova"
+  GBI$Country[which(GBI$Country == "Russia")] <- "Russian Federation"
+  GBI$Country[which(GBI$Country == "Slovak Republic")] <- "Slovakia"
+  GBI$Country[which(GBI$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+  GBI$Country[which(GBI$Country == "St. Lucia")] <- "Saint Lucia"
+  GBI$Country[which(GBI$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+  GBI$Country[which(GBI$Country == "Syria")] <- "Syrian Arab Republic"
+  GBI$Country[which(GBI$Country == "Tanzania")] <- "United Republic of Tanzania"
+  GBI$Country[which(GBI$Country == "Timor Leste")] <- "Timor-Leste"
+  GBI$Country[which(GBI$Country == "Vietnam")] <- "Viet Nam"
+  
+  GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
+    geom_bar(stat = "identity") +
+    xlab("Country") + ylab("GBI biodiversity index") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90))
+  
+  GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
+  GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GBI)
+  
+  
+  ## 7. Energy used in agriculture and forestry
+  ## Measure: energy use
+  ## Original name: Agriculture and forestry energy use as a % of total energy use
+  ## Units: (%)
+  ## Years: 1971:2009
+  ## Countries with data: 122
+  
+  energy <- read.csv("./Input_data_final/Environment/energy.csv")
+  energy <- energy %>% dplyr::select(Country, Year, Value)
+  energy$Country <- as.character(energy$Country)
+  energy$Country[which(energy$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  energy$Country[which(energy$Country == "Sudan (former)")] <- "Sudan"
+  energy$Country[which(energy$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  energy$Country[which(energy$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  energy$Country[which(energy$Country == "Czechia")] <- "Czech Republic"
+  colnames(energy)[3] <- "Energy.agriculture"
+  
+  energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
+    geom_line(alpha = .2) + 
+    theme_bw()
+  
+  yearsList <- energy$Year %>% unique %>% sort
+  energyList <- lapply(1:length(yearsList), function(i){
+    df <- energy %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(energyList, dim)
+  
+  recentEnergy <- energyList[[length(energyList)]]
+  recentEnergy <- recentEnergy %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
+  
+  environmentDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentEmission, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = recentSafe_water, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = water, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = carbon_soil, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = recentArable_land, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = GBI, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = recentEnergy, by = c("country.name.en", "iso3c"))
+  
+  environmentDim <- environmentDim[-which(apply(X = environmentDim[,3:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 7),]
+  rownames(environmentDim) <- environmentDim$country.name.en
+  environmentDim$country.name.en <- NULL
+  
+  write.csv(x = environmentDim, file = "environmental_dimension.csv", row.names = T)
+  
+  rm(recentEmission, recentSafe_water, water, carbon_soil, recentArable_land, GBI, recentEnergy)
+  rm(emission, safe_water, arable_land, energy)
+  rm(arable_landList, emissionList, energyList, safe_waterList, waterList, yearsList)
+} else {
+  environmentDim <- read.csv("environmental_dimension.csv", row.names = 1)
+}
 
 suppressMessages(library(tabplot))
 suppressMessages(library(GGally))
 suppressMessages(library(corrplot))
 
-tableplot(environmentDim[,-1], nBins = nrow(environmentDim)) # Distributions and missing values representation
+# Distributions and missing values representation
+tableplot(environmentDim[,-1], nBins = nrow(environmentDim))
 
 # Correlation
-ggpairs(environmentDim[,-1])
-M <- cor(environmentDim[,-1], use = "complete.obs")
+M <- cor(environmentDim[,-1], use = "complete.obs", method = "spearman")
 corrplot(M, method = "square")
 plot(environmentDim$Emissions.agriculture.total, environmentDim$GBI, pch = 20)
 
@@ -363,207 +371,299 @@ FactoMineR::PCA(X = environmentDim[complete.cases(environmentDim),-1])
 ## ECONOMICS
 ## ========================================================================== ##
 
-## 1. Agriculture value-added per worker
-## Measure: Financial performance
-## Original name: Agriculture value-added per worker (constant 2010 US$)
-## Units: Constant 2010 US$
-## Years: 2000:2016
-## Countries with data: 137
+if(!file.exists("economic_dimension.csv")){
+  
+  ## 1. Agriculture value-added per worker
+  ## Measure: Financial performance
+  ## Original name: Agriculture value-added per worker (constant 2010 US$)
+  ## Units: Constant 2010 US$
+  ## Years: 2000:2016
+  ## Countries with data: 137
+  
+  AgValueAdded <- read.csv("./Input_data_final/Economic/AgValue_added-WorldBank.csv")
+  AgValueAdded$Indicator.Name <- AgValueAdded$Indicator.Code <- NULL
+  names(AgValueAdded)[1:2] <- c("Country", "ISO3")
+  AgValueAdded <- AgValueAdded %>% gather(key = Year, value = AgValueAdded, 3:ncol(AgValueAdded))
+  AgValueAdded$Year <- gsub(pattern = "X", replacement = "", x = AgValueAdded$Year) %>% as.character %>% as.numeric
+  AgValueAdded <- AgValueAdded %>% filter(Year >= 2000)
+  
+  AgValueAdded %>% ggplot(aes(x = Year, y = AgValueAdded, group = Country)) +
+    geom_line(alpha = .5) + theme_bw()
+  
+  AgValueAdded$Country <- AgValueAdded$Country %>% as.character
+  AgValueAdded$Country[which(AgValueAdded$Country == "Bahamas, The")] <- "Bahamas"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Cote d'Ivoire")] <- "Ivory Coast"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Rep.")] <- "Congo"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Egypt, Arab Rep.")] <- "Egypt"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Gambia, The")] <- "Gambia"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Hong Kong SAR, China")] <- "Hong Kong"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+  AgValueAdded$Country[which(AgValueAdded$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Korea, Rep.")] <- "Republic of Korea"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
+  AgValueAdded$Country[which(AgValueAdded$Country == "St. Lucia")] <- "Saint Lucia"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Macao SAR, China")] <- "Macao"
+  AgValueAdded$Country[which(AgValueAdded$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Moldova")] <- "Republic of Moldova"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
+  AgValueAdded$Country[grep(pattern = "Korea, Dem. People", x = AgValueAdded$Country)] <- "Democratic People's Republic of Korea"
+  AgValueAdded$Country[which(AgValueAdded$Country == "West Bank and Gaza")] <- "Palestine"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Slovak Republic")] <- "Slovakia"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Tanzania")] <- "United Republic of Tanzania"
+  AgValueAdded$Country[which(AgValueAdded$Country == "United States")] <- "United States of America"
+  AgValueAdded$Country[which(AgValueAdded$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Venezuela, RB")] <- "Venezuela"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Vietnam")] <- "Viet Nam"
+  AgValueAdded$Country[which(AgValueAdded$Country == "Yemen, Rep.")] <- "Yemen"
+  AgValueAdded$ISO3 <- NULL
+  
+  yearsList <- AgValueAdded$Year %>% unique %>% sort
+  AgValueAddedList <- lapply(1:length(yearsList), function(i){
+    df <- AgValueAdded %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(AgValueAddedList, dim)
+  
+  recentAgValueAdded <- AgValueAddedList[[length(AgValueAddedList)]]
+  recentAgValueAdded <- recentAgValueAdded %>% dplyr::select(country.name.en, iso3c, AgValueAdded)
+  
+  
+  ## 2. Agriculture under-employment
+  ## Measure: Employment rate
+  
+  ## 3. Wage employment distribution in agriculture
+  ## Measure: Economic distribution
+  ## Original name: Wage employment distribution in agriculture
+  ## Units: Constant 2010 US$
+  ## Years: 2000:2016
+  ## Countries with data: 137
+  
+  employment <- read.csv(file = "./Input_data_final/Economic/Employment_Indicators_E_All_Data.csv")
+  employment <- employment %>% filter(Indicator == "Agriculture value added per worker (constant 2005 US$)" |
+                                        Indicator == "Wage employment distribution, agriculture" |
+                                        Indicator == "Time related underemployment in agriculture")
+  employment <- employment %>% select(Country, Indicator, 8:ncol(employment))
+  employment <- employment %>% gather(Year, Value, -(Country:Indicator))
+  employment <- unique(employment)
+  employment <- employment[setdiff(1:nrow(employment), grep(pattern = "F$", x = employment$Year)),]
+  rownames(employment) <- 1:nrow(employment)
+  employment$Value <- employment$Value %>% as.character %>% as.numeric
+  employment <- employment %>% group_by(Country, Indicator, Year) %>% summarise(Value = mean(Value, na.rm = T))
+  employment$Year <- gsub(pattern = "Y", replacement = "", x = employment$Year) %>% as.character %>% as.numeric
+  
+  employment %>% ggplot(aes(x = Year, y = Value, colour = Indicator, group = Country)) +
+    geom_line(alpha = .5) + facet_wrap(~Indicator, scales = "free") + 
+    theme_bw()
+  
+  employment <- employment %>% spread(Indicator, Value)
+  names(employment)[3:5] <- c("AgValue.added", "Time.underemployment", "Wage.employment")
+  employment <- employment %>% filter(Year >= 2000 & Country != "Serbia and Montenegro")
+  employment$Country <- as.character(employment$Country)
+  employment$Country[which(employment$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  employment$Country[which(employment$Country == "China, Macao SAR")] <- "Macao"
+  employment$Country[which(employment$Country == "China, mainland")] <- "China"
+  employment$Country[which(employment$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  employment$Country[which(employment$Country == "Ethiopia PDR")] <- "Ethiopia"
+  employment$Country[which(employment$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  employment$Country[which(employment$Country == "Réunion")] <- "Reunion"
+  employment$Country[which(employment$Country == "Sudan (former)")] <- "Sudan"
+  employment$Country[which(employment$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  employment <- employment[which(employment %>% select(Country, Year) %>% duplicated() == FALSE),]
+  
+  # AgValueAdded <- employment %>% select(Country, Year, AgValue.added) %>% spread(., key = Year, value = AgValue.added)
+  # TimeUnderemployment <- employment %>% select(Country, Year, Time.underemployment) %>% spread(., key = Year, value = Time.underemployment)
+  WageEmployment <- employment %>% select(Country, Year, Wage.employment) %>% spread(., key = Year, value = Wage.employment)
+  
+  # AgValueAdded$AgValue.added <- rowMeans(x = AgValueAdded[,2:ncol(AgValueAdded)], na.rm = T)
+  # sum(!is.na(AgValueAdded$AgValue.added))
+  # TimeUnderemployment$Time.underemployment <- rowMeans(x = TimeUnderemployment[,2:ncol(TimeUnderemployment)], na.rm = T)
+  # sum(!is.na(TimeUnderemployment$Time.underemployment))
+  WageEmployment$Wage.employment <- rowMeans(x = WageEmployment[,2:ncol(WageEmployment)], na.rm = T)
+  WageEmployment <- WageEmployment %>% select(Country, Wage.employment)
+  # sum(!is.na(WageEmployment$Wage.employment))
+  
+  WageEmployment <- dplyr::inner_join(x = country_codes, y = WageEmployment, by = c("country.name.en" = "Country"))
+  WageEmployment <- WageEmployment %>% dplyr::select(country.name.en, iso3c, Wage.employment)
+  
+  
+  economicDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentAgValueAdded, by = c("country.name.en", "iso3c"))
+  economicDim <- dplyr::left_join(x = economicDim, y = WageEmployment, by = c("country.name.en", "iso3c"))
+  
+  economicDim <- economicDim[-which(apply(X = economicDim[,3:ncol(economicDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 2),]
+  rownames(economicDim) <- economicDim$country.name.en
+  economicDim$country.name.en <- NULL
+  
+  write.csv(x = economicDim, file = "economic_dimension.csv", row.names = T)
+  
+  rm(AgValueAdded, AgValueAddedList, employment, recentAgValueAdded, WageEmployment)
+  
+} else {
+  economicDim <- read.csv("economic_dimension.csv")
+}
 
-AgValueAdded <- read.csv("./Input_data_final/Economic/AgValue_added-WorldBank.csv")
-AgValueAdded$Indicator.Name <- AgValueAdded$Indicator.Code <- NULL
-names(AgValueAdded)[1:2] <- c("Country", "ISO3")
-AgValueAdded <- AgValueAdded %>% gather(key = Year, value = AgValueAdded, 3:ncol(AgValueAdded))
-AgValueAdded$Year <- gsub(pattern = "X", replacement = "", x = AgValueAdded$Year) %>% as.character %>% as.numeric
-AgValueAdded <- AgValueAdded %>% filter(Year >= 2000)
+# Distributions and missing values representation
+tableplot(economicDim[,-1], nBins = nrow(economicDim))
 
-AgValueAdded %>% ggplot(aes(x = Year, y = AgValueAdded, group = Country)) +
-  geom_line(alpha = .5) + theme_bw()
+# Correlation
+M <- cor(economicDim[,-1], use = "complete.obs", method = "spearman")
+corrplot(M, method = "square")
 
-AgValueAdded$Country <- AgValueAdded$Country %>% as.character
-AgValueAdded$Country[which(AgValueAdded$Country == "Bahamas, The")] <- "Bahamas"
-AgValueAdded$Country[which(AgValueAdded$Country == "Cote d'Ivoire")] <- "Ivory Coast"
-AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
-AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Rep.")] <- "Congo"
-AgValueAdded$Country[which(AgValueAdded$Country == "Egypt, Arab Rep.")] <- "Egypt"
-AgValueAdded$Country[which(AgValueAdded$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
-AgValueAdded$Country[which(AgValueAdded$Country == "Gambia, The")] <- "Gambia"
-AgValueAdded$Country[which(AgValueAdded$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-AgValueAdded$Country[which(AgValueAdded$Country == "Hong Kong SAR, China")] <- "Hong Kong"
-AgValueAdded$Country[which(AgValueAdded$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
-AgValueAdded$Country[which(AgValueAdded$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-AgValueAdded$Country[which(AgValueAdded$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-AgValueAdded$Country[which(AgValueAdded$Country == "Korea, Rep.")] <- "Republic of Korea"
-AgValueAdded$Country[which(AgValueAdded$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
-AgValueAdded$Country[which(AgValueAdded$Country == "St. Lucia")] <- "Saint Lucia"
-AgValueAdded$Country[which(AgValueAdded$Country == "Macao SAR, China")] <- "Macao"
-AgValueAdded$Country[which(AgValueAdded$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
-AgValueAdded$Country[which(AgValueAdded$Country == "Moldova")] <- "Republic of Moldova"
-AgValueAdded$Country[which(AgValueAdded$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
-AgValueAdded$Country[grep(pattern = "Korea, Dem. People", x = AgValueAdded$Country)] <- "Democratic People's Republic of Korea"
-AgValueAdded$Country[which(AgValueAdded$Country == "West Bank and Gaza")] <- "Palestine"
-AgValueAdded$Country[which(AgValueAdded$Country == "Slovak Republic")] <- "Slovakia"
-AgValueAdded$Country[which(AgValueAdded$Country == "Tanzania")] <- "United Republic of Tanzania"
-AgValueAdded$Country[which(AgValueAdded$Country == "United States")] <- "United States of America"
-AgValueAdded$Country[which(AgValueAdded$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-AgValueAdded$Country[which(AgValueAdded$Country == "Venezuela, RB")] <- "Venezuela"
-AgValueAdded$Country[which(AgValueAdded$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
-AgValueAdded$Country[which(AgValueAdded$Country == "Vietnam")] <- "Viet Nam"
-AgValueAdded$Country[which(AgValueAdded$Country == "Yemen, Rep.")] <- "Yemen"
-AgValueAdded$ISO3 <- NULL
-
-yearsList <- AgValueAdded$Year %>% unique %>% sort
-AgValueAddedList <- lapply(1:length(yearsList), function(i){
-  df <- AgValueAdded %>% filter(Year == yearsList[i])
-  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-  return(df)
-})
-lapply(AgValueAddedList, dim)
-
-recentAgValueAdded <- AgValueAddedList[[length(AgValueAddedList)]]
-recentAgValueAdded <- recentAgValueAdded %>% dplyr::select(country.name.en, iso3c, AgValueAdded)
-
-
-## 2. Agriculture under-employment
-## Measure: Employment rate
-
-## 3. Wage employment distribution in agriculture
-## Measure: Economic distribution
-## Original name: Wage employment distribution in agriculture
-## Units: Constant 2010 US$
-## Years: 2000:2016
-## Countries with data: 137
-
-employment <- read.csv(file = "./Input_data_final/Economic/Employment_Indicators_E_All_Data.csv")
-employment <- employment %>% filter(Indicator == "Agriculture value added per worker (constant 2005 US$)" |
-                                      Indicator == "Wage employment distribution, agriculture" |
-                                      Indicator == "Time related underemployment in agriculture")
-employment <- employment %>% select(Country, Indicator, 8:ncol(employment))
-employment <- employment %>% gather(Year, Value, -(Country:Indicator))
-employment <- unique(employment)
-employment <- employment[setdiff(1:nrow(employment), grep(pattern = "F$", x = employment$Year)),]
-rownames(employment) <- 1:nrow(employment)
-employment$Value <- employment$Value %>% as.character %>% as.numeric
-employment <- employment %>% group_by(Country, Indicator, Year) %>% summarise(Value = mean(Value, na.rm = T))
-employment$Year <- gsub(pattern = "Y", replacement = "", x = employment$Year) %>% as.character %>% as.numeric
-
-employment %>% ggplot(aes(x = Year, y = Value, colour = Indicator, group = Country)) +
-  geom_line(alpha = .5) + facet_wrap(~Indicator, scales = "free") + 
-  theme_bw()
-
-employment <- employment %>% spread(Indicator, Value)
-names(employment)[3:5] <- c("AgValue.added", "Time.underemployment", "Wage.employment")
-employment <- employment %>% filter(Year >= 2000 & Country != "Serbia and Montenegro")
-employment$Country <- as.character(employment$Country)
-employment$Country[which(employment$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-employment$Country[which(employment$Country == "China, Macao SAR")] <- "Macao"
-employment$Country[which(employment$Country == "China, mainland")] <- "China"
-employment$Country[which(employment$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-employment$Country[which(employment$Country == "Ethiopia PDR")] <- "Ethiopia"
-employment$Country[which(employment$Country == "Occupied Palestinian Territory")] <- "Palestine"
-employment$Country[which(employment$Country == "Réunion")] <- "Reunion"
-employment$Country[which(employment$Country == "Sudan (former)")] <- "Sudan"
-employment$Country[which(employment$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-employment <- employment[which(employment %>% select(Country, Year) %>% duplicated() == FALSE),]
-
-# AgValueAdded <- employment %>% select(Country, Year, AgValue.added) %>% spread(., key = Year, value = AgValue.added)
-# TimeUnderemployment <- employment %>% select(Country, Year, Time.underemployment) %>% spread(., key = Year, value = Time.underemployment)
-WageEmployment <- employment %>% select(Country, Year, Wage.employment) %>% spread(., key = Year, value = Wage.employment)
-
-# AgValueAdded$AgValue.added <- rowMeans(x = AgValueAdded[,2:ncol(AgValueAdded)], na.rm = T)
-# sum(!is.na(AgValueAdded$AgValue.added))
-# TimeUnderemployment$Time.underemployment <- rowMeans(x = TimeUnderemployment[,2:ncol(TimeUnderemployment)], na.rm = T)
-# sum(!is.na(TimeUnderemployment$Time.underemployment))
-WageEmployment$Wage.employment <- rowMeans(x = WageEmployment[,2:ncol(WageEmployment)], na.rm = T)
-WageEmployment <- WageEmployment %>% select(Country, Wage.employment)
-# sum(!is.na(WageEmployment$Wage.employment))
-
-WageEmployment <- dplyr::inner_join(x = country_codes, y = WageEmployment, by = c("country.name.en" = "Country"))
-WageEmployment <- WageEmployment %>% dplyr::select(country.name.en, iso3c, Wage.employment)
+# PCA
+FactoMineR::PCA(X = economicDim[complete.cases(economicDim),-1])
 
 
 ## ========================================================================== ##
 ## SOCIAL
 ## ========================================================================== ##
 
-## 1. Employment in agriculture female (% of female employment)
-## Measure: Gender/Equity
-## Original name: Employment in agriculture female (% of female employment)
-## Units: (%)
-## Years: 1990:2010 (Selected period: 2000:2010)
-## Countries with data: 231
+if(!file.exists("social_dimension.csv")){
+  
+  ## 1. Employment in agriculture female (% of female employment)
+  ## Measure: Gender/Equity
+  ## Original name: Employment in agriculture female (% of female employment)
+  ## Units: (%)
+  ## Years: 1990:2010 (Selected period: 2000:2010)
+  ## Countries with data: 231
+  
+  FemaleLaborForce <- read_csv(file = "./Input_data_final/Social/Labor_force_female.csv", col_names = T, skip = 4)
+  FemaleLaborForce$`Country Code` <- NULL
+  FemaleLaborForce$`Indicator Name` <- NULL
+  FemaleLaborForce$`Indicator Code` <- NULL
+  names(FemaleLaborForce)[1] <- "Country"
+  FemaleLaborForce <- FemaleLaborForce %>% gather(Year, Female.labor.force, 2:ncol(FemaleLaborForce))
+  FemaleLaborForce$Country <- FemaleLaborForce$Country %>% as.character
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Bahamas, The")] <- "Bahamas"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Cote d'Ivoire")] <- "Ivory Coast"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Congo, Rep.")] <- "Congo"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Egypt, Arab Rep.")] <- "Egypt"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Gambia, The")] <- "Gambia"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Hong Kong SAR, China")] <- "Hong Kong"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Korea, Rep.")] <- "Republic of Korea"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Lucia")] <- "Saint Lucia"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Macao SAR, China")] <- "Macao"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Moldova")] <- "Republic of Moldova"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
+  FemaleLaborForce$Country[grep(pattern = "Korea, Dem. People", x = FemaleLaborForce$Country)] <- "Democratic People's Republic of Korea"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "West Bank and Gaza")] <- "Palestine"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Slovak Republic")] <- "Slovakia"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Tanzania")] <- "United Republic of Tanzania"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "United States")] <- "United States of America"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Venezuela, RB")] <- "Venezuela"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Vietnam")] <- "Viet Nam"
+  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Yemen, Rep.")] <- "Yemen"
+  
+  FemaleLaborForce %>% ggplot(aes(x = Year, y = Female.labor.force, group = Country)) +
+    geom_line(alpha = .5) + theme_bw()
+  
+  yearsList <- FemaleLaborForce$Year %>% unique %>% sort
+  FemaleLaborForceList <- lapply(1:length(yearsList), function(i){
+    df <- FemaleLaborForce %>% filter(Year == yearsList[i])
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    return(df)
+  })
+  lapply(FemaleLaborForceList, dim)
+  
+  recentFemaleLaborForce <- FemaleLaborForceList[[length(FemaleLaborForceList)]]
+  recentFemaleLaborForce <- recentFemaleLaborForce %>% dplyr::select(country.name.en, iso3c, Female.labor.force)
+  
+  
+  ## 2. Number of fair trade producer organizations
+  ## Measure: Inclusion
+  
+  
+  ## 3. Employment in agriculture
+  ## Measure: Inclusion
+  ## Original name: Employment in agriculture (% of total employment)
+  ## Units: (%)
+  ## Years: 
+  ## Countries with data: 
+  
+  AgEmployment <- readxl::read_excel(path = "./Input_data_final/Social/employment_agriculture.xlsx", sheet = 1)
+  AgEmployment <- AgEmployment[1:217,]
+  AgEmployment$`Series Name` <- NULL
+  AgEmployment$`Series Code` <- NULL
+  AgEmployment$`Country Code` <- NULL
+  AgEmployment$`1990` <- NULL
+  names(AgEmployment)[1] <- "Country"
+  
+  AgEmployment$Agr.employment <- rowMeans(x = AgEmployment[,2:ncol(AgEmployment)], na.rm = T)
+  AgEmployment <- AgEmployment %>% select(Country, Agr.employment)
+  AgEmployment$Country <- AgEmployment$Country %>% as.character
+  AgEmployment$Country[which(AgEmployment$Country == "Bahamas, The")] <- "Bahamas"
+  AgEmployment$Country[which(AgEmployment$Country == "Cote d'Ivoire")] <- "Ivory Coast"
+  AgEmployment$Country[which(AgEmployment$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
+  AgEmployment$Country[which(AgEmployment$Country == "Congo, Rep.")] <- "Congo"
+  AgEmployment$Country[which(AgEmployment$Country == "Egypt, Arab Rep.")] <- "Egypt"
+  AgEmployment$Country[which(AgEmployment$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
+  AgEmployment$Country[which(AgEmployment$Country == "Gambia, The")] <- "Gambia"
+  AgEmployment$Country[which(AgEmployment$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  AgEmployment$Country[which(AgEmployment$Country == "Hong Kong SAR, China")] <- "Hong Kong"
+  AgEmployment$Country[which(AgEmployment$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
+  AgEmployment$Country[which(AgEmployment$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
+  AgEmployment$Country[which(AgEmployment$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
+  AgEmployment$Country[which(AgEmployment$Country == "Korea, Rep.")] <- "Republic of Korea"
+  AgEmployment$Country[which(AgEmployment$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
+  AgEmployment$Country[which(AgEmployment$Country == "St. Lucia")] <- "Saint Lucia"
+  AgEmployment$Country[which(AgEmployment$Country == "Macao SAR, China")] <- "Macao"
+  AgEmployment$Country[which(AgEmployment$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
+  AgEmployment$Country[which(AgEmployment$Country == "Moldova")] <- "Republic of Moldova"
+  AgEmployment$Country[which(AgEmployment$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
+  AgEmployment$Country[which(AgEmployment$Country == "Korea, Dem. People's Rep.")] <- "Democratic People's Republic of Korea"
+  AgEmployment$Country[which(AgEmployment$Country == "West Bank and Gaza")] <- "Palestine"
+  AgEmployment$Country[which(AgEmployment$Country == "Slovak Republic")] <- "Slovakia"
+  AgEmployment$Country[which(AgEmployment$Country == "Tanzania")] <- "United Republic of Tanzania"
+  AgEmployment$Country[which(AgEmployment$Country == "United States")] <- "United States of America"
+  AgEmployment$Country[which(AgEmployment$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
+  AgEmployment$Country[which(AgEmployment$Country == "Venezuela, RB")] <- "Venezuela"
+  AgEmployment$Country[which(AgEmployment$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
+  AgEmployment$Country[which(AgEmployment$Country == "Vietnam")] <- "Viet Nam"
+  AgEmployment$Country[which(AgEmployment$Country == "Yemen, Rep.")] <- "Yemen"
+  
+  AgEmployment <- dplyr::inner_join(x = country_codes, y = AgEmployment, by = c("country.name.en" = "Country"))
+  AgEmployment <- AgEmployment %>% dplyr::select(country.name.en, iso3c, Agr.employment)
+  
+  
+  socialDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentFemaleLaborForce, by = c("country.name.en", "iso3c"))
+  socialDim <- dplyr::left_join(x = socialDim, y = AgEmployment, by = c("country.name.en", "iso3c"))
+  
+  socialDim <- socialDim[-which(apply(X = socialDim[,3:ncol(socialDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 2),]
+  rownames(socialDim) <- socialDim$country.name.en
+  socialDim$country.name.en <- NULL
+  
+  write.csv(x = socialDim, file = "social_dimension.csv", row.names = T)
+  
+  rm(AgEmployment, FemaleLaborForce, FemaleLaborForceList, recentFemaleLaborForce)
+  
+} else {
+  socialDim <- read.csv("social_dimension.csv")
+}
 
-lf_female <- read_csv(file = "./Input_data_final/Social/Labor_force_female.csv", col_names = T, skip = 4)
-names(lf_female)[1:2] <- c("Country", "ISO3")
-lf_female <- cbind(lf_female[,1:2], lf_female[,5:ncol(lf_female)])
-lf_female <- lf_female %>% gather(Year, Value, -(Country:ISO3))
-lf_female <- lf_female %>% select(ISO3, Country, Year, Value)
-names(lf_female)[ncol(lf_female)] <- "Labor_force_female"
-lf_female$Labor_force_female <- as.numeric(lf_female$Labor_force_female)
+# Distributions and missing values representation
+tableplot(socialDim[,-1], nBins = nrow(socialDim))
 
-lf_female %>% filter(Year > 1989) %>% ggplot(aes(x = Year, y = Labor_force_female, colour = Country)) +
-  geom_point() + theme(legend.position = 'none')
+# Correlation
+M <- cor(socialDim[,-1], use = "complete.obs", method = "spearman")
+corrplot(M, method = "square"); rm(M)
 
+# PCA
+FactoMineR::PCA(X = socialDim[complete.cases(socialDim),-1])
 
-## 2. Number of fair trade producer organizations
-## Measure: Inclusion
-
-
-## 3. Employment in agriculture
-## Measure: Inclusion
-## Original name: Employment in agriculture (% of total employment)
-## Units: (%)
-## Years: 
-## Countries with data: 
-
-AgEmployment <- readxl::read_excel(path = "./Input_data_final/Social/employment_agriculture.xlsx", sheet = 1)
-AgEmployment <- AgEmployment[1:217,]
-AgEmployment$`Series Name` <- NULL
-AgEmployment$`Series Code` <- NULL
-AgEmployment$`Country Code` <- NULL
-AgEmployment$`1990` <- NULL
-names(AgEmployment)[1] <- "Country"
-
-AgEmployment$Agr.employment <- rowMeans(x = AgEmployment[,2:ncol(AgEmployment)], na.rm = T)
-AgEmployment <- AgEmployment %>% select(Country, Agr.employment)
-AgEmployment$Country <- AgEmployment$Country %>% as.character
-AgEmployment$Country[which(AgEmployment$Country == "Bahamas, The")] <- "Bahamas"
-AgEmployment$Country[which(AgEmployment$Country == "Cote d'Ivoire")] <- "Ivory Coast"
-AgEmployment$Country[which(AgEmployment$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
-AgEmployment$Country[which(AgEmployment$Country == "Congo, Rep.")] <- "Congo"
-AgEmployment$Country[which(AgEmployment$Country == "Egypt, Arab Rep.")] <- "Egypt"
-AgEmployment$Country[which(AgEmployment$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
-AgEmployment$Country[which(AgEmployment$Country == "Gambia, The")] <- "Gambia"
-AgEmployment$Country[which(AgEmployment$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-AgEmployment$Country[which(AgEmployment$Country == "Hong Kong SAR, China")] <- "Hong Kong"
-AgEmployment$Country[which(AgEmployment$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
-AgEmployment$Country[which(AgEmployment$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-AgEmployment$Country[which(AgEmployment$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-AgEmployment$Country[which(AgEmployment$Country == "Korea, Rep.")] <- "Republic of Korea"
-AgEmployment$Country[which(AgEmployment$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
-AgEmployment$Country[which(AgEmployment$Country == "St. Lucia")] <- "Saint Lucia"
-AgEmployment$Country[which(AgEmployment$Country == "Macao SAR, China")] <- "Macao"
-AgEmployment$Country[which(AgEmployment$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
-AgEmployment$Country[which(AgEmployment$Country == "Moldova")] <- "Republic of Moldova"
-AgEmployment$Country[which(AgEmployment$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
-AgEmployment$Country[which(AgEmployment$Country == "Macedonia, FYR")] <- "Democratic People's Republic of Korea"
-AgEmployment$Country[which(AgEmployment$Country == "West Bank and Gaza")] <- "Palestine"
-AgEmployment$Country[which(AgEmployment$Country == "Slovak Republic")] <- "Slovakia"
-AgEmployment$Country[which(AgEmployment$Country == "Tanzania")] <- "United Republic of Tanzania"
-AgEmployment$Country[which(AgEmployment$Country == "United States")] <- "United States of America"
-AgEmployment$Country[which(AgEmployment$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-AgEmployment$Country[which(AgEmployment$Country == "Venezuela, RB")] <- "Venezuela"
-AgEmployment$Country[which(AgEmployment$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
-AgEmployment$Country[which(AgEmployment$Country == "Vietnam")] <- "Viet Nam"
-AgEmployment$Country[which(AgEmployment$Country == "Yemen, Rep.")] <- "Yemen"
-
-
-
-AgEmployment2 <- AgEmployment %>% select(Country) %>% unique
-AgEmployment2$Country[which(is.na(match(AgEmployment2$Country, country_codes$country.name.en)))]
-
-AgEmployment <- dplyr::inner_join(x = country_codes, y = AgEmployment, by = c("country.name.en" = "Country"))
-AgEmployment <- AgEmployment %>% dplyr::select(country.name.en, iso3c, Agr.employment)
 
 ## ========================================================================== ##
 ## FOOD AND NUTRITION
