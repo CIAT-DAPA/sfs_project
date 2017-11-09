@@ -25,6 +25,7 @@ suppressMessages(if(!require(countrycode)){install.packages('countrycode'); libr
 suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
 suppressMessages(if(!require(caret)){install.packages('caret'); library(caret)} else {library(caret)})
 suppressMessages(if(!require(missMDA)){install.packages('missMDA'); library(missMDA)} else {library(missMDA)})
+suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -90,6 +91,9 @@ mdi_food_nutrition <- list(nDim = nbdim,
 # plot(res.comp)
 saveRDS(object = mdi_environment, file = "./Results/_imputation/_mdi_food_nutrition.RDS")
 
+# Using Random Forest
+all_data.imp <- missForest(all_data[,-1])
+
 ## ========================================================================== ##
 ## Fitting PLS-PM with missing data
 ## ========================================================================== ##
@@ -121,6 +125,51 @@ plot(sfs_pls1)
 pairs(sfs_pls1$scores)
 
 
+sfs_pls2 <- plspm(data.frame(all_data$iso3c, all_data.imp$ximp), sfs_path, sfs_blocks, scaling = sfs_scaling, 
+                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
+plot(sfs_pls2)
+pairs(sfs_pls2$scores)
 
+sfs_rf <- randomForest(Food_nutrition ~ ., data=sfs_pls2$scores)
+plot(sfs_rf)
+partialPlot(sfs_rf, sfs_pls2$scores, Environment)
+partialPlot(sfs_rf, sfs_pls2$scores, Economic)
+partialPlot(sfs_rf, sfs_pls2$scores, Social)
 
+## ========================================================================== ##
+## Ploting a map
+## ========================================================================== ##
 
+suppressMessages(library(highcharter))
+suppressMessages(library(viridisLite))
+thm <- 
+  hc_theme(
+    colors = c("#1a6ecc", "#434348", "#90ed7d"),
+    chart = list(
+      backgroundColor = "transparent",
+      style = list(fontFamily = "Source Sans Pro")
+    ),
+    xAxis = list(
+      gridLineWidth = 1
+    )
+  )
+
+data("worldgeojson")
+
+indices <- data.frame(iso3 = all_data$iso3c, sfs_pls2$scores)
+
+n <- 4
+colstops <- data.frame(
+  q = 0:n/n,
+  c = substring(viridis(n + 1), 0, 7)) %>%
+  list.parse2()
+
+highchart(type = "map") %>%
+  hc_add_series_map(map = worldgeojson, df = indices, value = "Food_nutrition", joinBy = "iso3") %>%
+  hc_colorAxis(stops = color_stops()) %>%
+  hc_tooltip(useHTML = TRUE, headerFormat = "",
+             pointFormat = "{point.name} has a SFS index of {point.Food_nutrition}") %>%
+  hc_colorAxis(stops = colstops) %>%
+  hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
+  hc_mapNavigation(enabled = TRUE) %>%
+  hc_add_theme(thm)
