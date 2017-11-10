@@ -28,6 +28,7 @@ suppressMessages(if(!require(missMDA)){install.packages('missMDA'); library(miss
 suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
 suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
 suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
+suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -60,6 +61,9 @@ if(file.exists("economic_dimension.csv")){economicDim <- read.csv("economic_dime
 if(file.exists("social_dimension.csv")){socialDim <- read.csv("social_dimension.csv", row.names = 1)}
 if(file.exists("food_nutrition_dimension.csv")){food_nutritionDim <- read.csv("food_nutrition_dimension.csv", row.names = 1)}
 
+environmentDim <- environmentDim[-which(apply(X = environmentDim[,2:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(environmentDim)-1)/2)),]
+food_nutritionDim <- food_nutritionDim[-which(apply(X = food_nutritionDim[,2:ncol(food_nutritionDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(food_nutritionDim)-1)/2)+1),]
+
 all_data <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = environmentDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = economicDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = socialDim, by = "iso3c")
@@ -67,7 +71,7 @@ all_data <- dplyr::left_join(x = all_data, y = food_nutritionDim, by = "iso3c")
 
 all_data <- all_data[-which(apply(X = all_data[,2:ncol(all_data)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 23),]
 all_data <- all_data[-which(is.na(all_data$iso3c)),]
-rownames(all_data) <- 1:nrow(all_data)
+rownames(all_data) <- all_data$iso3c
 
 tabplot::tableplot(all_data[,-1], nBins = nrow(all_data))
 
@@ -77,6 +81,7 @@ all_data[complete.cases(all_data),] %>% View
 ## Exploring missing data imputation techniques
 ## ========================================================================== ##
 
+## Exploring missing data distribution
 miss.enviroment <- data.frame(Dimension = rep("Enviroment", ncol(environmentDim)-1),
                               Indicator = names(environmentDim)[2:ncol(environmentDim)],
                               Missing.data = apply(X = environmentDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
@@ -114,63 +119,101 @@ highchart() %>%
   hc_add_series_treemap(tm, allowDrillToNode = TRUE,
                         layoutAlgorithm = "squarified") %>% 
   hc_add_theme(thm)
+rm(missing_data)
 
+# # Just for Food and nutrition dimension
+# nbdim <- estim_ncpPCA(food_nutritionDim[,-1])
+# res.comp <- MIPCA(food_nutritionDim[,-1], ncp = nbdim$ncp, nboot = 1000)
+# mdi_food_nutrition <- list(nDim = nbdim,
+#                            imputedData = res.comp)
+# # plot(res.comp)
+# saveRDS(object = mdi_environment, file = "./Results/_imputation/_mdi_food_nutrition.RDS")
 
-
-# Just for Food and nutrition dimension
-nbdim <- estim_ncpPCA(food_nutritionDim[,-1])
-res.comp <- MIPCA(food_nutritionDim[,-1], ncp = nbdim$ncp, nboot = 1000)
-mdi_food_nutrition <- list(nDim = nbdim,
-                           imputedData = res.comp)
-# plot(res.comp)
-saveRDS(object = mdi_environment, file = "./Results/_imputation/_mdi_food_nutrition.RDS")
-
-# Complete data
-nbdim <- estim_ncpPCA(all_data[,-1])
-res.comp <- MIPCA(all_data[,-1], ncp = nbdim$ncp, nboot = 1000)
-mdi_food_nutrition <- list(nDim = nbdim,
-                           imputedData = res.comp)
-# plot(res.comp)
-saveRDS(object = mdi_environment, file = "./Results/_imputation/_mdi_food_nutrition.RDS")
-
-# Using Random Forest
+## Applying Random Forest for missing data imputation
+set.seed(1235)
 all_data.imp <- missForest(all_data[,-1])
 
 ## ========================================================================== ##
 ## Fitting PLS-PM with missing data
 ## ========================================================================== ##
 
+sfsMap <- function(Scores){
+  
+  thm <- 
+    hc_theme(
+      colors = c("#1a6ecc", "#434348", "#90ed7d"),
+      chart = list(
+        backgroundColor = "transparent",
+        style = list(fontFamily = "Source Sans Pro")
+      ),
+      xAxis = list(gridLineWidth = 1)
+    )
+  
+  data("worldgeojson")
+  
+  indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
+  
+  n <- 4
+  colstops <- data.frame(
+    q = 0:n/n,
+    c = substring(viridis(n + 1), 0, 7)) %>%
+    list.parse2()
+  
+  return(
+    highchart(type = "map") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index", joinBy = "iso3") %>%
+      hc_colorAxis(stops = color_stops()) %>%
+      hc_tooltip(useHTML = TRUE, headerFormat = "",
+                 pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
+      hc_colorAxis(stops = colstops) %>%
+      hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
+      hc_mapNavigation(enabled = TRUE) %>%
+      hc_add_theme(thm)
+  )
+  
+}
+
+# ----------------------------------------------------- #
+# Repeated indicators approach
+# ----------------------------------------------------- #
+
 # Inner model
-sfs_path <- rbind(c(0, 0, 0, 0),
-                  c(0, 0 ,0 ,0),
-                  c(0, 0, 0, 0),
-                  c(1, 1, 1, 0))
-rownames(sfs_path) <- colnames(sfs_path) <- c("Environment", "Economic", "Social", "Food_nutrition")
+sfs_path <- rbind(c(0, 0, 0, 0, 0),
+                  c(0, 0 ,0 ,0, 0),
+                  c(0, 0, 0, 0, 0),
+                  c(0, 0, 0, 0, 0),
+                  c(1, 1, 1, 1, 0))
+rownames(sfs_path) <- colnames(sfs_path) <- c("Environment", "Economic", "Social", "Food_nutrition", "SFS_index")
 innerplot(sfs_path)
 
-# Blocks of variables
-sfs_blocks <- list(2:8, 9:10, 11:12, 13:24)
+# Blocks of variables: repeated indicators approach
+sfs_blocks1 <- list(2:8, 9:10, 11:12, 13:24, 2:24)
 
 # Scaling
-sfs_scaling <- list(rep("NUM", length(sfs_blocks[[1]])),
-                    rep("NUM", length(sfs_blocks[[2]])),
-                    rep("NUM", length(sfs_blocks[[3]])),
-                    rep("NUM", length(sfs_blocks[[4]])))
+sfs_scaling <- list(rep("NUM", length(sfs_blocks1[[1]])),
+                    rep("NUM", length(sfs_blocks1[[2]])),
+                    rep("NUM", length(sfs_blocks1[[3]])),
+                    rep("NUM", length(sfs_blocks1[[4]])),
+                    rep("NUM", length(sfs_blocks1[[5]])))
 
 # Modes
-sfs_modes <- c("A", "A", "A", "A")
+sfs_modes <- c("A", "A", "A", "A", "A")
 
-# PLS-PM
-sfs_pls1 <- plspm(all_data[complete.cases(all_data),], sfs_path, sfs_blocks, scaling = sfs_scaling, 
-                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
+# PLS-PM with missing data
+sfs_pls1 <- plspm(all_data[complete.cases(all_data),], sfs_path, sfs_blocks1, scaling = sfs_scaling, 
+                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
 plot(sfs_pls1)
 pairs(sfs_pls1$scores)
+sfsMap(Scores = sfs_pls1$scores)
 
-
-sfs_pls2 <- plspm(data.frame(all_data$iso3c, all_data.imp$ximp), sfs_path, sfs_blocks, scaling = sfs_scaling, 
-                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
+# PLS-PM without missing data, imputed by Random Forest
+all_data.RF.Imp <- data.frame(all_data$iso3c, all_data.imp$ximp)
+rownames(all_data.RF.Imp) <- all_data$iso3c
+sfs_pls2 <- plspm(all_data.RF.Imp, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
+                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
 plot(sfs_pls2)
 pairs(sfs_pls2$scores)
+sfsMap(Scores = sfs_pls2$scores)
 
 sfs_rf <- randomForest(Food_nutrition ~ ., data=sfs_pls2$scores)
 plot(sfs_rf)
@@ -178,40 +221,17 @@ partialPlot(sfs_rf, sfs_pls2$scores, Environment)
 partialPlot(sfs_rf, sfs_pls2$scores, Economic)
 partialPlot(sfs_rf, sfs_pls2$scores, Social)
 
-## ========================================================================== ##
-## Ploting a map
-## ========================================================================== ##
+# ----------------------------------------------------- #
+# Two-step approach
+# ----------------------------------------------------- #
 
-suppressMessages(library(highcharter))
-suppressMessages(library(viridisLite))
-thm <- 
-  hc_theme(
-    colors = c("#1a6ecc", "#434348", "#90ed7d"),
-    chart = list(
-      backgroundColor = "transparent",
-      style = list(fontFamily = "Source Sans Pro")
-    ),
-    xAxis = list(
-      gridLineWidth = 1
-    )
-  )
+pairs(data.frame(
+FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[1]]], scale.unit = T, graph = F)$ind$coord[,1],
+FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[2]]], scale.unit = T, graph = F)$ind$coord[,1],
+FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[3]]], scale.unit = T, graph = F)$ind$coord[,1],
+FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[4]]], scale.unit = T, graph = F)$ind$coord[,1]
+))
 
-data("worldgeojson")
-
-indices <- data.frame(iso3 = all_data$iso3c, sfs_pls2$scores)
-
-n <- 4
-colstops <- data.frame(
-  q = 0:n/n,
-  c = substring(viridis(n + 1), 0, 7)) %>%
-  list.parse2()
-
-highchart(type = "map") %>%
-  hc_add_series_map(map = worldgeojson, df = indices, value = "Food_nutrition", joinBy = "iso3") %>%
-  hc_colorAxis(stops = color_stops()) %>%
-  hc_tooltip(useHTML = TRUE, headerFormat = "",
-             pointFormat = "{point.name} has a SFS index of {point.Food_nutrition}") %>%
-  hc_colorAxis(stops = colstops) %>%
-  hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
-  hc_mapNavigation(enabled = TRUE) %>%
-  hc_add_theme(thm)
+# ----------------------------------------------------- #
+# Hybrid approach
+# ----------------------------------------------------- #
