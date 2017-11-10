@@ -26,6 +26,8 @@ suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} 
 suppressMessages(if(!require(caret)){install.packages('caret'); library(caret)} else {library(caret)})
 suppressMessages(if(!require(missMDA)){install.packages('missMDA'); library(missMDA)} else {library(missMDA)})
 suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
+suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
+suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -74,6 +76,46 @@ all_data[complete.cases(all_data),] %>% View
 ## ========================================================================== ##
 ## Exploring missing data imputation techniques
 ## ========================================================================== ##
+
+miss.enviroment <- data.frame(Dimension = rep("Enviroment", ncol(environmentDim)-1),
+                              Indicator = names(environmentDim)[2:ncol(environmentDim)],
+                              Missing.data = apply(X = environmentDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+rownames(miss.enviroment) <- 1:nrow(miss.enviroment)
+miss.economic <- data.frame(Dimension = rep("Economic", ncol(economicDim)-1),
+                            Indicator = names(economicDim)[2:ncol(economicDim)],
+                            Missing.data = apply(X = economicDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+rownames(miss.economic) <- 1:nrow(miss.economic)
+miss.social <- data.frame(Dimension = rep("Social", ncol(socialDim)-1),
+                            Indicator = names(socialDim)[2:ncol(socialDim)],
+                            Missing.data = apply(X = socialDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+rownames(miss.social) <- 1:nrow(miss.social)
+miss.foodNut <- data.frame(Dimension = rep("Food_nutrition", ncol(food_nutritionDim)-1),
+                          Indicator = names(food_nutritionDim)[2:ncol(food_nutritionDim)],
+                          Missing.data = apply(X = food_nutritionDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+rownames(miss.foodNut) <- 1:nrow(miss.foodNut)
+missing_data <- rbind(miss.enviroment, miss.economic, miss.social, miss.foodNut)
+rm(miss.enviroment, miss.economic, miss.social, miss.foodNut)
+
+thm <- 
+  hc_theme(
+    colors = c("#1a6ecc", "#434348", "#90ed7d"),
+    chart = list(
+      backgroundColor = "transparent",
+      style = list(fontFamily = "Source Sans Pro")
+    ),
+    xAxis = list(
+      gridLineWidth = 1
+    )
+  )
+tm <- treemap(missing_data, index = c("Dimension", "Indicator"),
+              vSize = "Missing.data", vColor = "Missing.data",
+              type = "value", palette = rev(viridis(6)))
+highchart() %>% 
+  hc_add_series_treemap(tm, allowDrillToNode = TRUE,
+                        layoutAlgorithm = "squarified") %>% 
+  hc_add_theme(thm)
+
+
 
 # Just for Food and nutrition dimension
 nbdim <- estim_ncpPCA(food_nutritionDim[,-1])
