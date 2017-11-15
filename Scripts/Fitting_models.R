@@ -76,6 +76,8 @@ rownames(all_data) <- all_data$iso3c
 tabplot::tableplot(all_data[,-1], nBins = nrow(all_data))
 
 all_data[complete.cases(all_data),] %>% View
+all_data2 <- all_data[which(!is.na(all_data$Emissions.agriculture.total)),]; rownames(all_data2) <- 1:nrow(all_data2)
+tabplot::tableplot(all_data2[,-1], nBins = nrow(all_data2))
 
 ## ========================================================================== ##
 ## Exploring missing data imputation techniques
@@ -130,7 +132,7 @@ rm(missing_data)
 # saveRDS(object = mdi_environment, file = "./Results/_imputation/_mdi_food_nutrition.RDS")
 
 ## Applying Random Forest for missing data imputation
-set.seed(1235)
+set.seed(1235) # set.seed(2456); set.seed(4859); set.seed(7863)
 all_data.imp <- missForest(all_data[,-1])
 
 ## ========================================================================== ##
@@ -231,6 +233,8 @@ FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[2]]], scale.u
 FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[3]]], scale.unit = T, graph = F)$ind$coord[,1],
 FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[4]]], scale.unit = T, graph = F)$ind$coord[,1]
 ))
+
+prcomp(x = all_data[complete.cases(all_data),sfs_blocks1[[1]]], center = T, scale. = T)
 
 # ----------------------------------------------------- #
 # Hybrid approach
