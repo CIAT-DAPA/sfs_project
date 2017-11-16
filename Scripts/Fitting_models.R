@@ -29,6 +29,7 @@ suppressMessages(if(!require(missForest)){install.packages('missForest'); librar
 suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
 suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
 suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
+suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(corrplot)} else {library(corrplot)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -72,33 +73,82 @@ all_data <- dplyr::left_join(x = all_data, y = food_nutritionDim, by = "iso3c")
 all_data <- all_data[-which(apply(X = all_data[,2:ncol(all_data)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 23),]
 all_data <- all_data[-which(is.na(all_data$iso3c)),]
 rownames(all_data) <- all_data$iso3c
+all_data[complete.cases(all_data),] %>% View
 
 tabplot::tableplot(all_data[,-1], nBins = nrow(all_data))
-
-all_data[complete.cases(all_data),] %>% View
-all_data2 <- all_data[which(!is.na(all_data$Emissions.agriculture.total)),]; rownames(all_data2) <- 1:nrow(all_data2)
-tabplot::tableplot(all_data2[,-1], nBins = nrow(all_data2))
+pdf("corrMat_allVariables.pdf", height = 8, width = 8)
+corrplot::corrplot.mixed(cor(all_data[complete.cases(all_data),-1], method = "spearman"), upper = "square",
+                         tl.pos = "lt", diag = "u", mar = c(0, 0, 0, 0), number.cex = 0.5)
+dev.off()
 
 ## ========================================================================== ##
 ## Exploring missing data imputation techniques
 ## ========================================================================== ##
 
+## Missing data for rows
+all_data$mdCount <- apply(X = all_data[,-1], MARGIN = 1, FUN = function(x) sum(is.na(x)))
+missingDataMap <- function(Scores){
+  
+  thm <- 
+    hc_theme(
+      colors = c("#1a6ecc", "#434348", "#90ed7d"),
+      chart = list(
+        backgroundColor = "transparent",
+        style = list(fontFamily = "Source Sans Pro")
+      ),
+      xAxis = list(gridLineWidth = 1)
+    )
+  
+  data("worldgeojson")
+  
+  Scores <- Scores[,-1]
+  indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
+  
+  n <- 4
+  colstops <- data.frame(
+    q = 0:n/n,
+    c = substring(viridis(n + 1), 0, 7)) %>%
+    list.parse2()
+  
+  return(
+    highchart(type = "map") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "mdCount", joinBy = "iso3") %>%
+      hc_colorAxis(stops = color_stops()) %>%
+      hc_tooltip(useHTML = TRUE, headerFormat = "",
+                 pointFormat = "Number of missing data for {point.name}: {point.mdCount}") %>%
+      hc_colorAxis(stops = colstops) %>%
+      hc_legend(valueDecimals = 0, valueSuffix = "") %>%
+      hc_mapNavigation(enabled = TRUE) %>%
+      hc_add_theme(thm)
+  )
+  
+}
+missingDataMap(Scores = all_data)
+
+all_data %>% ggplot(aes(x = mdCount)) + geom_histogram(bins = 20) +
+  xlab("Number of missing data") + ylab("Frequency")
+
+# Omiting variables with more than 10 missing data per all variables
+all_data <- all_data %>% filter(mdCount < 10)
+rownames(all_data) <- all_data$iso3c; all_data$mdCount <- NULL
+tabplot::tableplot(all_data[,-1], nBins = nrow(all_data))
+
 ## Exploring missing data distribution
 miss.enviroment <- data.frame(Dimension = rep("Enviroment", ncol(environmentDim)-1),
                               Indicator = names(environmentDim)[2:ncol(environmentDim)],
-                              Missing.data = apply(X = environmentDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+                              Missing.data = apply(X = environmentDim[match(all_data$iso3c, environmentDim$iso3c),-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
 rownames(miss.enviroment) <- 1:nrow(miss.enviroment)
 miss.economic <- data.frame(Dimension = rep("Economic", ncol(economicDim)-1),
                             Indicator = names(economicDim)[2:ncol(economicDim)],
-                            Missing.data = apply(X = economicDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+                            Missing.data = apply(X = economicDim[match(all_data$iso3c, economicDim$iso3c),-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
 rownames(miss.economic) <- 1:nrow(miss.economic)
 miss.social <- data.frame(Dimension = rep("Social", ncol(socialDim)-1),
                             Indicator = names(socialDim)[2:ncol(socialDim)],
-                            Missing.data = apply(X = socialDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+                            Missing.data = apply(X = socialDim[match(all_data$iso3c, socialDim$iso3c),-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
 rownames(miss.social) <- 1:nrow(miss.social)
 miss.foodNut <- data.frame(Dimension = rep("Food_nutrition", ncol(food_nutritionDim)-1),
                           Indicator = names(food_nutritionDim)[2:ncol(food_nutritionDim)],
-                          Missing.data = apply(X = food_nutritionDim[,-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
+                          Missing.data = apply(X = food_nutritionDim[match(all_data$iso3c, food_nutritionDim$iso3c),-1], MARGIN = 2, FUN = function(x){round(100*(sum(is.na(x))/nrow(all_data)), 2)}))
 rownames(miss.foodNut) <- 1:nrow(miss.foodNut)
 missing_data <- rbind(miss.enviroment, miss.economic, miss.social, miss.foodNut)
 rm(miss.enviroment, miss.economic, miss.social, miss.foodNut)
@@ -123,16 +173,10 @@ highchart() %>%
   hc_add_theme(thm)
 rm(missing_data)
 
-# # Just for Food and nutrition dimension
-# nbdim <- estim_ncpPCA(food_nutritionDim[,-1])
-# res.comp <- MIPCA(food_nutritionDim[,-1], ncp = nbdim$ncp, nboot = 1000)
-# mdi_food_nutrition <- list(nDim = nbdim,
-#                            imputedData = res.comp)
-# # plot(res.comp)
-# saveRDS(object = mdi_environment, file = "./Results/_imputation/_mdi_food_nutrition.RDS")
-
 ## Applying Random Forest for missing data imputation
 set.seed(1235) # set.seed(2456); set.seed(4859); set.seed(7863)
+seeds <- round(runif(n = 100000, min = 0, max = 150000))
+set.seed(seeds[1])
 all_data.imp <- missForest(all_data[,-1])
 
 ## ========================================================================== ##
@@ -152,7 +196,7 @@ sfsMap <- function(Scores){
     )
   
   data("worldgeojson")
-  
+  Scores <- apply(X = Scores, MARGIN = 2, FUN = function(x){(x - min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}) %>% as.data.frame
   indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
   
   n <- 4
@@ -203,7 +247,8 @@ sfs_modes <- c("A", "A", "A", "A", "A")
 
 # PLS-PM with missing data
 sfs_pls1 <- plspm(all_data[complete.cases(all_data),], sfs_path, sfs_blocks1, scaling = sfs_scaling, 
-                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
+                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001)
+                  # boot.val = T, br = 500) # plscomp = c(1,1,1,1), tol = 0.0000001
 plot(sfs_pls1)
 pairs(sfs_pls1$scores)
 sfsMap(Scores = sfs_pls1$scores)
@@ -212,7 +257,8 @@ sfsMap(Scores = sfs_pls1$scores)
 all_data.RF.Imp <- data.frame(all_data$iso3c, all_data.imp$ximp)
 rownames(all_data.RF.Imp) <- all_data$iso3c
 sfs_pls2 <- plspm(all_data.RF.Imp, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
-                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001) # plscomp = c(1,1,1,1), tol = 0.0000001
+                  modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001)
+                  # boot.val = T, br = 500) # plscomp = c(1,1,1,1), tol = 0.0000001
 plot(sfs_pls2)
 pairs(sfs_pls2$scores)
 sfsMap(Scores = sfs_pls2$scores)
@@ -227,14 +273,52 @@ partialPlot(sfs_rf, sfs_pls2$scores, Social)
 # Two-step approach
 # ----------------------------------------------------- #
 
-pairs(data.frame(
-FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[1]]], scale.unit = T, graph = F)$ind$coord[,1],
-FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[2]]], scale.unit = T, graph = F)$ind$coord[,1],
-FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[3]]], scale.unit = T, graph = F)$ind$coord[,1],
-FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[4]]], scale.unit = T, graph = F)$ind$coord[,1]
-))
+pairs(
+  data.frame(
+    FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[1]]], scale.unit = T, graph = F)$ind$coord[,1],
+    FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[2]]], scale.unit = T, graph = F)$ind$coord[,1],
+    FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[3]]], scale.unit = T, graph = F)$ind$coord[,1],
+    FactoMineR::PCA(X = all_data[complete.cases(all_data),sfs_blocks1[[4]]], scale.unit = T, graph = F)$ind$coord[,1]
+  )
+)
 
-prcomp(x = all_data[complete.cases(all_data),sfs_blocks1[[1]]], center = T, scale. = T)
+pairs(
+  data.frame(
+    plsdepot::nipals(Data = all_data[complete.cases(all_data),sfs_blocks1[[1]]], scaled = T)$scores[,1],
+    plsdepot::nipals(Data = all_data[complete.cases(all_data),sfs_blocks1[[2]]], scaled = T)$scores[,1],
+    plsdepot::nipals(Data = all_data[complete.cases(all_data),sfs_blocks1[[3]]], scaled = T)$scores[,1],
+    plsdepot::nipals(Data = all_data[complete.cases(all_data),sfs_blocks1[[4]]], scaled = T)$scores[,1]
+  )
+)
+
+pca_y_svd <- function(x, modos){
+  
+  n = dim(x)[1]
+  x0 = scale(x)#*(sqrt(n)/sqrt(n-1))
+  svd_o <- corpcor::fast.svd(x0)
+  comp  <- svd_o$u[,1:modos,drop=F]%*%diag(svd_o$d[1:modos],length(svd_o$d[1:modos]),length(svd_o$d[1:modos])) 
+  vect  <- svd_o$v[,1:modos]
+  output <- list(comp,vect)
+  return(output)
+  
+}
+pairs(
+  data.frame(
+    pca_y_svd(x = all_data[complete.cases(all_data),sfs_blocks1[[1]]], modos = 2)[[1]][,1],
+    pca_y_svd(x = all_data[complete.cases(all_data),sfs_blocks1[[2]]], modos = 2)[[1]][,1],
+    pca_y_svd(x = all_data[complete.cases(all_data),sfs_blocks1[[3]]], modos = 2)[[1]][,1],
+    pca_y_svd(x = all_data[complete.cases(all_data),sfs_blocks1[[4]]], modos = 2)[[1]][,1]
+  )
+)
+
+pairs(
+  data.frame(
+    prcomp(x = all_data[complete.cases(all_data),sfs_blocks1[[1]]], center = T, scale. = T)$x[,1],
+    prcomp(x = all_data[complete.cases(all_data),sfs_blocks1[[2]]], center = T, scale. = T)$x[,1],
+    prcomp(x = all_data[complete.cases(all_data),sfs_blocks1[[3]]], center = T, scale. = T)$x[,1],
+    prcomp(x = all_data[complete.cases(all_data),sfs_blocks1[[4]]], center = T, scale. = T)$x[,1]
+  )
+)
 
 # ----------------------------------------------------- #
 # Hybrid approach
