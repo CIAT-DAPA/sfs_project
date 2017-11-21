@@ -1,0 +1,114 @@
+---
+title: "SFS: Missing data management"
+author: "Harold Achicanoy"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    social: menu
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+suppressMessages(library(highcharter))
+suppressMessages(library(tidyverse))
+suppressMessages(library(viridisLite))
+suppressMessages(library(forecast))
+suppressMessages(library(treemap))
+suppressMessages(library(flexdashboard))
+suppressMessages(library(VIM))
+suppressMessages(library(plspm))
+suppressMessages(library(FactoMineR))
+suppressMessages(library(networkD3))
+suppressMessages(library(igraph))
+suppressMessages(library(plyr))
+suppressMessages(library(cluster))
+suppressMessages(library(plotly))
+
+thm <- 
+  hc_theme(
+    colors = c("#1a6ecc", "#434348", "#90ed7d"),
+    chart = list(
+      backgroundColor = "transparent",
+      style = list(fontFamily = "Source Sans Pro")
+    ),
+    xAxis = list(
+      gridLineWidth = 1
+    )
+  )
+
+```
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+
+### Missing data per country
+
+```{r}
+all_data <- readRDS(file = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/all_data_with_missingData.RDS")
+missingDataMap <- function(Scores){
+  
+  thm <- 
+    hc_theme(
+      colors = c("#1a6ecc", "#434348", "#90ed7d"),
+      chart = list(
+        backgroundColor = "transparent",
+        style = list(fontFamily = "Source Sans Pro")
+      ),
+      xAxis = list(gridLineWidth = 1)
+    )
+  
+  data("worldgeojson")
+  
+  Scores <- Scores[,-1]
+  indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
+  
+  n <- 4
+  colstops <- data.frame(
+    q = 0:n/n,
+    c = substring(viridis(n + 1), 0, 7)) %>%
+    list.parse2()
+  
+  return(
+    highchart(type = "map") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "mdCount", joinBy = "iso3") %>%
+      hc_colorAxis(stops = color_stops()) %>%
+      hc_tooltip(useHTML = TRUE, headerFormat = "",
+                 pointFormat = "Number of missing data for {point.name}: {point.mdCount}") %>%
+      hc_colorAxis(stops = colstops) %>%
+      hc_legend(valueDecimals = 0, valueSuffix = "") %>%
+      hc_mapNavigation(enabled = TRUE) %>%
+      hc_add_theme(thm)
+  )
+  
+}
+missingDataMap(Scores = all_data)
+```
+
+Column {.tabset data-width=400}
+-----------------------------------------------------------------------
+
+### Missing data for variables
+
+```{r}
+missing_data <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/missingData_variables.RDS")
+
+thm <- 
+  hc_theme(
+    colors = c("#1a6ecc", "#434348", "#90ed7d"),
+    chart = list(
+      backgroundColor = "transparent",
+      style = list(fontFamily = "Source Sans Pro")
+    ),
+    xAxis = list(
+      gridLineWidth = 1
+    )
+  )
+tm <- treemap(missing_data, index = c("Dimension", "Indicator"),
+              vSize = "Missing.data", vColor = "Missing.data",
+              type = "value", palette = rev(viridis(6)))
+highchart() %>% 
+  hc_add_series_treemap(tm, allowDrillToNode = TRUE,
+                        layoutAlgorithm = "squarified") %>% 
+  hc_add_theme(thm)
+rm(missing_data)
+```
