@@ -62,18 +62,32 @@ if(file.exists("economic_dimension.csv")){economicDim <- read.csv("economic_dime
 if(file.exists("social_dimension.csv")){socialDim <- read.csv("social_dimension.csv", row.names = 1)}
 if(file.exists("food_nutrition_dimension.csv")){food_nutritionDim <- read.csv("food_nutrition_dimension.csv", row.names = 1)}
 
-environmentDim <- environmentDim[-which(apply(X = environmentDim[,2:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(environmentDim)-1)/2)),]
-food_nutritionDim <- food_nutritionDim[-which(apply(X = food_nutritionDim[,2:ncol(food_nutritionDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(food_nutritionDim)-1)/2)+1),]
+# environmentDim <- environmentDim[-which(apply(X = environmentDim[,2:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(environmentDim)-1)/2)),]
+# food_nutritionDim <- food_nutritionDim[-which(apply(X = food_nutritionDim[,2:ncol(food_nutritionDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(food_nutritionDim)-1)/2)+1),]
 
 all_data <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = environmentDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = economicDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = socialDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = food_nutritionDim, by = "iso3c")
-
-all_data <- all_data[-which(apply(X = all_data[,2:ncol(all_data)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 23),]
+all_data <- all_data[-which(apply(X = all_data[,2:ncol(all_data)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 27),]
 all_data <- all_data[-which(is.na(all_data$iso3c)),]
-rownames(all_data) <- all_data$iso3c
+
+all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = all_data, by = "iso3c")
+rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
+write.csv(all_data, file = "C:/Users/haachicanoy/Desktop/all_data.csv", row.names = T)
+
+# rownames(all_data) <- all_data$iso3c
+
+all_data <- read.csv("C:/Users/haachicanoy/Desktop/all_data.csv", row.names = 1)
+
+sort(apply(X = all_data, MARGIN = 2, FUN = function(x){sum(is.na(x))}), decreasing = T)
+sort(apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}), decreasing = T)
+
 all_data[complete.cases(all_data),] %>% View
+
+all_data2 <- all_data
+all_data2$Dissolved.oxygen <- all_data2$Time.underemployment <- all_data2$Serum.retinol.deficiency <- all_data2$Stunting <- all_data2$Fairtrade.org <- NULL
+sort(apply(X = all_data2, MARGIN = 1, FUN = function(x){sum(is.na(x))}), decreasing = T)
 
 tabplot::tableplot(all_data[,-1], nBins = nrow(all_data))
 pdf("corrMat_allVariables.pdf", height = 8, width = 8)
@@ -234,6 +248,7 @@ innerplot(sfs_path)
 
 # Blocks of variables: repeated indicators approach
 sfs_blocks1 <- list(2:8, 9:10, 11:12, 13:24, 2:24)
+# sfs_blocks1 <- list(2:7, 8:9, 10:11, 12:ncol(all_data2), 2:ncol(all_data2))
 
 # Scaling
 sfs_scaling <- list(rep("NUM", length(sfs_blocks1[[1]])),

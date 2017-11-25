@@ -105,12 +105,21 @@ if(!file.exists("environmental_dimension.csv")){
   rm(emissionList, emission)
   
   
-  ## 2. ??????????????????
+  ## 2. Dissolved oxygen
   ## Measure: Water quality
   ## Original name: 
-  ## Units: 
+  ## Units: mg/l
   ## Years: 
-  ## Countries with data: 
+  ## Countries with data: 68
+  dissOxygen1 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 1)
+  dissOxygen2 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 2)
+  dissOxygen3 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 3)
+  dissOxygen <- rbind(dissOxygen1, dissOxygen2, dissOxygen3); rm(dissOxygen1, dissOxygen2, dissOxygen3)
+  dissOxygen %>% ggplot(aes(x = Value)) + geom_density() + facet_wrap(~ISO3)
+  
+  dissOxygen <- dissOxygen %>% select(ISO3, Value) %>% group_by(ISO3) %>% summarise(Dissolved.oxygen = median(Value, na.rm = T))
+  dissOxygen <- dplyr::inner_join(x = country_codes, y = dissOxygen, by = c("iso3c" = "ISO3"))
+  dissOxygen <- dissOxygen %>% dplyr::select(country.name.en, iso3c, Dissolved.oxygen)
   
   
   ## 3. Water withdrawal
@@ -244,37 +253,25 @@ if(!file.exists("environmental_dimension.csv")){
   ## Years: 2008
   ## Countries with data: 147
   
-  GBI <- read.csv("./Input_data_final/Environment/GEF_Biodiversity.csv")
-  GBI$Country <- as.character(GBI$Country)
-  GBI$Country[which(GBI$Country == "Côte d'ivoire")] <- "Ivory Coast"
-  GBI$Country[which(GBI$Country == "Cape Verde")] <- "Cabo Verde"
-  GBI$Country[which(GBI$Country == "Congo DR")] <- "Democratic Republic of the Congo"
-  GBI$Country[which(GBI$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  GBI$Country[which(GBI$Country == "Iran")] <- "Iran (Islamic Republic of)"
-  GBI$Country[which(GBI$Country == "Korea DPR")] <- "Democratic People's Republic of Korea"
-  GBI$Country[which(GBI$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-  GBI$Country[which(GBI$Country == "Laos")] <- "Lao People's Democratic Republic"
-  GBI$Country[which(GBI$Country == "Macedonia")] <- "The former Yugoslav Republic of Macedonia"
-  GBI$Country[which(GBI$Country == "Micronesia")] <- "Micronesia (Federated States of)"
-  GBI$Country[which(GBI$Country == "Moldova")] <- "Republic of Moldova"
-  GBI$Country[which(GBI$Country == "Russia")] <- "Russian Federation"
-  GBI$Country[which(GBI$Country == "Slovak Republic")] <- "Slovakia"
-  GBI$Country[which(GBI$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-  GBI$Country[which(GBI$Country == "St. Lucia")] <- "Saint Lucia"
-  GBI$Country[which(GBI$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-  GBI$Country[which(GBI$Country == "Syria")] <- "Syrian Arab Republic"
-  GBI$Country[which(GBI$Country == "Tanzania")] <- "United Republic of Tanzania"
-  GBI$Country[which(GBI$Country == "Timor Leste")] <- "Timor-Leste"
-  GBI$Country[which(GBI$Country == "Vietnam")] <- "Viet Nam"
+  if(!file.exists("./Input_data_final/Environment/GEF_benefits_for_biodiversity.csv")){
+    GBI <- XML::readHTMLTable("http://www.indexmundi.com/facts/indicators/ER.BDV.TOTL.XQ/rankings")
+    GBI <- GBI$`NULL`
+    write.csv(x = GBI, file = "./Input_data_final/Environment/GEF_benefits_for_biodiversity.csv", row.names = F)
+  } else {
+    GBI <- readr::read_csv(file = "./Input_data_final/Environment/GEF_benefits_for_biodiversity.csv", col_names = T)
+    GBI$Rank <- GBI$Year <- NULL
+  }
   
-  GBI %>% ggplot(aes(x = reorder(Country, GBI), y = GBI)) +
+  names(GBI)[2] <- "GEF.benefits.biodiversity"
+  
+  GBI %>% ggplot(aes(x = reorder(Country, GEF.benefits.biodiversity), y = GEF.benefits.biodiversity)) +
     geom_bar(stat = "identity") +
-    xlab("Country") + ylab("GBI biodiversity index") +
+    xlab("Country") + ylab("GEF benefict for biodiversity index") +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90))
   
   GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
-  GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GBI)
+  GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GEF.benefits.biodiversity)
   
   
   ## 7. Energy used in agriculture and forestry
@@ -311,6 +308,7 @@ if(!file.exists("environmental_dimension.csv")){
   recentEnergy <- recentEnergy %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
   
   environmentDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentEmission, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = dissOxygen, by = c("country.name.en", "iso3c"))
   environmentDim <- dplyr::left_join(x = environmentDim, y = water, by = c("country.name.en", "iso3c"))
   environmentDim <- dplyr::left_join(x = environmentDim, y = carbon_soil, by = c("country.name.en", "iso3c"))
   environmentDim <- dplyr::left_join(x = environmentDim, y = recentArable_land, by = c("country.name.en", "iso3c"))
@@ -324,7 +322,7 @@ if(!file.exists("environmental_dimension.csv")){
   write.csv(x = environmentDim, file = "environmental_dimension.csv", row.names = T)
   
   rm(recentEmission, recentSafe_water, water, carbon_soil, recentArable_land, GBI, recentEnergy)
-  rm(emission, safe_water, arable_land, energy)
+  rm(emission, safe_water, arable_land, energy, dissOxygen)
   rm(arable_landList, emissionList, energyList, safe_waterList, waterList, yearsList)
 } else {
   environmentDim <- read.csv("environmental_dimension.csv", row.names = 1)
