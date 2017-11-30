@@ -79,7 +79,7 @@ write.csv(all_data, file = "C:/Users/haachicanoy/Desktop/all_data.csv", row.name
 # rownames(all_data) <- all_data$iso3c
 
 all_data <- read.csv("C:/Users/haachicanoy/Desktop/all_data.csv", row.names = 1)
-
+all_data$Missing.data.count <- apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))})
 sort(apply(X = all_data, MARGIN = 2, FUN = function(x){sum(is.na(x))}), decreasing = T)
 sort(apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}), decreasing = T)
 
