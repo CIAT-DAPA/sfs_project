@@ -75,10 +75,10 @@ if(!file.exists("environmental_dimension.csv")){
                                             "Emissions.waste")
   # emission %>% filter(Country == "Colombia") %>% ggparcoord(data = ., columns = 3:ncol(.), groupColumn = 2, order = "anyClass")
   emission <- emission %>% gather(Source, Emission, Emissions.agriculture.total:Emissions.waste)
-  emission %>% ggplot(aes(x = Year, y = Emission, group = Country)) + geom_line(alpha = .2) +
-    facet_wrap(~Source, scales = "free") +
-    scale_x_continuous(breaks = 2000:2010, limits = c(2000, 2010)) +
-    theme_bw()
+  # emission %>% ggplot(aes(x = Year, y = Emission, group = Country)) + geom_line(alpha = .2) +
+  #   facet_wrap(~Source, scales = "free") +
+  #   scale_x_continuous(breaks = 2000:2010, limits = c(2000, 2010)) +
+  #   theme_bw()
   emission <- emission %>% spread(Source, Emission)
   emission$Country <- emission$Country %>% as.character
   emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
@@ -115,7 +115,7 @@ if(!file.exists("environmental_dimension.csv")){
   dissOxygen2 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 2)
   dissOxygen3 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 3)
   dissOxygen <- rbind(dissOxygen1, dissOxygen2, dissOxygen3); rm(dissOxygen1, dissOxygen2, dissOxygen3)
-  dissOxygen %>% ggplot(aes(x = Value)) + geom_density() + facet_wrap(~ISO3)
+  # dissOxygen %>% ggplot(aes(x = Value)) + geom_density() + facet_wrap(~ISO3)
   
   dissOxygen <- dissOxygen %>% select(ISO3, Value) %>% group_by(ISO3) %>% summarise(Dissolved.oxygen = median(Value, na.rm = T))
   dissOxygen <- dplyr::inner_join(x = country_codes, y = dissOxygen, by = c("iso3c" = "ISO3"))
@@ -153,9 +153,9 @@ if(!file.exists("environmental_dimension.csv")){
   water$Country[which(water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
   water$Country[which(water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
   
-  water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
-    geom_line(alpha = .2) + 
-    theme_bw()
+  # water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
+  #   geom_line(alpha = .2) + 
+  #   theme_bw()
   
   yearsList <- water$Year %>% unique %>% sort
   waterList <- lapply(1:length(yearsList), function(i){
@@ -194,11 +194,11 @@ if(!file.exists("environmental_dimension.csv")){
   carbon_soil$Country[which(carbon_soil$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
   carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
   
-  carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
-    geom_bar(stat = "identity") +
-    xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90))
+  # carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
+  #   geom_bar(stat = "identity") +
+  #   xlab("Country") + ylab("Average carbon content in the topsoil (%)") +
+  #   theme_bw() +
+  #   theme(axis.text.x = element_text(angle = 90))
   
   carbon_soil <- dplyr::inner_join(x = country_codes, y = carbon_soil, by = c("country.name.en" = "Country"))
   carbon_soil <- carbon_soil %>% dplyr::select(country.name.en, iso3c, Soil.carbon.content)
@@ -228,10 +228,10 @@ if(!file.exists("environmental_dimension.csv")){
   
   colnames(arable_land)[3] <- "Arable.land"
   
-  arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
-    geom_line(alpha = .2) +
-    scale_x_continuous(breaks = 2000:2014, limits = c(2000, 2014)) +
-    theme_bw()
+  # arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
+  #   geom_line(alpha = .2) +
+  #   scale_x_continuous(breaks = 2000:2014, limits = c(2000, 2014)) +
+  #   theme_bw()
   
   yearsList <- arable_land$Year %>% unique %>% sort
   arable_landList <- lapply(1:length(yearsList), function(i){
@@ -264,11 +264,11 @@ if(!file.exists("environmental_dimension.csv")){
   
   names(GBI)[2] <- "GEF.benefits.biodiversity"
   
-  GBI %>% ggplot(aes(x = reorder(Country, GEF.benefits.biodiversity), y = GEF.benefits.biodiversity)) +
-    geom_bar(stat = "identity") +
-    xlab("Country") + ylab("GEF benefict for biodiversity index") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 90))
+  # GBI %>% ggplot(aes(x = reorder(Country, GEF.benefits.biodiversity), y = GEF.benefits.biodiversity)) +
+  #   geom_bar(stat = "identity") +
+  #   xlab("Country") + ylab("GEF benefict for biodiversity index") +
+  #   theme_bw() +
+  #   theme(axis.text.x = element_text(angle = 90))
   
   GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
   GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GEF.benefits.biodiversity)
@@ -291,9 +291,9 @@ if(!file.exists("environmental_dimension.csv")){
   energy$Country[which(energy$Country == "Czechia")] <- "Czech Republic"
   colnames(energy)[3] <- "Energy.agriculture"
   
-  energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
-    geom_line(alpha = .2) + 
-    theme_bw()
+  # energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
+  #   geom_line(alpha = .2) + 
+  #   theme_bw()
   
   yearsList <- energy$Year %>% unique %>% sort
   energyList <- lapply(1:length(yearsList), function(i){
@@ -369,8 +369,8 @@ if(!file.exists("economic_dimension.csv")){
   AgValueAdded$Year <- gsub(pattern = "X", replacement = "", x = AgValueAdded$Year) %>% as.character %>% as.numeric
   AgValueAdded <- AgValueAdded %>% filter(Year >= 2000)
   
-  AgValueAdded %>% ggplot(aes(x = Year, y = AgValueAdded, group = Country)) +
-    geom_line(alpha = .5) + theme_bw()
+  # AgValueAdded %>% ggplot(aes(x = Year, y = AgValueAdded, group = Country)) +
+  #   geom_line(alpha = .5) + theme_bw()
   
   AgValueAdded$Country <- AgValueAdded$Country %>% as.character
   AgValueAdded$Country[which(AgValueAdded$Country == "Bahamas, The")] <- "Bahamas"
@@ -437,9 +437,9 @@ if(!file.exists("economic_dimension.csv")){
   employment <- employment %>% group_by(Country, Indicator, Year) %>% summarise(Value = mean(Value, na.rm = T))
   employment$Year <- gsub(pattern = "Y", replacement = "", x = employment$Year) %>% as.character %>% as.numeric
   
-  employment %>% ggplot(aes(x = Year, y = Value, colour = Indicator, group = Country)) +
-    geom_line(alpha = .5) + facet_wrap(~Indicator, scales = "free") + 
-    theme_bw()
+  # employment %>% ggplot(aes(x = Year, y = Value, colour = Indicator, group = Country)) +
+  #   geom_line(alpha = .5) + facet_wrap(~Indicator, scales = "free") + 
+  #   theme_bw()
   
   employment <- employment %>% spread(Indicator, Value)
   names(employment)[3:5] <- c("AgValue.added", "Time.underemployment", "Wage.employment")
@@ -562,8 +562,8 @@ if(!file.exists("social_dimension.csv")){
   FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Vietnam")] <- "Viet Nam"
   FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Yemen, Rep.")] <- "Yemen"
   
-  FemaleLaborForce %>% ggplot(aes(x = Year, y = Female.labor.force, group = Country)) +
-    geom_line(alpha = .5) + theme_bw()
+  # FemaleLaborForce %>% ggplot(aes(x = Year, y = Female.labor.force, group = Country)) +
+  #   geom_line(alpha = .5) + theme_bw()
   
   yearsList <- FemaleLaborForce$Year %>% unique %>% sort
   FemaleLaborForceList <- lapply(1:length(yearsList), function(i){
@@ -847,9 +847,9 @@ if(!file.exists("food_nutrition_dimension.csv")){
   access_electricity$Country[which(access_electricity$Country == "Vietnam")] <- "Viet Nam"
   access_electricity$Country[which(access_electricity$Country == "Yemen, Rep.")] <- "Yemen"
   
-  access_electricity %>% ggplot(aes(x = Year, y = Access.electricity, group = Country)) +
-    geom_line(alpha = .2) + 
-    theme_bw()
+  # access_electricity %>% ggplot(aes(x = Year, y = Access.electricity, group = Country)) +
+  #   geom_line(alpha = .2) + 
+  #   theme_bw()
   
   yearsList <- access_electricity$Year %>% unique %>% sort
   yearsList <- yearsList[-((length(yearsList)-1):length(yearsList))]
@@ -927,9 +927,9 @@ if(!file.exists("food_nutrition_dimension.csv")){
   fsvar <- fsvar[!(fsvar$Country == "Sudan" & is.na(fsvar$Food.supply.variability)),]
   fsvar <- fsvar %>% filter(Year <= 2011)
   
-  fsvar %>% ggplot(aes(x = Year, y = Food.supply.variability, group = Country)) +
-    geom_line(alpha = .2) + 
-    theme_bw()
+  # fsvar %>% ggplot(aes(x = Year, y = Food.supply.variability, group = Country)) +
+  #   geom_line(alpha = .2) + 
+  #   theme_bw()
   
   yearsList <- fsvar$Year %>% unique %>% sort
   fsvarList <- lapply(1:length(yearsList), function(i){
@@ -1029,9 +1029,9 @@ if(!file.exists("food_nutrition_dimension.csv")){
   diet_div <- diet_div %>% filter(Year <= 2010)
   diet_div <- diet_div[!(diet_div$Country == "Sudan" & is.na(diet_div$Diet.diversification)),]
   
-  diet_div %>% ggplot(aes(x = Year, y = Diet.diversification, group = Country)) +
-    geom_line(alpha = .2) + 
-    theme_bw()
+  # diet_div %>% ggplot(aes(x = Year, y = Diet.diversification, group = Country)) +
+  #   geom_line(alpha = .2) + 
+  #   theme_bw()
   
   yearsList <- diet_div$Year %>% unique %>% sort
   diet_divList <- lapply(1:length(yearsList), function(i){
@@ -1057,8 +1057,8 @@ if(!file.exists("food_nutrition_dimension.csv")){
   
   crop_diversity <- read_csv(file = "./Input_data_final/Food_Nutrition/Diversity_indexes_colin_study.csv", col_names = T)
   
-  crop_diversity %>% ggplot(aes(x = Year, y = Diversity, group = Country)) +
-    facet_grid(Index~Measurement, scales = "free") + geom_line(alpha = .2) + theme_bw()
+  # crop_diversity %>% ggplot(aes(x = Year, y = Diversity, group = Country)) +
+  #   facet_grid(Index~Measurement, scales = "free") + geom_line(alpha = .2) + theme_bw()
   
   crop_diversity <- crop_diversity %>% filter(Index == "Shannon" & Measurement == "Calories")
   crop_diversity <- crop_diversity %>% select(Country, Year, Diversity)
@@ -1147,7 +1147,7 @@ if(!file.exists("food_nutrition_dimension.csv")){
   obesity <- obesity %>% filter(Year >= 2000)
   obesity <- obesity[!(obesity$Country == "Sudan" & is.na(obesity$Obesity)),]
   
-  obesity %>% ggplot(aes(x = Year, y = Obesity, group = Country)) + geom_line(alpha = .2) + theme_bw()
+  # obesity %>% ggplot(aes(x = Year, y = Obesity, group = Country)) + geom_line(alpha = .2) + theme_bw()
   
   yearsList <- obesity$Year %>% unique %>% sort
   obesityList <- lapply(1:length(yearsList), function(i){
