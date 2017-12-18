@@ -74,12 +74,18 @@ all_data <- all_data[-which(is.na(all_data$iso3c)),]
 
 all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = all_data, by = "iso3c")
 rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
-write.csv(all_data, file = "C:/Users/haachicanoy/Desktop/all_data.csv", row.names = T)
+
+# Reduce number of countries using a filter by area (Exclude countries with least than 2000 km2)
+low_area <- read.csv(paste0("./area_countries.csv"))
+all_data <- all_data[all_data$iso3c %in% setdiff(all_data$iso3c, low_area$ISO3),]
+
+# write.csv(all_data, file = "C:/Users/haachicanoy/Desktop/all_data.csv", row.names = T)
 
 # rownames(all_data) <- all_data$iso3c
 
-all_data <- read.csv("C:/Users/haachicanoy/Desktop/all_data.csv", row.names = 1)
+# all_data <- read.csv("C:/Users/haachicanoy/Desktop/all_data.csv", row.names = 1)
 all_data$Missing.data.count <- apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))})
+write.csv(all_data, file = "./all_data4check.csv", row.names = T)
 sort(apply(X = all_data, MARGIN = 2, FUN = function(x){sum(is.na(x))}), decreasing = T)
 sort(apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}), decreasing = T)
 
