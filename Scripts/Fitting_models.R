@@ -74,42 +74,60 @@ all_data <- all_data[-which(is.na(all_data$iso3c)),]
 all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = all_data, by = "iso3c")
 rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
 
-# Reduce number of countries using a filter by area (Exclude countries with least than 2000 km2)
-#low_area <- read.csv(paste0("./area_countries.csv"))
-#all_data <- all_data[all_data$iso3c %in% setdiff(all_data$iso3c, low_area$ISO3),]
+## ========================================================================== ##
+## Function for plotting the variables in a spatial way
+## ========================================================================== ##
+DataMap <- function(df, varName){
+  
+  thm <- 
+    hc_theme(
+      colors = c("#1a6ecc", "#434348", "#90ed7d"),
+      chart = list(
+        backgroundColor = "transparent",
+        style = list(fontFamily = "Source Sans Pro")
+      ),
+      xAxis = list(gridLineWidth = 1)
+    )
+  
+  data("worldgeojson")
+  
+  indices <- data.frame(iso3 = df[,1], round(df[,-1], 2))
+  
+  n <- 4
+  colstops <- data.frame(
+    q = 0:n/n,
+    c = substring(viridis(n + 1), 0, 7)) %>%
+    list.parse2()
+  
+  return(
+    highchart(type = "map") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = varName, joinBy = "iso3") %>%
+      hc_colorAxis(stops = color_stops()) %>%
+      hc_tooltip(useHTML = TRUE, headerFormat = "",
+                 pointFormat = paste0("Data value for {point.name}: {point.", varName, "}")) %>%
+      hc_colorAxis(stops = colstops) %>%
+      hc_legend(valueDecimals = 0, valueSuffix = "") %>%
+      hc_mapNavigation(enabled = TRUE) %>%
+      hc_add_theme(thm)
+  )
+  
+}
+DataMap(df = all_data, varName = "City.access")
 
-# write.csv(all_data, file = "C:/Users/haachicanoy/Desktop/all_data.csv", row.names = T)
-
-# rownames(all_data) <- all_data$iso3c
+# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------ #
+# It is necessary to reduce the number of countries whose have the highest amount of missing data
+# One option is to reduce number of countries using a filter by area identifying the geographical
+# extent which is most probable to determine the highest amount of missing data
 
 all_data$Missing.data.count <- apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))})
-
 all_data <- dplyr::left_join(x = all_data, y = countries@data %>% dplyr::select(ISO3, SQKM), by = c("iso3c" = "ISO3"))
-
-all_data2 <- all_data[,c("City.access", "Emissions.agriculture.total", "Arable.land", "Access.electricity",
-                         "Soil.carbon.content", "Access.improved.water", "Price.volatility.index", "Foodborne.illness",
-                         "Serum.retinol.deficiency", "GEF.benefits.biodiversity", "Obesity")]
-all_data2 <- all_data2[complete.cases(all_data2),]
-
-res.dist <- get_dist(all_data2, stand = TRUE, method = "pearson")
-fviz_dist(res.dist, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
-
-gradient.color <- list(low = "steelblue",  high = "white")
-all_data2 %>%    # Remove column 5 (Species)
-  scale() %>%     # Scale variables
-  get_clust_tendency(n = 100, gradient = gradient.color)
-
-
 plot(x = all_data$SQKM, y = all_data$Missing.data.count, pch = 20, col = 4, xlab = "Area (sqkm)", ylab = "Missing data count per country")
 abline(lm(formula = Missing.data.count ~ SQKM + SQKM*SQKM, data = all_data)) # Linear trend
 cor(x = all_data$SQKM, y = all_data$Missing.data.count, use = "complete.obs", method = "spearman")
-lfit <- loess(Missing.data.count ~ SQKM, data = all_data, span = 0.40)
-smoothed10 <- predict(lfit)
-points(x = lfit$x, y = smoothed10, col = "red", pch = 20) # Non-parametric trend
+# ------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------------------ #
 
-VIM::matrixplot(all_data)
-
-write.csv(all_data, file = "./all_data4check.csv", row.names = T)
 sort(apply(X = all_data, MARGIN = 2, FUN = function(x){sum(is.na(x))}), decreasing = T)
 sort(apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}), decreasing = T)
 
