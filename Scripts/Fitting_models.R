@@ -30,6 +30,8 @@ suppressMessages(if(!require(treemap)){install.packages('treemap'); library(tree
 suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
 suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
 suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(corrplot)} else {library(corrplot)})
+suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
+suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -62,9 +64,6 @@ if(file.exists("economic_dimension.csv")){economicDim <- read.csv("economic_dime
 if(file.exists("social_dimension.csv")){socialDim <- read.csv("social_dimension.csv", row.names = 1)}
 if(file.exists("food_nutrition_dimension.csv")){food_nutritionDim <- read.csv("food_nutrition_dimension.csv", row.names = 1)}
 
-# environmentDim <- environmentDim[-which(apply(X = environmentDim[,2:ncol(environmentDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(environmentDim)-1)/2)),]
-# food_nutritionDim <- food_nutritionDim[-which(apply(X = food_nutritionDim[,2:ncol(food_nutritionDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == round((ncol(food_nutritionDim)-1)/2)+1),]
-
 all_data <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = environmentDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = economicDim, by = "iso3c")
 all_data <- dplyr::left_join(x = all_data, y = socialDim, by = "iso3c")
@@ -76,15 +75,40 @@ all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.e
 rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
 
 # Reduce number of countries using a filter by area (Exclude countries with least than 2000 km2)
-low_area <- read.csv(paste0("./area_countries.csv"))
-all_data <- all_data[all_data$iso3c %in% setdiff(all_data$iso3c, low_area$ISO3),]
+#low_area <- read.csv(paste0("./area_countries.csv"))
+#all_data <- all_data[all_data$iso3c %in% setdiff(all_data$iso3c, low_area$ISO3),]
 
 # write.csv(all_data, file = "C:/Users/haachicanoy/Desktop/all_data.csv", row.names = T)
 
 # rownames(all_data) <- all_data$iso3c
 
-# all_data <- read.csv("C:/Users/haachicanoy/Desktop/all_data.csv", row.names = 1)
 all_data$Missing.data.count <- apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))})
+
+all_data <- dplyr::left_join(x = all_data, y = countries@data %>% dplyr::select(ISO3, SQKM), by = c("iso3c" = "ISO3"))
+
+all_data2 <- all_data[,c("City.access", "Emissions.agriculture.total", "Arable.land", "Access.electricity",
+                         "Soil.carbon.content", "Access.improved.water", "Price.volatility.index", "Foodborne.illness",
+                         "Serum.retinol.deficiency", "GEF.benefits.biodiversity", "Obesity")]
+all_data2 <- all_data2[complete.cases(all_data2),]
+
+res.dist <- get_dist(all_data2, stand = TRUE, method = "pearson")
+fviz_dist(res.dist, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+gradient.color <- list(low = "steelblue",  high = "white")
+all_data2 %>%    # Remove column 5 (Species)
+  scale() %>%     # Scale variables
+  get_clust_tendency(n = 100, gradient = gradient.color)
+
+
+plot(x = all_data$SQKM, y = all_data$Missing.data.count, pch = 20, col = 4, xlab = "Area (sqkm)", ylab = "Missing data count per country")
+abline(lm(formula = Missing.data.count ~ SQKM + SQKM*SQKM, data = all_data)) # Linear trend
+cor(x = all_data$SQKM, y = all_data$Missing.data.count, use = "complete.obs", method = "spearman")
+lfit <- loess(Missing.data.count ~ SQKM, data = all_data, span = 0.40)
+smoothed10 <- predict(lfit)
+points(x = lfit$x, y = smoothed10, col = "red", pch = 20) # Non-parametric trend
+
+VIM::matrixplot(all_data)
+
 write.csv(all_data, file = "./all_data4check.csv", row.names = T)
 sort(apply(X = all_data, MARGIN = 2, FUN = function(x){sum(is.na(x))}), decreasing = T)
 sort(apply(X = all_data, MARGIN = 1, FUN = function(x){sum(is.na(x))}), decreasing = T)
