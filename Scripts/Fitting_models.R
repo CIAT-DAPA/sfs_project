@@ -7,7 +7,7 @@ g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 
 OSys <- Sys.info()[1]
 OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
-wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
