@@ -7,7 +7,7 @@ g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 
 OSys <- Sys.info()[1]
 OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
-wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
@@ -62,6 +62,10 @@ if(!file.exists("environmental_dimension.csv")){
   
   emission <- read.csv("./Input_data_final/Environment/emission.csv")
   emission <- emission %>% dplyr::select(Country, Item, Year, Value)
+  # For Patricia
+  # emission2 <- emission %>% select(Country, Year, Emissions.agriculture.total)
+  # emission2 <- emission2 %>% spread(Year, Emissions.agriculture.total)
+  # write.csv(emission2, "./Temporal_data/GHG_emissions.csv", row.names = F)
   emission <- emission %>% filter(Year >= 2000)
   emission <- emission %>% spread(Item, Value)
   colnames(emission)[3:ncol(emission)] <- c("Emissions.agriculture.total",
@@ -82,6 +86,7 @@ if(!file.exists("environmental_dimension.csv")){
   emission <- emission %>% spread(Source, Emission)
   emission$Country <- emission$Country %>% as.character
   emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  emission$Country[which(emission$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
   emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
   emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
   emission$Country[which(emission$Country == "Czechia")] <- "Czech Republic"
@@ -102,24 +107,26 @@ if(!file.exists("environmental_dimension.csv")){
   
   recentEmission <- emissionList[[length(emissionList)]]
   recentEmission <- recentEmission %>% dplyr::select(country.name.en, iso3c, Emissions.agriculture.total)
+  recentEmission <- recentEmission[complete.cases(recentEmission),]; rownames(recentEmission) <- 1:nrow(recentEmission)
   rm(emissionList, emission)
   
   
-  ## 2. Dissolved oxygen
+  ## 2. pH
   ## Measure: Water quality
   ## Original name: 
-  ## Units: mg/l
+  ## Units: pH units
   ## Years: 
-  ## Countries with data: 68
-  dissOxygen1 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 1)
-  dissOxygen2 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 2)
-  dissOxygen3 <- readxl::read_excel("./Input_data_final/Environment/Dissolved_oxygen.xlsx", sheet = 3)
-  dissOxygen <- rbind(dissOxygen1, dissOxygen2, dissOxygen3); rm(dissOxygen1, dissOxygen2, dissOxygen3)
+  ## Countries with data: 74
+  pH1 <- readxl::read_excel("./Input_data_final/Environment/_water_pH.xlsx", sheet = 1)
+  pH2 <- readxl::read_excel("./Input_data_final/Environment/_water_pH.xlsx", sheet = 2)
+  pH3 <- readxl::read_excel("./Input_data_final/Environment/_water_pH.xlsx", sheet = 3)
+  pH4 <- readxl::read_excel("./Input_data_final/Environment/_water_pH.xlsx", sheet = 4)
+  pH <- rbind(pH1, pH2, pH3, pH4); rm(pH1, pH2, pH3, pH4)
   # dissOxygen %>% ggplot(aes(x = Value)) + geom_density() + facet_wrap(~ISO3)
   
-  dissOxygen <- dissOxygen %>% select(ISO3, Value) %>% group_by(ISO3) %>% summarise(Dissolved.oxygen = median(Value, na.rm = T))
-  dissOxygen <- dplyr::inner_join(x = country_codes, y = dissOxygen, by = c("iso3c" = "ISO3"))
-  dissOxygen <- dissOxygen %>% dplyr::select(country.name.en, iso3c, Dissolved.oxygen)
+  pH <- pH %>% select(ISO3, Value) %>% group_by(ISO3) %>% summarise(pH = median(Value, na.rm = T))
+  pH <- dplyr::inner_join(x = country_codes, y = pH, by = c("iso3c" = "ISO3"))
+  pH <- pH %>% dplyr::select(country.name.en, iso3c, pH)
   
   
   ## 3. Water withdrawal
@@ -290,25 +297,29 @@ if(!file.exists("environmental_dimension.csv")){
   energy$Country[which(energy$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
   energy$Country[which(energy$Country == "Czechia")] <- "Czech Republic"
   colnames(energy)[3] <- "Energy.agriculture"
+  energy <- energy %>% filter(Year >= 2000)
   
   # energy %>% ggplot(aes(x = Year, y = Energy.agriculture, group = Country)) +
   #   geom_line(alpha = .2) + 
   #   theme_bw()
   
-  yearsList <- energy$Year %>% unique %>% sort
-  energyList <- lapply(1:length(yearsList), function(i){
-    df <- energy %>% filter(Year == yearsList[i])
-    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
-    return(df)
-  })
-  lapply(energyList, dim)
-  lapply(energyList, function(y){apply(X = y, MARGIN = 2, FUN = function(x){sum(!is.na(x))})})
-  
-  recentEnergy <- energyList[[length(energyList)]]
+  energy <- energy %>% group_by(Country) %>% summarise(Energy.agriculture = median(Energy.agriculture, na.rm = T))
+  recentEnergy <- dplyr::inner_join(x = country_codes, y = energy, by = c("country.name.en" = "Country"))
   recentEnergy <- recentEnergy %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
   
+  # yearsList <- energy$Year %>% unique %>% sort
+  # energyList <- lapply(1:length(yearsList), function(i){
+  #   df <- energy %>% filter(Year == yearsList[i])
+  #   df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  #   return(df)
+  # })
+  # lapply(energyList, dim)
+  # lapply(energyList, function(y){apply(X = y, MARGIN = 2, FUN = function(x){sum(!is.na(x))})})
+  # recentEnergy <- energyList[[length(energyList)]]
+  # recentEnergy <- recentEnergy %>% dplyr::select(country.name.en, iso3c, Energy.agriculture)
+  
   environmentDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentEmission, by = c("country.name.en", "iso3c"))
-  environmentDim <- dplyr::left_join(x = environmentDim, y = dissOxygen, by = c("country.name.en", "iso3c"))
+  environmentDim <- dplyr::left_join(x = environmentDim, y = pH, by = c("country.name.en", "iso3c"))
   environmentDim <- dplyr::left_join(x = environmentDim, y = water, by = c("country.name.en", "iso3c"))
   environmentDim <- dplyr::left_join(x = environmentDim, y = carbon_soil, by = c("country.name.en", "iso3c"))
   environmentDim <- dplyr::left_join(x = environmentDim, y = recentArable_land, by = c("country.name.en", "iso3c"))
