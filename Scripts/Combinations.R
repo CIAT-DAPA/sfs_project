@@ -1,208 +1,345 @@
+# Determine the optimal combination between number of indicators and number of countries: SFS project
+# Implemented by: H. Achicanoy & P. Alvarez
+# CIAT, 2018
 
-countries2 <- countries
-countries2@data <- left_join(x = countries@data, y = all_data, by = c("ISO3" = "iso3c"))
-xy <- coordinates(countries2)
+# R options
+g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 
-library(sf)
-countries <- st_read(dsn = "./Input_data/world_shape", layer = "all_countries")
-countries <- left_join(x = countries, y = all_data, by = c("ISO3" = "iso3c"))
-countries2 <- as(countries, "Spatial")
+OSys <- Sys.info()[1]
+OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
+setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
-library(spdep)
-w <- poly2nb(countries2, row.names = countries2$OBJECTID)
-condition <- unlist(lapply(1:length(w), function(i){
-  if(length(w[[i]]) == 1){
-    if(w[[i]] == 0){
-      z <- TRUE
-    } else {
-      z <- FALSE
-    }
-  } else {
-    z <- FALSE
-  }
-  return(z)
-}))
-# w2 <- w[!condition]
-# class(w2) <- "nb"
+# Load packages
+suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
+suppressMessages(if(!require(rgdal)){install.packages('rgdal'); library(rgdal)} else {library(rgdal)})
+suppressMessages(if(!require(maptools)){install.packages('maptools'); library(maptools)} else {library(maptools)})
+suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
+suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
+suppressMessages(if(!require(doParallel)){install.packages('doParallel'); library(doParallel)} else {library(doParallel)})
+suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
+suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
+suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
+suppressMessages(if(!require(tidyverse)){install.packages('tidyverse'); library(tidyverse)} else {library(tidyverse)})
+suppressMessages(if(!require(countrycode)){install.packages('countrycode'); library(countrycode)} else {library(countrycode)})
+suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
+suppressMessages(if(!require(caret)){install.packages('caret'); library(caret)} else {library(caret)})
+suppressMessages(if(!require(missMDA)){install.packages('missMDA'); library(missMDA)} else {library(missMDA)})
+suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
+suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
+suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
+suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
+suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(corrplot)} else {library(corrplot)})
+suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
+suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
+suppressMessages(library(compiler))
 
-countries2 <- st_as_sf(as(countries2, "SpatialPolygonsDataFrame"))
-countries2 <- countries2[!condition,]; countries2 <- as(countries2, "Spatial")
-xy <- coordinates(countries2)
+## ========================================================================== ##
+## Define countries to work with
+## ========================================================================== ##
 
-w <- poly2nb(countries2, row.names = countries2$OBJECTID)
+# Worldwide shapefile
+countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
+countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
-plot(countries2, col = 'gray', border = 'blue', lwd = 2)
-plot(w, xy, col = 'red', lwd = 2, add = TRUE)
-wm <- nb2mat(w, style='B')
-wm
+# Country code translation
+country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
+country_codes$country.name.en <- country_codes$country.name.en %>% as.character
+country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
+country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
+country_codes$country.name.en[which(country_codes$country.name.en == "Gambia (Islamic Republic of the)")] <- "Gambia"
+country_codes$country.name.en[which(country_codes$country.name.en == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, U.S.")] <- "United States Virgin Islands"
+country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela, Bolivarian Republic of")] <- "Venezuela"
+country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
+country_codes$country.name.en[which(country_codes$country.name.en == "Bolivia (Plurinational State of)")] <- "Bolivia"
+country_codes$fao[which(country_codes == "Reunion")] <- 182
 
-# Moran Index
-n <- length(countries2)
-y <- countries2$City.access
-ybar <- mean(y)
+## ========================================================================== ##
+## Load data by dimension
+## ========================================================================== ##
 
-dy <- y - ybar
-g <- expand.grid(dy, dy)
-yiyj <- g[,1] * g[,2]
+if(file.exists("environmental_dimension.csv")){environmentDim <- read.csv("environmental_dimension.csv", row.names = 1)}
+if(file.exists("economic_dimension.csv")){economicDim <- read.csv("economic_dimension.csv", row.names = 1)}
+if(file.exists("social_dimension.csv")){socialDim <- read.csv("social_dimension.csv", row.names = 1)}
+if(file.exists("food_nutrition_dimension.csv")){food_nutritionDim <- read.csv("food_nutrition_dimension.csv", row.names = 1)}
 
-pm <- matrix(yiyj, ncol=n)
+all_data <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = environmentDim, by = "iso3c")
+all_data <- dplyr::left_join(x = all_data, y = economicDim, by = "iso3c")
+all_data <- dplyr::left_join(x = all_data, y = socialDim, by = "iso3c")
+all_data <- dplyr::left_join(x = all_data, y = food_nutritionDim, by = "iso3c")
+all_data <- all_data[-which(apply(X = all_data[,2:ncol(all_data)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 27),]
+all_data <- all_data[-which(is.na(all_data$iso3c)),]
 
-pmw <- pm * wm
-pmw
+all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = all_data, by = "iso3c")
+rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
+rm(environmentDim, food_nutritionDim, socialDim, economicDim)
 
-spmw <- sum(pmw)
-spmw
+## ========================================================================== ##
+## Determine counts by dimension
+## ========================================================================== ##
 
-smw <- sum(wm)
-sw  <- spmw / smw
+tradeoff <- function(){
+  # Environment
+  envPos <- 2:8
+  envCountries <- lapply(1:length(envPos), function(i){
+    combinations <- combn(x = names(all_data)[envPos], m = i)
+    combCounts <- unlist(lapply(1:ncol(combinations), function(j){
+      nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
+      return(nCountries)
+    }))
+  })
+  names(envCountries) <- 1:length(envPos)
+  envCountries2 <- data.frame(Indicators = rep(names(envCountries), lapply(envCountries, length)),
+                              Countries = unlist(envCountries),
+                              Dimension = "Environment")
+  rm(envPos, envCountries)
+  
+  # Economic
+  ecoPos <- 9:11
+  ecoCountries <- lapply(1:length(ecoPos), function(i){
+    combinations <- combn(x = names(all_data)[ecoPos], m = i)
+    combCounts <- unlist(lapply(1:ncol(combinations), function(j){
+      nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
+      return(nCountries)
+    }))
+  })
+  names(ecoCountries) <- 1:length(ecoPos)
+  ecoCountries2 <- data.frame(Indicators = rep(names(ecoCountries), lapply(ecoCountries, length)),
+                              Countries = unlist(ecoCountries),
+                              Dimension = "Economic")
+  rm(ecoPos, ecoCountries)
+  
+  # Social
+  socPos <- 12:14
+  socCountries <- lapply(1:length(socPos), function(i){
+    combinations <- combn(x = names(all_data)[socPos], m = i)
+    combCounts <- unlist(lapply(1:ncol(combinations), function(j){
+      nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
+      return(nCountries)
+    }))
+  })
+  names(socCountries) <- 1:length(socPos)
+  socCountries2 <- data.frame(Indicators = rep(names(socCountries), lapply(socCountries, length)),
+                              Countries = unlist(socCountries),
+                              Dimension = "Social")
+  rm(socPos, socCountries)
+  
+  # Food and nutrition
+  fntPos <- 15:28
+  fntCountries <- lapply(1:length(fntPos), function(i){
+    combinations <- combn(x = names(all_data)[fntPos], m = i)
+    combCounts <- unlist(lapply(1:ncol(combinations), function(j){
+      nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
+      return(nCountries)
+    }))
+  })
+  names(fntCountries) <- 1:length(fntPos)
+  fntCountries2 <- data.frame(Indicators = rep(names(fntCountries), lapply(fntCountries, length)),
+                              Countries = unlist(fntCountries),
+                              Dimension = "Food and nutrition")
+  rm(fntPos, fntCountries)
+  
+  
+  # All combinations
+  all_combinations <- rbind(envCountries2, ecoCountries2, socCountries2, fntCountries2)
+  all_combinations$Indicators <- all_combinations$Indicators %>% as.character %>% as.numeric
+  all_combinations %>% ggplot(aes(x = Indicators, y = Countries)) +
+    xlab("Number of indicators") +
+    ylab("Countries with complete data") +
+    geom_point() + facet_wrap(~Dimension) +
+    scale_x_continuous(breaks = 1:14) +
+    theme_bw()
+  ggsave(filename = "./Results/graphs/indicators_vs_countries.png", width = 8, height = 8, units = "in", dpi = 300)
+  rm(envCountries, envCountries2, ecoCountries, ecoCountries2, socCountries, socCountries2, fntCountries, fntCountries2)
+  
+  cat("Done\n")
+  
+  return(all_combinations)
+}
+all_combinations <- tradeoff()
+all_combinations2 <- all_combinations %>% group_by(Indicators, Dimension) %>% summarise(MaxCount = max(Countries))
+all_combinations2 %>% ggplot(aes(x = Indicators, y = MaxCount)) +
+  xlab("Number of indicators") +
+  ylab("Countries with complete data") +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  geom_ribbon(aes(ymin = 100, ymax = 200, alpha = 0.2)) +
+  facet_wrap(~Dimension) +
+  scale_x_continuous(breaks = 1:14) +
+  theme_bw()
 
-vr <- n / sum(dy^2)
+# With everything: don't try to run this stuff in your PC
+# allPos <- 2:28
+# allCountries <- lapply(1:length(allPos), function(i){
+#   combinations <- combn(x = names(all_data)[allPos], m = i)
+#   combCounts <- unlist(lapply(1:ncol(combinations), function(j){
+#     nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
+#     return(nCountries)
+#   }))
+# })
+# names(allCountries) <- 1:length(fntPos)
+# allCountries2 <- data.frame(Indicators = rep(names(allCountries), lapply(allCountries, length)),
+#                             Countries = unlist(allCountries),
+#                             Dimension = "All")
+# library(tidyverse)
+# allCountries2 %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
 
-MI <- vr * sw
-MI
+## ========================================================================== ##
+## Determine the best combination
+## ========================================================================== ##
 
-EI <- -1/(n-1)
-EI
-
-ww <-  nb2listw(w, style='B')
-ww
-
-moran.test(countries2$Obesity, ww, randomisation=FALSE)
-moran.mc(countries2$Obesity, ww, nsim=99)
-
-spplot(countries2, "FabioVar")
-spplot(countries2, "City.access")
-
-sum(complete.cases(all_data[,2:6]))
-sum(complete.cases(all_data[,3:7]))
-sum(complete.cases(all_data[,4:8]))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ================================================ #
 # Environment
-# ================================================ #
 envPos <- 2:8
 envCountries <- lapply(1:length(envPos), function(i){
-  combinations <- combn(x = names(all_data)[envPos], m = i)
-  combCounts <- unlist(lapply(1:ncol(combinations), function(j){
-    nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
-    return(nCountries)
-  }))
+  combinations <- combn(x = names(all_data)[envPos], m = i) # Combination of indicators
+  # For each combination of indicators calculate the number of countries with complete data
+  combCounts <- lapply(1:ncol(combinations), function(j){
+    lComb <- list(Countries = sum(complete.cases(all_data[,combinations[,j]])),
+                  Indicators = combinations[,j])
+    return(lComb)
+  })
+  return(combCounts)
 })
 names(envCountries) <- 1:length(envPos)
-envCountries2 <- data.frame(Indicators = rep(names(envCountries), lapply(envCountries, length)),
-                            Countries = unlist(envCountries),
-                            Dimension = "Environment")
-library(tidyverse)
-envCountries2 %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
+env_mxCount <- purrr::modify_depth(envCountries, 2, "Countries") %>% purrr::map(., which.max)
+env_mxIndc <- purrr::modify_depth(envCountries, 2, "Indicators")
+env_mxIndc <- purrr::map2(env_mxIndc, env_mxCount, function(x, y) x[y]); rm(envPos, envCountries, env_mxCount)
 
-# ================================================ #
+
 # Economic
-# ================================================ #
 ecoPos <- 9:11
 ecoCountries <- lapply(1:length(ecoPos), function(i){
-  combinations <- combn(x = names(all_data)[ecoPos], m = i)
-  combCounts <- unlist(lapply(1:ncol(combinations), function(j){
-    # nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
-    lComb <- list(nCountries = sum(complete.cases(all_data[,combinations[,j]])),
-                  Indicators = paste(combinations[,j], collapse = ", "))
-    return(lComb) # nCountries
-  }))
+  combinations <- combn(x = names(all_data)[ecoPos], m = i) # Combination of indicators
+  # For each combination of indicators calculate the number of countries with complete data
+  combCounts <- lapply(1:ncol(combinations), function(j){
+    lComb <- list(Countries = sum(complete.cases(all_data[,combinations[,j]])),
+                  Indicators = combinations[,j])
+    return(lComb)
+  })
+  return(combCounts)
 })
 names(ecoCountries) <- 1:length(ecoPos)
-ecoCountries2 <- data.frame(Indicators = rep(names(ecoCountries), lapply(ecoCountries, length)),
-                            Countries = unlist(ecoCountries),
-                            Dimension = "Economic")
-library(tidyverse)
-ecoCountries2 %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
+eco_mxCount <- purrr::modify_depth(ecoCountries, 2, "Countries") %>% purrr::map(., which.max)
+eco_mxIndc <- purrr::modify_depth(ecoCountries, 2, "Indicators")
+eco_mxIndc <- purrr::map2(eco_mxIndc, eco_mxCount, function(x, y) x[y]); rm(ecoPos, ecoCountries, eco_mxCount)
 
-# ================================================ #
 # Social
-# ================================================ #
 socPos <- 12:14
 socCountries <- lapply(1:length(socPos), function(i){
-  combinations <- combn(x = names(all_data)[socPos], m = i)
-  combCounts <- unlist(lapply(1:ncol(combinations), function(j){
-    nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
-    return(nCountries)
-  }))
+  combinations <- combn(x = names(all_data)[socPos], m = i) # Combination of indicators
+  # For each combination of indicators calculate the number of countries with complete data
+  combCounts <- lapply(1:ncol(combinations), function(j){
+    lComb <- list(Countries = sum(complete.cases(all_data[,combinations[,j]])),
+                  Indicators = combinations[,j])
+    return(lComb)
+  })
+  return(combCounts)
 })
 names(socCountries) <- 1:length(socPos)
-socCountries2 <- data.frame(Indicators = rep(names(socCountries), lapply(socCountries, length)),
-                            Countries = unlist(socCountries),
-                            Dimension = "Social")
-library(tidyverse)
-socCountries2 %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
+soc_mxCount <- purrr::modify_depth(socCountries, 2, "Countries") %>% purrr::map(., which.max)
+soc_mxIndc <- purrr::modify_depth(socCountries, 2, "Indicators")
+soc_mxIndc <- purrr::map2(soc_mxIndc, soc_mxCount, function(x, y) x[y]); rm(socPos, socCountries, soc_mxCount)
 
-# ================================================ #
 # Food and nutrition
-# ================================================ #
 fntPos <- 15:28
 fntCountries <- lapply(1:length(fntPos), function(i){
-  combinations <- combn(x = names(all_data)[fntPos], m = i)
-  combCounts <- unlist(lapply(1:ncol(combinations), function(j){
-    nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
-    return(nCountries)
-  }))
+  combinations <- combn(x = names(all_data)[fntPos], m = i) # Combination of indicators
+  # For each combination of indicators calculate the number of countries with complete data
+  combCounts <- lapply(1:ncol(combinations), function(j){
+    lComb <- list(Countries = sum(complete.cases(all_data[,combinations[,j]])),
+                  Indicators = combinations[,j])
+    return(lComb)
+  })
+  return(combCounts)
 })
 names(fntCountries) <- 1:length(fntPos)
-fntCountries2 <- data.frame(Indicators = rep(names(fntCountries), lapply(fntCountries, length)),
-                            Countries = unlist(fntCountries),
-                            Dimension = "Food and nutrition")
-library(tidyverse)
-fntCountries2 %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
-
-all_combinations <- rbind(envCountries2, ecoCountries2, socCountries2, fntCountries2)
-all_combinations$Indicators <- all_combinations$Indicators %>% as.character %>% as.numeric
-all_combinations %>% ggplot(aes(x = Indicators, y = Countries)) +
-  geom_point() + facet_wrap(~Dimension) +
-  scale_x_continuous(breaks = 1:14)
+fnt_mxCount <- purrr::modify_depth(fntCountries, 2, "Countries") %>% purrr::map(., which.max)
+fnt_mxIndc <- purrr::modify_depth(fntCountries, 2, "Indicators")
+fnt_mxIndc <- purrr::map2(fnt_mxIndc, fnt_mxCount, function(x, y) x[y]); rm(fntPos, fntCountries, fnt_mxCount)
 
 
 
+# Not include
+if(Countries >= 100 & Countries <= 200 & Indicators[dimension] > 1 & Indicators[dimension] < length(Indicators[dimension])){
+  # Calculate all combinations
+}
 
+env_mxIndc <- env_mxIndc %>% purrr::map(., function(x){paste(x[[1]], collapse = "_")})
+eco_mxIndc <- eco_mxIndc %>% purrr::map(., function(x){paste(x[[1]], collapse = "_")})
+soc_mxIndc <- soc_mxIndc %>% purrr::map(., function(x){paste(x[[1]], collapse = "_")})
+fnt_mxIndc <- fnt_mxIndc %>% purrr::map(., function(x){paste(x[[1]], collapse = "_")})
 
+a <- list(unlist(env_mxIndc),
+          unlist(eco_mxIndc),
+          unlist(soc_mxIndc),
+          unlist(fnt_mxIndc))
+a <- paste0('[',
+            '[', paste('"', unlist(env_mxIndc), '"', sep = '', collapse = ','),']', ',',
+            '[', paste('"', unlist(eco_mxIndc), '"', sep = '', collapse = ','),']', ',',
+            '[', paste('"', unlist(soc_mxIndc), '"', sep = '', collapse = ','),']', ',',
+            '[', paste('"', unlist(fnt_mxIndc), '"', sep = '', collapse = ','),']',
+            ']')
 
+setwd("~")
+createCode <- function(code){
+  
+  sink(code)
+  cat(paste0('a=', a), fill = T)
+  cat('r=[[]]', fill = T)
+  cat('for x in a:', fill = T)
+  cat('\t t = []', fill = T)
+  cat('\t for y in x:', fill = T)
+  cat('\t \t for i in r:', fill = T)
+  cat('\t \t \t t.append(i+[y])', fill = T)
+  cat('\t r = t', fill = T)
+  cat('f = open("C://Users/haachicanoy/Documents/testfile.txt", "w")', fill = T)
+  cat('z = str(r)', fill = T)
+  cat('f.write(z)', fill = T)
+  cat('f.close()', fill = T)
+  sink()
+  shell(code)# system2(paste0('python ', code));# shell.exec(code)
+  
+}
+createCode(code = 'C://Users/haachicanoy/Documents/test.py')
 
-
-allPos <- 2:28
-allCountries <- lapply(1:length(allPos), function(i){
-  combinations <- combn(x = names(all_data)[allPos], m = i)
-  combCounts <- unlist(lapply(1:ncol(combinations), function(j){
-    nCountries <- sum(complete.cases(all_data[,combinations[,j]]))
-    return(nCountries)
-  }))
+textFile <- readLines("C://Users/haachicanoy/Documents/testfile.txt")
+textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
+textFile <- lapply(textFile, function(x){
+  
+  txt_str <- x
+  txt_str <- gsub(pattern = "_", replacement = ", ", x = txt_str)
+  txt_str <- gsub(pattern = "'", replacement = "", x = txt_str)
+  txt_str <- gsub(pattern = "\\]\\]", replacement = "", x = txt_str)
+  txt_str <- gsub(pattern = "\\[\\[", replacement = "", x = txt_str)
+  txt_str <- unlist(strsplit(x = txt_str, split = ", "))
+  return(txt_str)
+  
 })
-names(allCountries) <- 1:length(fntPos)
-allCountries2 <- data.frame(Indicators = rep(names(allCountries), lapply(allCountries, length)),
-                            Countries = unlist(allCountries),
-                            Dimension = "All")
-library(tidyverse)
-allCountries2 %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
 
+finalCombinations <- lapply(1:length(textFile), function(i){
+  df <- data.frame(
+    Countries = sum(complete.cases(all_data[,textFile[[i]]])),
+    Indicators = length(textFile[[i]])
+  )
+  return(df)
+})
+finalCombinations <- do.call(rbind, finalCombinations)
+finalCombinations %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
+OSys <- Sys.info()[1]
+OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
+setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
+ggsave(filename = "./Results/graphs/indicators_vs_countriesFinal.png", width = 8, height = 8, units = "in", dpi = 300)
 
-
-
-
-
-
-
+finalCombinations2 <- finalCombinations %>% group_by(Indicators) %>% summarise(MaxCount = max(Countries))
+finalCombinations2 %>% ggplot(aes(x = Indicators, y = MaxCount)) + geom_point() +
+  xlab("Number of indicators") +
+  ylab("Countries with complete data") +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  geom_ribbon(aes(ymin = 100, ymax = 200, alpha = 0.2)) +
+  scale_x_continuous(breaks = 1:27) +
+  theme_bw()
 
 
