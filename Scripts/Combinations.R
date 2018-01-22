@@ -150,7 +150,7 @@ tradeoff <- function(){
     geom_point() + facet_wrap(~Dimension) +
     scale_x_continuous(breaks = 1:14) +
     theme_bw()
-  ggsave(filename = "./Results/graphs/indicators_vs_countries.png", width = 8, height = 8, units = "in", dpi = 300)
+  ggsave(filename = "./Results/graphs/indicators_vs_countries_per_dimension.png", width = 8, height = 8, units = "in", dpi = 300)
   rm(envCountries, envCountries2, ecoCountries, ecoCountries2, socCountries, socCountries2, fntCountries, fntCountries2)
   
   cat("Done\n")
@@ -167,7 +167,9 @@ all_combinations2 %>% ggplot(aes(x = Indicators, y = MaxCount)) +
   geom_ribbon(aes(ymin = 100, ymax = 200, alpha = 0.2)) +
   facet_wrap(~Dimension) +
   scale_x_continuous(breaks = 1:14) +
-  theme_bw()
+  theme_bw() +
+  guides(alpha = FALSE)
+ggsave(filename = "./Results/graphs/indicators_vs_countries_per_dimension_max.png", width = 8, height = 8, units = "in", dpi = 300)
 
 # With everything: don't try to run this stuff in your PC
 # allPos <- 2:28
@@ -205,7 +207,6 @@ names(envCountries) <- 1:length(envPos)
 env_mxCount <- purrr::modify_depth(envCountries, 2, "Countries") %>% purrr::map(., which.max)
 env_mxIndc <- purrr::modify_depth(envCountries, 2, "Indicators")
 env_mxIndc <- purrr::map2(env_mxIndc, env_mxCount, function(x, y) x[y]); rm(envPos, envCountries, env_mxCount)
-
 
 # Economic
 ecoPos <- 9:11
@@ -260,10 +261,6 @@ fnt_mxIndc <- purrr::map2(fnt_mxIndc, fnt_mxCount, function(x, y) x[y]); rm(fntP
 
 
 
-# Not include
-if(Countries >= 100 & Countries <= 200 & Indicators[dimension] > 1 & Indicators[dimension] < length(Indicators[dimension])){
-  # Calculate all combinations
-}
 
 env_mxIndc <- env_mxIndc %>% purrr::map(., function(x){paste(x[[1]], collapse = "_")})
 eco_mxIndc <- eco_mxIndc %>% purrr::map(., function(x){paste(x[[1]], collapse = "_")})
@@ -293,7 +290,8 @@ createCode <- function(code){
   cat('\t \t for i in r:', fill = T)
   cat('\t \t \t t.append(i+[y])', fill = T)
   cat('\t r = t', fill = T)
-  cat('f = open("C://Users/haachicanoy/Documents/testfile.txt", "w")', fill = T)
+  # cat('f = open("C://Users/haachicanoy/Documents/testfile.txt", "w")', fill = T)
+  cat('f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt", "w")', fill = T)
   cat('z = str(r)', fill = T)
   cat('f.write(z)', fill = T)
   cat('f.close()', fill = T)
@@ -301,9 +299,9 @@ createCode <- function(code){
   shell(code)# system2(paste0('python ', code));# shell.exec(code)
   
 }
-createCode(code = 'C://Users/haachicanoy/Documents/test.py')
+createCode(code = 'D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/Do_mixed_combinations.py')
 
-textFile <- readLines("C://Users/haachicanoy/Documents/testfile.txt")
+textFile <- readLines("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt")
 textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
 textFile <- lapply(textFile, function(x){
   
@@ -325,7 +323,11 @@ finalCombinations <- lapply(1:length(textFile), function(i){
   return(df)
 })
 finalCombinations <- do.call(rbind, finalCombinations)
-finalCombinations %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point()
+finalCombinations %>% ggplot(aes(x = Indicators, y = Countries)) + geom_point() +
+  xlab("Number of indicators") +
+  ylab("Countries with complete data") +
+  scale_x_continuous(breaks = 1:27) +
+  theme_bw()
 OSys <- Sys.info()[1]
 OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
 wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
@@ -339,7 +341,100 @@ finalCombinations2 %>% ggplot(aes(x = Indicators, y = MaxCount)) + geom_point() 
   geom_point() +
   geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
   geom_ribbon(aes(ymin = 100, ymax = 200, alpha = 0.2)) +
-  scale_x_continuous(breaks = 1:27) +
+  scale_x_continuous(breaks = 4:27) +
+  guides(alpha = FALSE) +
   theme_bw()
+ggsave(filename = "./Results/graphs/indicators_vs_countriesFinal_max.png", width = 8, height = 8, units = "in", dpi = 300)
+
+## ========================================================================== ##
+## Fitting several models (and measuring their performance)
+## ========================================================================== ##
+
+fittingModels <- function(data = all_data, combList){
+  
+  # Updating dimension indexes
+  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
+  mtch <- match(combList, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Updating data set
+  data <- data[which(complete.cases(data[, mtch])),]
+  
+  # Fitting model
+  # Repeated indicators approach
+  
+  # Inner model
+  sfs_path <- rbind(c(0, 0, 0, 0, 0),
+                    c(0, 0 ,0 ,0, 0),
+                    c(0, 0, 0, 0, 0),
+                    c(0, 0, 0, 0, 0),
+                    c(1, 1, 1, 1, 0))
+  rownames(sfs_path) <- colnames(sfs_path) <- c("Environment", "Economic", "Social", "Food_nutrition", "SFS_index")
+  # innerplot(sfs_path)
+  
+  # Blocks of variables: repeated indicators approach
+  sfs_blocks1 <- list(envUpt, ecoUpt, socUpt, fntUpt, c(envUpt, ecoUpt, socUpt, fntUpt))
+  
+  # Scaling
+  sfs_scaling <- list(rep("NUM", length(sfs_blocks1[[1]])),
+                      rep("NUM", length(sfs_blocks1[[2]])),
+                      rep("NUM", length(sfs_blocks1[[3]])),
+                      rep("NUM", length(sfs_blocks1[[4]])),
+                      rep("NUM", length(sfs_blocks1[[5]])))
+  
+  # Modes
+  sfs_modes <- c("A", "A", "A", "A", "A")
+  
+  # PLS-PM with missing data
+  sfs_pls1 <- plspm(data, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
+                    modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.0000001)
+  
+  # Saving outputs
+  df <- data_frame(
+    GoF = sfs_pls1$gof,
+    nCountries = nrow(data),
+    nIndicators = length(mtch),
+    nEnv = length(envUpt),
+    nEco = length(ecoUpt),
+    nSoc = length(socUpt),
+    nFnt = length(fntUpt)
+  )
+  
+  results <- list(performance = df,
+                  model = sfs_pls1)
+  
+  return(results)
+  
+}
+test <- lapply(X = textFile, FUN = function(x) fittingModels(data = all_data, combList = x))
+dfs <- lapply(test, function(x) x[[1]])
+models <- lapply(test, function(x) x[[2]])
+dfs <- do.call(rbind, dfs)
+dfs <- as_data_frame(dfs)
+dfs <- dfs %>% dplyr::mutate(model = purrr::map(models, function(x) x))
+rm(test, models)
 
 
+dfs <- dfs %>% dplyr::mutate(coefs = purrr::map(.$model, .f = function(x){paste0(x$path_coefs[5,], collapse = "_")}))
+dfs <- dfs %>% tidyr::separate(data = ., col = coefs, sep = "_", into = c("Environment", "Economic", "Social", "Food_nutrition", "SFS_index"))
+dfs$Environment <- dfs$Environment %>% as.numeric()
+dfs$Economic <- dfs$Economic %>% as.numeric()
+dfs$Social <- dfs$Social %>% as.numeric()
+dfs$Food_nutrition <- dfs$Food_nutrition %>% as.numeric()
+dfs$SFS_index <- NULL
+
+dfs <- dfs %>% dplyr::mutate(maxCounts = FALSE)
+aux <- dfs %>% dplyr::group_by(nIndicators) %>% summarise(base::which.max(nCountries))
+
+dfs %>% ggplot(aes(x = nCountries, y = GoF)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+dfs %>% ggplot(aes(x = nIndicators, y = GoF)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+
+dfs %>% ggplot(aes(x = Environment, y = GoF)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+dfs %>% ggplot(aes(x = nFnt, y = Food_nutrition)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
