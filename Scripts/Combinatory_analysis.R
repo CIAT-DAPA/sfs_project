@@ -604,3 +604,7 @@ plot(varImp(rf.res), top = 10)
 
 rsm.res <- rsm::rsm(GoF ~ FO(nCountries, nIndicators), data = dfs)
 summary(rsm.res)
+
+
+dfs2 <- dfs %>% filter(is.na(GoF))
+dfs <- dfs %>% filter(!is.na(GoF))
