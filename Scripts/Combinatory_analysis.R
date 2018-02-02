@@ -608,3 +608,19 @@ summary(rsm.res)
 
 dfs2 <- dfs %>% filter(is.na(GoF))
 dfs <- dfs %>% filter(!is.na(GoF))
+
+# Use some alternative ways to construct indices
+# 1. The Human Development Index approach
+for(j in 1:ncol(all_data)){
+  transformedData[,j] <- (all_data[,j] - min(all_data[,j]))/(max(all_data[,j]) - min(all_data[,j]))
+}
+rowMeans(transformedData)
+
+# 2. The Human Poverty Index approach
+for(j in 1:ncol(all_data)){
+  transformedData[,j] <- (all_data[,j] - min(all_data[,j]))/(max(all_data[,j]) - min(all_data[,j]))
+}
+rowMeans(transformedData[by_dimension])
+
+
+# 3. The Mazziotta-Pareto Index approach
