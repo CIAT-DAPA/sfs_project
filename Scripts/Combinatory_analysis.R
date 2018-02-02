@@ -32,6 +32,7 @@ suppressMessages(if(!require(highcharter)){install.packages('highcharter'); libr
 suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(corrplot)} else {library(corrplot)})
 suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
 suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
+suppressMessages(if(!require(gghighlight)){install.packages('gghighlight'); library(gghighlight)} else {library(gghighlight)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -312,8 +313,14 @@ if(!file.exists("./Results/modelling_results/metrics.RDS")){
     createCode(code = 'D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/Do_mixed_combinations.py')
   }
   
+  if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt")){
+    file.copy(from = "D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt",
+              to = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt",
+              overwrite = F)
+  }
+  
   # Post-process indicators names
-  textFile <- readLines("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt")
+  textFile <- readLines("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt")
   textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
   textFile <- lapply(textFile, function(x){
     
@@ -366,7 +373,7 @@ if(!file.exists("./Results/modelling_results/metrics.RDS")){
   ## Fitting several models (and measuring their performance)
   ## ========================================================================== ##
   
-  fittingModels <- function(data = all_data, combList){
+  fittingModels <- function(data = all_data, combList, Mode = "A"){
     
     # Updating dimension indexes
     envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
@@ -402,30 +409,52 @@ if(!file.exists("./Results/modelling_results/metrics.RDS")){
                         rep("NUM", length(sfs_blocks1[[5]])))
     
     # Modes
-    sfs_modes <- c("B", "B", "B", "B", "B")
+    sfs_modes <- rep(Mode, 5)# c("B", "B", "B", "B", "B")
     
-    # PLS-PM with missing data
-    sfs_pls1 <- plspm(data, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
-                      modes = sfs_modes, scheme = "centroid", plscomp = c(1,1,1,1,1), tol = 0.00000001, scaled = FALSE, maxiter = 500)
+    # Run PLS-PM
+    tryCatch(expr = {
+      set.seed(1235)
+      sfs_pls1 <- plspm::plspm(data, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
+                               modes = sfs_modes, scheme = "path", tol = 0.00000001, scaled = TRUE, maxiter = 500)
+    },
+    error = function(e){
+      cat("Modeling process failed for present combination\n")
+      return("Done\n")
+    })
     
-    # Saving outputs
-    df <- data_frame(
-      GoF = sfs_pls1$gof,
-      nCountries = nrow(data),
-      nIndicators = length(mtch),
-      nEnv = length(envUpt),
-      nEco = length(ecoUpt),
-      nSoc = length(socUpt),
-      nFnt = length(fntUpt)
-    )
-    
-    results <- list(performance = df,
-                    model = sfs_pls1)
+    if(exists('sfs_pls1')){
+      # Saving outputs
+      df <- data_frame(
+        GoF = sfs_pls1$gof,
+        nCountries = nrow(data),
+        nIndicators = length(mtch),
+        nEnv = length(envUpt),
+        nEco = length(ecoUpt),
+        nSoc = length(socUpt),
+        nFnt = length(fntUpt)
+      )
+      
+      results <- list(performance = df,
+                      model = sfs_pls1)
+    } else {
+      df <- data_frame(
+        GoF = NA,
+        nCountries = nrow(data),
+        nIndicators = length(mtch),
+        nEnv = length(envUpt),
+        nEco = length(ecoUpt),
+        nSoc = length(socUpt),
+        nFnt = length(fntUpt)
+      )
+      
+      results <- list(performance = df,
+                      model = "Failed model")
+    }
     
     return(results)
     
   }
-  results <- lapply(X = textFile, FUN = function(x) fittingModels(data = all_data, combList = x))
+  results <- lapply(X = textFile, FUN = function(x) fittingModels(data = all_data, combList = x, Mode = "B"))
   dfs <- lapply(results, function(x) x[[1]])
   models <- lapply(results, function(x) x[[2]])
   dfs <- do.call(rbind, dfs)
@@ -447,14 +476,131 @@ if(!file.exists("./Results/modelling_results/metrics.RDS")){
   dfs <- readRDS("./Results/modelling_results/metrics.RDS")
 }
 
+# GoF vs Countries
 dfs %>% ggplot(aes(x = nCountries, y = GoF)) + geom_point() +
-  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) + theme_bw()
+if(!file.exists("./Results/graphs/GoF_vs_nCountries.png")){
+  ggsave(filename = "./Results/graphs/GoF_vs_nCountries.png", width = 8, height = 8, units = "in", dpi = 300)
+}
+# GoF vs Indicators
 dfs %>% ggplot(aes(x = nIndicators, y = GoF)) + geom_point() +
-  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  scale_x_continuous(breaks = 4:27) +
+  theme_bw()
+if(!file.exists("./Results/graphs/GoF_vs_nIndicators.png")){
+  ggsave(filename = "./Results/graphs/GoF_vs_nIndicators.png", width = 8, height = 8, units = "in", dpi = 300)
+}
 
-dfs %>% ggplot(aes(x = Environment_coef, y = GoF)) + geom_point() +
-  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+dfs %>% ggplot(aes(x = nEnv, y = Environment_coef)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  geom_hline(yintercept = 0, colour = "red", size = 1.5) +
+  scale_x_continuous(breaks = 1:7) +
+  theme_bw()
+if(!file.exists("./Results/graphs/EnvCoeff_vs_nEnv.png")){
+  ggsave(filename = "./Results/graphs/EnvCoeff_vs_nEnv.png", width = 8, height = 8, units = "in", dpi = 300)
+}
+
+dfs %>% ggplot(aes(x = nEco, y = Economic_coef)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  geom_hline(yintercept = 0, colour = "red", size = 1.5) +
+  scale_x_continuous(breaks = 1:3) +
+  theme_bw()
+if(!file.exists("./Results/graphs/EcoCoeff_vs_nEco.png")){
+  ggsave(filename = "./Results/graphs/EcoCoeff_vs_nEco.png", width = 8, height = 8, units = "in", dpi = 300)
+}
+
+dfs %>% ggplot(aes(x = nSoc, y = Social_coef)) + geom_point() +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  geom_hline(yintercept = 0, colour = "red", size = 1.5) +
+  scale_x_continuous(breaks = 1:3) +
+  theme_bw()
+if(!file.exists("./Results/graphs/SocCoeff_vs_nSoc.png")){
+  ggsave(filename = "./Results/graphs/SocCoeff_vs_nSoc.png", width = 8, height = 8, units = "in", dpi = 300)
+}
+
 dfs %>% ggplot(aes(x = nFnt, y = Food_nutrition_coef)) + geom_point() +
-  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE) +
+  geom_hline(yintercept = 0, colour = "red", size = 1.5) +
+  scale_x_continuous(breaks = 1:14) +
+  theme_bw()
+if(!file.exists("./Results/graphs/FoodCoeff_vs_nFnt.png")){
+  ggsave(filename = "./Results/graphs/FoodCoeff_vs_nFnt.png", width = 8, height = 8, units = "in", dpi = 300)
+}
+
+dfs %>% gghighlight_point(aes(x = nIndicators, y = nCountries, colour = GoF), GoF > .6) + theme_bw()
+if(!file.exists("./Results/graphs/bestCombination.60.png")){
+  ggsave(filename = "./Results/graphs/bestCombination.60.png", width = 8, height = 8, units = "in", dpi = 300)
+}
+
+stdy_case <- dfs %>% filter(GoF > .7 & nCountries == 79 & nIndicators == 15)
+myScores <- stdy_case$model[[1]]$scores
+myScores <- as.data.frame(myScores)
+myScores$Country <- rownames(myScores)
+myScores <- dplyr::left_join(x = myScores, y = country_codes %>% dplyr::select(country.name.en, iso3c), by = c("Country" = "country.name.en"))
+rownames(myScores) <- myScores$iso3c
+myScores$Country <- NULL
+myScores$iso3c <- NULL
+
+#############################################################################
+sfsMap <- function(Scores){
+  
+  thm <- 
+    hc_theme(
+      colors = c("#1a6ecc", "#434348", "#90ed7d"),
+      chart = list(
+        backgroundColor = "transparent",
+        style = list(fontFamily = "Source Sans Pro")
+      ),
+      xAxis = list(gridLineWidth = 1)
+    )
+  
+  data("worldgeojson")
+  Scores <- apply(X = Scores, MARGIN = 2, FUN = function(x){(x - min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}) %>% as.data.frame
+  indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
+  
+  n <- 4
+  colstops <- data.frame(
+    q = 0:n/n,
+    c = substring(viridis(n + 1), 0, 7)) %>%
+    list.parse2()
+  
+  return(
+    highchart(type = "map") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index", joinBy = "iso3") %>%
+      hc_colorAxis(stops = color_stops()) %>%
+      hc_tooltip(useHTML = TRUE, headerFormat = "",
+                 pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
+      hc_colorAxis(stops = colstops) %>%
+      hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
+      hc_mapNavigation(enabled = TRUE) %>%
+      hc_add_theme(thm)
+  )
+  
+}
+#############################################################################
+
+sfsMap(Scores = myScores)
+
+
 dfs %>% ggplot(aes(x = Environment_coef, y = Food_nutrition_coef)) + geom_point() +
   geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3), se = FALSE)
+
+
+ctrl <- caret::trainControl(method = "LGOCV", p = 0.8, number = 10, savePredictions = T)
+ctrl <- caret::trainControl(method = "repeatedcv", p = 0.8, number = 10, savePredictions = T)
+
+grd <- expand.grid(mtry = seq(1, 5, 1))
+rf.res <- caret::train(GoF ~ .,
+                       data = dfs %>% dplyr::select(GoF, nCountries, nIndicators, nEnv, nSoc, nFnt),
+                       method = 'rf',
+                       tuneGrid = grd,
+                       importance = TRUE,
+                       ntree = 2000,
+                       metric = 'logLoss',
+                       trControl = ctrl)
+plot(rf.res)
+plot(rf.res$finalModel)
+plot(varImp(rf.res), top = 10)
+
+rsm.res <- rsm::rsm(GoF ~ FO(nCountries, nIndicators), data = dfs)
+summary(rsm.res)
