@@ -473,8 +473,18 @@ if(!file.exists("./Results/modelling_results/metrics.RDS")){
   saveRDS(object = dfs, file = "./Results/modelling_results/metrics.RDS")
   
 } else {
-  dfs <- readRDS("./Results/modelling_results/metrics.RDS")
+  dfs <- readRDS("./Results/modelling_results/metrics_modeA_maxIter500.RDS")
 }
+
+dfs2 <- dfs
+dfs2 <- dfs2 %>% group_by(nIndicators) %>% summarise(MaxCount = max(nCountries))
+dfs2 %>% ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point() +
+  scale_x_continuous(breaks = 4:27) +
+  xlab("Number of indicators") +
+  ylab("Countries with complete data") +
+  theme_classic() +
+  theme(text = element_text(size = 25))
+ggsave(filename = "./Results/graphs/Indicators_vs_Countries.png", width = 10, height = 8, units = "in", dpi = 300)
 
 # GoF vs Countries
 dfs %>% ggplot(aes(x = nCountries, y = GoF)) + geom_point() +
@@ -532,7 +542,9 @@ if(!file.exists("./Results/graphs/bestCombination.60.png")){
   ggsave(filename = "./Results/graphs/bestCombination.60.png", width = 8, height = 8, units = "in", dpi = 300)
 }
 
-stdy_case <- dfs %>% filter(GoF > .7 & nCountries == 79 & nIndicators == 15)
+# stdy_case <- dfs %>% filter(GoF > .7 & nCountries == 79 & nIndicators == 15)
+# stdy_case <- dfs %>% filter(nCountries == 164 & nIndicators == 4)
+stdy_case <- dfs %>% filter(nCountries == 95 & nIndicators == 20)
 myScores <- stdy_case$model[[1]]$scores
 myScores <- as.data.frame(myScores)
 myScores$Country <- rownames(myScores)
@@ -566,7 +578,7 @@ sfsMap <- function(Scores){
   
   return(
     highchart(type = "map") %>%
-      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index", joinBy = "iso3") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index2", joinBy = "iso3") %>%
       hc_colorAxis(stops = color_stops()) %>%
       hc_tooltip(useHTML = TRUE, headerFormat = "",
                  pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
@@ -609,11 +621,219 @@ summary(rsm.res)
 dfs2 <- dfs %>% filter(is.na(GoF))
 dfs <- dfs %>% filter(!is.na(GoF))
 
+# ------------------------------------------------------------------------------------------------------------ #
 # Use some alternative ways to construct indices
-# 1. The Human Development Index approach
-for(j in 1:ncol(all_data)){
-  transformedData[,j] <- (all_data[,j] - min(all_data[,j]))/(max(all_data[,j]) - min(all_data[,j]))
+# ------------------------------------------------------------------------------------------------------------ #
+
+calculateIndices <- function(data = all_data, combList){
+  
+  # Updating dimension indexes
+  signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
+  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
+  mtch <- match(combList, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Updating data set
+  data <- data[which(complete.cases(data[, mtch])),]
+  
+  # HDI approach
+  HDI_approach <- function(data = data, varInd = mtch){
+    
+    # Step 1. Normalization function for all indicators
+    normalization <- function(x){
+      y = (x - min(x))/(max(x) - min(x))
+      return(y)
+    }
+    
+    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
+    for(m in mtch){
+      data[,m] <- normalization(x = data[,m])
+      if(signs[m] < 0){data[,m] <- 1 - data[,m]}
+    }; rm(m)
+    
+    # Step 3. Calculate an index for each dimension
+    if(length(envUpt) > 1){envAve <- rowMeans(data[,envUpt])} else {envAve <- data[,envUpt]}
+    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
+    if(length(socUpt) > 1){socAve <- rowMeans(data[,socUpt])} else {socAve <- data[,socUpt]}
+    if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
+    indices <- data.frame(iso3c = data$iso3c, Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
+    
+    # Step 4. Calculate a final composite index
+    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% rowMeans()
+    rownames(indices) <- rownames(data)
+    
+    return(indices)
+  }
+  
+  # HPI approach
+  HPI_approach <- function(data = data, varInd = mtch){
+    
+    # Step 1. Normalization function for all indicators
+    normalization <- function(x){
+      y = (x - min(x))/(max(x) - min(x))
+      return(y)
+    }
+    
+    # Step 2. Normalize indicators and apply a correction for those indicators which have negative polarity
+    for(m in mtch){
+      data[,m] <- normalization(x = data[,m])
+      if(signs[m] < 0){data[,m] <- 1 - data[,m]}
+    }; rm(m)
+    
+    # Step 3. Calculate an index for each dimension
+    if(length(envUpt) > 1){envAve <- rowMeans(data[,envUpt])} else {envAve <- data[,envUpt]}
+    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
+    if(length(socUpt) > 1){socAve <- rowMeans(data[,socUpt])} else {socAve <- data[,socUpt]}
+    if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
+    indices <- data.frame(iso3c = data$iso3c, Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
+    
+    # Step 4. Calculate a final composite index
+    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, FUN = function(x){mean(x^4)^(1/4)})
+    rownames(indices) <- rownames(data)
+    
+    return(indices)
+  }
+  
+  # MPI approach
+  MPI_approach <- function(data = data, varInd = mtch){
+    
+    # Step 1. Normalization function for all indicators
+    normalizationMPI <- function(x, sgn){
+      y = 100 + sgn * ((x - mean(x))/sd(x)) * 10
+      return(y)
+    }
+    for(m in mtch){
+      data[,m] <- normalizationMPI(x = data[,m], sgn = signs[m])
+    }; rm(m)
+    # Step 2. Aggregation by dimension
+    if(length(envUpt) > 1){
+      M <- rowMeans(data[,envUpt])
+      S <- apply(X = data[,envUpt], MARGIN = 1, FUN = sd)
+      CV <- S/M
+      envAve <- M - (S*CV)
+    } else {
+      envAve <- data[,envUpt]
+    }
+    if(length(ecoUpt) > 1){
+      M <- rowMeans(data[,ecoUpt])
+      S <- apply(X = data[,ecoUpt], MARGIN = 1, FUN = sd)
+      CV <- S/M
+      ecoAve <- M - (S*CV)
+    } else {
+      ecoAve <- data[,ecoUpt]
+    }
+    if(length(socUpt) > 1){
+      M <- rowMeans(data[,socUpt])
+      S <- apply(X = data[,socUpt], MARGIN = 1, FUN = sd)
+      CV <- S/M
+      socAve <- M - (S*CV)
+    } else {
+      socAve <- data[,socUpt]
+    }
+    if(length(fntUpt) > 1){
+      M <- rowMeans(data[,fntUpt])
+      S <- apply(X = data[,fntUpt], MARGIN = 1, FUN = sd)
+      CV <- S/M
+      fntAve <- M - (S*CV)
+    } else {
+      fntAve <- data[,fntUpt]
+    }
+    indices <- data.frame(iso3c = data$iso3c, Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
+    # Step 4. Calculate a final composite index
+    # indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% rowMeans()
+    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, FUN = psych::geometric.mean)
+    rownames(indices) <- rownames(data)
+    
+    return(indices)
+  }
+  
+  HDI_approach(data = data, varInd = mtch)
+  HPI_approach(data = data, varInd = mtch)
+  MPI_approach(data = data, varInd = mtch)
+  
+  bootstrap::jackknife(x = all_data, theta = function(x) MPI_approach(data = x, varInd = mtch))
+  
+  # Fitting model
+  # Repeated indicators approach
+  
+  # Inner model
+  sfs_path <- rbind(c(0, 0, 0, 0, 0),
+                    c(0, 0 ,0 ,0, 0),
+                    c(0, 0, 0, 0, 0),
+                    c(0, 0, 0, 0, 0),
+                    c(1, 1, 1, 1, 0))
+  rownames(sfs_path) <- colnames(sfs_path) <- c("Environment", "Economic", "Social", "Food_nutrition", "SFS_index")
+  # innerplot(sfs_path)
+  
+  # Blocks of variables: repeated indicators approach
+  sfs_blocks1 <- list(envUpt, ecoUpt, socUpt, fntUpt, c(envUpt, ecoUpt, socUpt, fntUpt))
+  
+  # Scaling
+  sfs_scaling <- list(rep("NUM", length(sfs_blocks1[[1]])),
+                      rep("NUM", length(sfs_blocks1[[2]])),
+                      rep("NUM", length(sfs_blocks1[[3]])),
+                      rep("NUM", length(sfs_blocks1[[4]])),
+                      rep("NUM", length(sfs_blocks1[[5]])))
+  
+  # Modes
+  sfs_modes <- rep(Mode, 5)# c("B", "B", "B", "B", "B")
+  
+  # Run PLS-PM
+  tryCatch(expr = {
+    set.seed(1235)
+    sfs_pls1 <- plspm::plspm(data, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
+                             modes = sfs_modes, scheme = "path", tol = 0.00000001, scaled = TRUE, maxiter = 500)
+  },
+  error = function(e){
+    cat("Modeling process failed for present combination\n")
+    return("Done\n")
+  })
+  
+  if(exists('sfs_pls1')){
+    # Saving outputs
+    df <- data_frame(
+      GoF = sfs_pls1$gof,
+      nCountries = nrow(data),
+      nIndicators = length(mtch),
+      nEnv = length(envUpt),
+      nEco = length(ecoUpt),
+      nSoc = length(socUpt),
+      nFnt = length(fntUpt)
+    )
+    
+    results <- list(performance = df,
+                    model = sfs_pls1)
+  } else {
+    df <- data_frame(
+      GoF = NA,
+      nCountries = nrow(data),
+      nIndicators = length(mtch),
+      nEnv = length(envUpt),
+      nEco = length(ecoUpt),
+      nSoc = length(socUpt),
+      nFnt = length(fntUpt)
+    )
+    
+    results <- list(performance = df,
+                    model = "Failed model")
+  }
+  
+  return(results)
+  
 }
+results <- lapply(X = textFile, FUN = function(x) fittingModels(data = all_data, combList = x, Mode = "B"))
+
+
+
+
+
+# 1. The Human Development Index approach
+
+# Identify the corresponding dimensions
+
 rowMeans(transformedData)
 
 # 2. The Human Poverty Index approach
