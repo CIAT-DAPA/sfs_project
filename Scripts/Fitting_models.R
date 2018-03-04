@@ -1,4 +1,4 @@
-# Fitting models: SFS project
+# Fitting PLS-PM models: SFS project
 # Implemented by: H. Achicanoy & P. Alvarez
 # CIAT, 2017
 
