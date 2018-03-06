@@ -791,6 +791,8 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]]){
   MPI_approach(data = data, varInd = mtch)
   
   # HDI_results <- HDI_approach(data = data, varInd = mtch)
+  # HPI_results <- HPI_approach(data = data, varInd = mtch)
+  # MPI_results <- MPI_approach(data = data, varInd = mtch)
   # results <- tibble(Country = rownames(data), HDI = HDI_results$SFS_index, HPI = HPI_results$SFS_index, MPI = (MPI_results$SFS_index-min(MPI_results$SFS_index))/(max(MPI_results$SFS_index)-min(MPI_results$SFS_index)))
   parcoords::parcoords(results, rownames = FALSE,
                        reorder = TRUE, brushMode="1D",
