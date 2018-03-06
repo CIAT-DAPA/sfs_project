@@ -33,6 +33,7 @@ suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(co
 suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
 suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
 suppressMessages(if(!require(gghighlight)){install.packages('gghighlight'); library(gghighlight)} else {library(gghighlight)})
+library(EnvStats)
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -607,7 +608,7 @@ sfsMap <- function(Scores){
   
   return(
     highchart(type = "map") %>%
-      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index2", joinBy = "iso3") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index", joinBy = "iso3") %>%
       hc_colorAxis(stops = color_stops()) %>%
       hc_tooltip(useHTML = TRUE, headerFormat = "",
                  pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
@@ -693,7 +694,7 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]]){
     indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
     
     # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% rowMeans()
+    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
     rownames(indices) <- rNames
     
     return(indices)
@@ -788,6 +789,14 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]]){
   HDI_approach(data = data, varInd = mtch)
   HPI_approach(data = data, varInd = mtch)
   MPI_approach(data = data, varInd = mtch)
+  
+  # HDI_results <- HDI_approach(data = data, varInd = mtch)
+  # results <- tibble(Country = rownames(data), HDI = HDI_results$SFS_index, HPI = HPI_results$SFS_index, MPI = (MPI_results$SFS_index-min(MPI_results$SFS_index))/(max(MPI_results$SFS_index)-min(MPI_results$SFS_index)))
+  parcoords::parcoords(results, rownames = FALSE,
+                       reorder = TRUE, brushMode="1D",
+                       color = list(
+                         colorScale = htmlwidgets::JS('d3.scale.category10()'),
+                         colorBy = "sp"))
   
   ownJackknife <- function(x = data, FUN = HDI_approach, funName = "HDI_approach"){
     folds <- nrow(x)
