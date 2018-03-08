@@ -655,7 +655,7 @@ dfs <- dfs %>% filter(!is.na(GoF))
 # Use some alternative ways to construct indices
 # ------------------------------------------------------------------------------------------------------------ #
 
-calculateIndices <- function(data = all_data, combList = textFile2[[17]]){
+calculateIndices <- function(data = all_data, combList = textFile2[[17]], theoretical = T, avg_type = "geometric"){
   
   # Updating dimension indexes
   signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
@@ -683,7 +683,9 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]]){
     # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
     for(m in mtch){
       data[,m] <- normalization(x = data[,m])
-      if(signs[m] < 0){data[,m] <- 1 - data[,m]}
+      if(theoretical == T){
+        if(signs[m] < 0){data[,m] <- 1 - data[,m]}
+      }
     }; rm(m)
     
     # Step 3. Calculate an index for each dimension
