@@ -1,3 +1,7 @@
+# Sensitivity analysis: SFS project
+# Implemented by: H. Achicanoy & P. Alvarez
+# CIAT, 2018
+
 # R options
 g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
 
@@ -29,7 +33,7 @@ suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(co
 suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
 suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
 suppressMessages(if(!require(gghighlight)){install.packages('gghighlight'); library(gghighlight)} else {library(gghighlight)})
-library(EnvStats)
+suppressMessages(if(!require(EnvStats)){install.packages('EnvStats'); library(EnvStats)} else {library(EnvStats)})
 suppressMessages(library(compiler))
 
 ## ========================================================================== ##
@@ -37,8 +41,8 @@ suppressMessages(library(compiler))
 ## ========================================================================== ##
 
 # Worldwide shapefile
-countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
-countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
+# countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
+# countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
 # Country code translation
 # country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
@@ -111,7 +115,7 @@ rm(textFile, dfs, nInd, combID)
 ## ========================================================================== ##
 ## Sensitivity analysis
 ## ========================================================================== ##
-calculateIndices <- function(data = all_data, combList = textFile2[[17]], theoretical = T, avg_type = "geometric"){
+calculateIndices <- function(data = all_data, combList = textFile2[[17]], theoretical = T, fnt_type = "geometric"){
   
   # Updating dimension indexes
   signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
@@ -126,13 +130,14 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
   data <- data[which(complete.cases(data[, mtch])),]
   
   # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch){
+  HDI_approach <- function(data = data, varInd = mtch, theoretical = T, fnt_type = "geometric"){
     
     rNames <- data$iso3c
     
     # Step 1. Normalization function for all indicators
     normalization <- function(x){
-      y = (x - min(x))/(max(x) - min(x))
+      y = x/max(x)
+      # y = (x - min(x))/(max(x) - min(x))
       return(y)
     }
     
@@ -152,10 +157,10 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
     # Social: geometric mean
     if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
     # Food and nutrition: For testing
-    if(avg_type == "geometric"){
+    if(fnt_type == "geometric"){
       if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
     } else {
-      if(avg_type == "arithmetic"){
+      if(fnt_type == "arithmetic"){
         if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
       }
     }
@@ -163,99 +168,12 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
     indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
     
     # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
+    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
     rownames(indices) <- rNames
     
     return(indices)
   }
-  
-  # HPI approach
-  HPI_approach <- function(data = data, varInd = mtch){
-    
-    rNames <- data$iso3c
-    
-    # Step 1. Normalization function for all indicators
-    normalization <- function(x){
-      y = (x - min(x))/(max(x) - min(x))
-      return(y)
-    }
-    
-    # Step 2. Normalize indicators and apply a correction for those indicators which have negative polarity
-    for(m in mtch){
-      data[,m] <- normalization(x = data[,m])
-      if(signs[m] < 0){data[,m] <- 1 - data[,m]}
-    }; rm(m)
-    
-    # Step 3. Calculate an index for each dimension
-    if(length(envUpt) > 1){envAve <- rowMeans(data[,envUpt])} else {envAve <- data[,envUpt]}
-    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
-    if(length(socUpt) > 1){socAve <- rowMeans(data[,socUpt])} else {socAve <- data[,socUpt]}
-    if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
-    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
-    
-    # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, FUN = function(x){mean(x^4)^(1/4)})
-    rownames(indices) <- rNames
-    
-    return(indices)
-  }
-  
-  # MPI approach
-  MPI_approach <- function(data = data, varInd = mtch){
-    
-    rNames <- data$iso3c
-    
-    # Step 1. Normalization function for all indicators
-    normalizationMPI <- function(x, sgn){
-      y = 100 + sgn * ((x - mean(x))/sd(x)) * 10
-      return(y)
-    }
-    for(m in mtch){
-      data[,m] <- normalizationMPI(x = data[,m], sgn = signs[m])
-    }; rm(m)
-    # Step 2. Aggregation by dimension
-    if(length(envUpt) > 1){
-      M <- rowMeans(data[,envUpt])
-      S <- apply(X = data[,envUpt], MARGIN = 1, FUN = sd)
-      CV <- S/M
-      envAve <- M - (S*CV)
-    } else {
-      envAve <- data[,envUpt]
-    }
-    if(length(ecoUpt) > 1){
-      M <- rowMeans(data[,ecoUpt])
-      S <- apply(X = data[,ecoUpt], MARGIN = 1, FUN = sd)
-      CV <- S/M
-      ecoAve <- M - (S*CV)
-    } else {
-      ecoAve <- data[,ecoUpt]
-    }
-    if(length(socUpt) > 1){
-      M <- rowMeans(data[,socUpt])
-      S <- apply(X = data[,socUpt], MARGIN = 1, FUN = sd)
-      CV <- S/M
-      socAve <- M - (S*CV)
-    } else {
-      socAve <- data[,socUpt]
-    }
-    if(length(fntUpt) > 1){
-      M <- rowMeans(data[,fntUpt])
-      S <- apply(X = data[,fntUpt], MARGIN = 1, FUN = sd)
-      CV <- S/M
-      fntAve <- M - (S*CV)
-    } else {
-      fntAve <- data[,fntUpt]
-    }
-    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
-    # Step 4. Calculate a final composite index
-    # indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% rowMeans()
-    indices$SFS_index <- indices %>% select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, FUN = psych::geometric.mean)
-    rownames(indices) <- rNames
-    
-    return(indices)
-  }
-  
-  HDI_approach(data = data, varInd = mtch) %>% View
+  #HDI_approach(data = data, varInd = mtch, theoretical = T, fnt_type = "arithmetic") %>% View
   
   ownJackknife <- function(x = data, FUN = HDI_approach, funName = "HDI_approach"){
     folds <- nrow(x)
@@ -263,7 +181,7 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
     jckk <- lapply(X = 1:folds, FUN = function(i){
       x <- x[-i,]
       df <- Function(data = x, varInd = mtch)
-      df$Combination <- i
+      df$Subsample <- i
       df$Approach <- gsub(pattern = "_approach", replacement = "", x = funName)
       df$iso3c <- rownames(df)
       return(df)
@@ -274,98 +192,241 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
   HDI_results <- do.call(rbind, HDI_results)
   rownames(HDI_results) <- 1:nrow(HDI_results)
   
-  HDI_results %>% ggplot(aes(x = Combination, y = SFS_index, group = iso3c)) + geom_line()
+  return(HDI_results)
   
-  HPI_results <- ownJackknife(x = data, FUN = HPI_approach, funName = "HPI_approach")
-  HPI_results <- do.call(rbind, HPI_results)
-  rownames(HPI_results) <- 1:nrow(HPI_results)
+}
+
+all_combinations <- lapply(X = 1:length(textFile2), FUN = function(i){
   
-  HPI_results %>% ggplot(aes(x = Combination, y = SFS_index, group = iso3c)) + geom_line()
-  
-  MPI_results <- ownJackknife(x = data, FUN = MPI_approach, funName = "MPI_approach")
-  MPI_results <- do.call(rbind, MPI_results)
-  rownames(MPI_results) <- 1:nrow(MPI_results)
-  
-  MPI_results %>% ggplot(aes(x = Combination, y = SFS_index, group = iso3c)) + geom_line()
-  
-  plot(HDI_results$SFS_index[HDI_results$Combination == "1"], HPI_results$SFS_index[HPI_results$Combination == "1"], pch = 20,
-       xlab = "HDI approach", ylab = "HPI approach")
-  abline(0 ,1)
-  plot(HDI_results$SFS_index[HDI_results$Combination == "1"], MPI_results$SFS_index[MPI_results$Combination == "1"], pch = 20,
-       xlab = "HDI approach", ylab = "MPI approach")
-  abline(0 ,1)
-  plot(HPI_results$SFS_index[HPI_results$Combination == "1"], MPI_results$SFS_index[MPI_results$Combination == "1"], pch = 20,
-       xlab = "HPI approach", ylab = "MPI approach")
-  abline(0 ,1)
-  
-  bootstrap::jackknife(x = data, theta = function(x) HDI_approach(data = x, varInd = mtch))
-  
-  # Fitting model
-  # Repeated indicators approach
-  
-  # Inner model
-  sfs_path <- rbind(c(0, 0, 0, 0, 0),
-                    c(0, 0 ,0 ,0, 0),
-                    c(0, 0, 0, 0, 0),
-                    c(0, 0, 0, 0, 0),
-                    c(1, 1, 1, 1, 0))
-  rownames(sfs_path) <- colnames(sfs_path) <- c("Environment", "Economic", "Social", "Food_nutrition", "SFS_index")
-  # innerplot(sfs_path)
-  
-  # Blocks of variables: repeated indicators approach
-  sfs_blocks1 <- list(envUpt, ecoUpt, socUpt, fntUpt, c(envUpt, ecoUpt, socUpt, fntUpt))
-  
-  # Scaling
-  sfs_scaling <- list(rep("NUM", length(sfs_blocks1[[1]])),
-                      rep("NUM", length(sfs_blocks1[[2]])),
-                      rep("NUM", length(sfs_blocks1[[3]])),
-                      rep("NUM", length(sfs_blocks1[[4]])),
-                      rep("NUM", length(sfs_blocks1[[5]])))
-  
-  # Modes
-  sfs_modes <- rep(Mode, 5)# c("B", "B", "B", "B", "B")
-  
-  # Run PLS-PM
-  tryCatch(expr = {
-    set.seed(1235)
-    sfs_pls1 <- plspm::plspm(data, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
-                             modes = sfs_modes, scheme = "path", tol = 0.00000001, scaled = TRUE, maxiter = 500)
-  },
-  error = function(e){
-    cat("Modeling process failed for present combination\n")
-    return("Done\n")
-  })
-  
-  if(exists('sfs_pls1')){
-    # Saving outputs
-    df <- data_frame(
-      GoF = sfs_pls1$gof,
-      nCountries = nrow(data),
-      nIndicators = length(mtch),
-      nEnv = length(envUpt),
-      nEco = length(ecoUpt),
-      nSoc = length(socUpt),
-      nFnt = length(fntUpt)
-    )
+  theoList <- c(T, F)
+  for(j in 1:length(theoList)){
     
-    results <- list(performance = df,
-                    model = sfs_pls1)
-  } else {
-    df <- data_frame(
-      GoF = NA,
-      nCountries = nrow(data),
-      nIndicators = length(mtch),
-      nEnv = length(envUpt),
-      nEco = length(ecoUpt),
-      nSoc = length(socUpt),
-      nFnt = length(fntUpt)
-    )
+    typeList <- c("geometric", "arithmetic")
+    for(k in 1:length(typeList)){
+      
+      results <- calculateIndices(data = all_data,
+                                  combList = textFile2[[i]],
+                                  theoretical = theoList[j],
+                                  fnt_type = typeList[k])
+      results$mean_type <- typeList[k]
+      results$theoretical <- theoList[j]
+      results$combination <- i
+      return(results)
+      
+    }
     
-    results <- list(performance = df,
-                    model = "Failed model")
   }
   
   return(results)
   
+})
+all_combinations <- do.call(rbind, all_combinations)
+all_combinations %>% View
+
+saveRDS(object = all_combinations, file = "HDI_sensitivity_analysis.rds")
+all_combinations <- readRDS("HDI_sensitivity_analysis.rds")
+
+all_combinations$iso3c <- factor(all_combinations$iso3c)
+all_combinations$mean_type <- factor(all_combinations$mean_type)
+all_combinations$Subsample <- factor(all_combinations$Subsample)
+all_combinations$theoretical <- factor(all_combinations$theoretical)
+all_combinations$combination <- factor(all_combinations$combination)
+
+test <- all_combinations %>%
+  dplyr::select(iso3c, theoretical, SFS_index, mean_type, Subsample, combination) %>%
+  tidyr::spread(key = mean_type, value = SFS_index)
+
+all_combinations %>%
+  filter(iso3c == "COL") %>%
+  ggplot(aes(x = SFS_index, fill = mean_type, colour = mean_type)) + geom_density(alpha = 0.1)
+
+# GLM approach
+glm.fit <- all_combinations %>%
+  dplyr::select(iso3c, mean_type, Subsample, theoretical, combination, SFS_index) %>%
+  speedglm::speedglm(formula = SFS_index ~ ., data = ., family = binomial())
+summary(glm.fit)
+glm.explainer <- DALEX::explain(glm.fit, data = all_combinations, y = all_combinations$SFS_index)
+glm.vd <- DALEX::variable_dropout(glm.explainer, type = "raw")
+plot(glm.vd)
+
+# Random forest approach
+rf.fit <- all_combinations[complete.cases(all_combinations),] %>%
+  dplyr::select(mean_type, theoretical, combination, SFS_index) %>%
+  randomForest::randomForest(formula = SFS_index ~ ., data = ., ntree = 100)
+importance(rf.fit)
+rf.explainer <- DALEX::explain(model = rf.fit, data = all_combinations, y = all_combinations$SFS_index)
+rf.vd <- DALEX::variable_dropout(explainer = rf.explainer, type = "raw")
+plot(rf.vd)
+
+
+all_combinations %>% filter(mean_type == "arithmetic") %>% ggplot(aes(x = SFS_index, fill = mean_type, colour = mean_type)) +
+  geom_density(alpha = 0.1) +
+  facet_grid(theoretical~combination) +
+  theme_classic()
+
+all_combinations2 <- all_combinations %>%
+  select(SFS_index:Subsample, iso3c:combination) %>%
+  group_by(iso3c, mean_type, theoretical, combination) %>%
+  summarise(SFS_index = median(SFS_index, na.rm = T))
+
+glm.fit <- glm(formula = SFS_index ~ ., data = all_combinations2[complete.cases(all_combinations2),], family = binomial)
+anova(glm.fit, test = "Chi")
+
+
+glm.col <- all_combinations2[complete.cases(all_combinations2),] %>%
+  filter(iso3c == "COL") %>%
+  glm(SFS_index ~ mean_type + theoretical + combination, data = ., family = binomial)
+anova(glm.col, test = "Chi")
+
+all_combinations2[complete.cases(all_combinations2),] %>%
+  filter(iso3c == "COL") %>% ggplot(aes(x = combination, y = SFS_index)) + geom_point()
+
+all_combinations2[complete.cases(all_combinations2),] %>%
+  filter(iso3c == "COL") %>% ggplot(aes(x = SFS_index)) + geom_density()
+
+all_combinations2 <- all_combinations %>%
+  select(SFS_index:Subsample, iso3c:combination) %>%
+  group_by(iso3c, mean_type, theoretical, combination) %>%
+  summarise(SFS_index = median(SFS_index, na.rm = T)) %>%
+  spread(key = combination, value = SFS_index)
+names(all_combinations2)[4:ncol(all_combinations2)] <- paste0("comb_", names(all_combinations2)[4:ncol(all_combinations2)])
+all_combinations2$theoretical <- as.character(all_combinations2$theoretical)
+
+parcoords::parcoords(all_combinations2[,1:13], rownames = FALSE, # [,c("iso3c", paste0("comb_", 1:10))]
+                     reorder = TRUE, brushMode="1D",
+                     color = list(
+                       colorScale = htmlwidgets::JS('d3.scale.category10()'),
+                       colorBy = "sp"))
+
+cv_data <- all_combinations %>%
+  select(SFS_index:Subsample, iso3c:combination) %>%
+  group_by(iso3c, mean_type, theoretical, combination) %>%
+  summarise(cv = sd(SFS_index, na.rm = T)/mean(SFS_index, na.rm = T))
+
+cv_data %>% ggplot(aes(x = cv, fill = mean_type, colour = mean_type)) +
+  geom_density(alpha = 0.1) +
+  facet_grid(theoretical~combination) +
+  theme_classic()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+HDI_results %>% ggplot(aes(x = Subsample, y = SFS_index, group = iso3c)) + geom_line()
+
+HDI_results %>% group_by(iso3c) %>% summarise(cv = sd(SFS_index, na.rm = T)/mean(SFS_index, na.rm = T)) %>%
+  ggplot(aes(x = cv)) + geom_density()
+
+
+
+
+
+
+HPI_results <- ownJackknife(x = data, FUN = HPI_approach, funName = "HPI_approach")
+HPI_results <- do.call(rbind, HPI_results)
+rownames(HPI_results) <- 1:nrow(HPI_results)
+
+HPI_results %>% ggplot(aes(x = Combination, y = SFS_index, group = iso3c)) + geom_line()
+
+MPI_results <- ownJackknife(x = data, FUN = MPI_approach, funName = "MPI_approach")
+MPI_results <- do.call(rbind, MPI_results)
+rownames(MPI_results) <- 1:nrow(MPI_results)
+
+MPI_results %>% ggplot(aes(x = Combination, y = SFS_index, group = iso3c)) + geom_line()
+
+plot(HDI_results$SFS_index[HDI_results$Combination == "1"], HPI_results$SFS_index[HPI_results$Combination == "1"], pch = 20,
+     xlab = "HDI approach", ylab = "HPI approach")
+abline(0 ,1)
+plot(HDI_results$SFS_index[HDI_results$Combination == "1"], MPI_results$SFS_index[MPI_results$Combination == "1"], pch = 20,
+     xlab = "HDI approach", ylab = "MPI approach")
+abline(0 ,1)
+plot(HPI_results$SFS_index[HPI_results$Combination == "1"], MPI_results$SFS_index[MPI_results$Combination == "1"], pch = 20,
+     xlab = "HPI approach", ylab = "MPI approach")
+abline(0 ,1)
+
+bootstrap::jackknife(x = data, theta = function(x) HDI_approach(data = x, varInd = mtch))
+
+# Fitting model
+# Repeated indicators approach
+
+# Inner model
+sfs_path <- rbind(c(0, 0, 0, 0, 0),
+                  c(0, 0 ,0 ,0, 0),
+                  c(0, 0, 0, 0, 0),
+                  c(0, 0, 0, 0, 0),
+                  c(1, 1, 1, 1, 0))
+rownames(sfs_path) <- colnames(sfs_path) <- c("Environment", "Economic", "Social", "Food_nutrition", "SFS_index")
+# innerplot(sfs_path)
+
+# Blocks of variables: repeated indicators approach
+sfs_blocks1 <- list(envUpt, ecoUpt, socUpt, fntUpt, c(envUpt, ecoUpt, socUpt, fntUpt))
+
+# Scaling
+sfs_scaling <- list(rep("NUM", length(sfs_blocks1[[1]])),
+                    rep("NUM", length(sfs_blocks1[[2]])),
+                    rep("NUM", length(sfs_blocks1[[3]])),
+                    rep("NUM", length(sfs_blocks1[[4]])),
+                    rep("NUM", length(sfs_blocks1[[5]])))
+
+# Modes
+sfs_modes <- rep(Mode, 5)# c("B", "B", "B", "B", "B")
+
+# Run PLS-PM
+tryCatch(expr = {
+  set.seed(1235)
+  sfs_pls1 <- plspm::plspm(data, sfs_path, sfs_blocks1, scaling = sfs_scaling, 
+                           modes = sfs_modes, scheme = "path", tol = 0.00000001, scaled = TRUE, maxiter = 500)
+},
+error = function(e){
+  cat("Modeling process failed for present combination\n")
+  return("Done\n")
+})
+
+if(exists('sfs_pls1')){
+  # Saving outputs
+  df <- data_frame(
+    GoF = sfs_pls1$gof,
+    nCountries = nrow(data),
+    nIndicators = length(mtch),
+    nEnv = length(envUpt),
+    nEco = length(ecoUpt),
+    nSoc = length(socUpt),
+    nFnt = length(fntUpt)
+  )
+  
+  results <- list(performance = df,
+                  model = sfs_pls1)
+} else {
+  df <- data_frame(
+    GoF = NA,
+    nCountries = nrow(data),
+    nIndicators = length(mtch),
+    nEnv = length(envUpt),
+    nEco = length(ecoUpt),
+    nSoc = length(socUpt),
+    nFnt = length(fntUpt)
+  )
+  
+  results <- list(performance = df,
+                  model = "Failed model")
+}
+
+return(results)
+
 }
 results <- lapply(X = textFile, FUN = function(x) fittingModels(data = all_data, combList = x, Mode = "B"))
