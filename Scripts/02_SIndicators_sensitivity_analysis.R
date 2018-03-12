@@ -115,7 +115,10 @@ rm(textFile, dfs, nInd, combID)
 ## ========================================================================== ##
 ## Sensitivity analysis
 ## ========================================================================== ##
-calculateIndices <- function(data = all_data, combList = textFile2[[17]], theoretical = T, fnt_type = "geometric"){
+calculateIndices <- function(data = all_data, combList = textFile2[[17]], theory = "true", fnt_type = "geometric"){
+  
+  theory <<- theory
+  fnt_type <<- fnt_type
   
   # Updating dimension indexes
   signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
@@ -130,7 +133,7 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
   data <- data[which(complete.cases(data[, mtch])),]
   
   # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch, theoretical = T, fnt_type = "geometric"){
+  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
     
     rNames <- data$iso3c
     
@@ -144,7 +147,7 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
     # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
     for(m in mtch){
       data[,m] <- normalization(x = data[,m])
-      if(theoretical == T){
+      if(theory == "true"){
         if(signs[m] < 0){data[,m] <- 1 - data[,m]}
       }
     }; rm(m)
@@ -180,7 +183,7 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
     Function <- FUN
     jckk <- lapply(X = 1:folds, FUN = function(i){
       x <- x[-i,]
-      df <- Function(data = x, varInd = mtch)
+      df <- Function(data = x, varInd = mtch, theory = theory, fnt_type = fnt_type)
       df$Subsample <- i
       df$Approach <- gsub(pattern = "_approach", replacement = "", x = funName)
       df$iso3c <- rownames(df)
@@ -198,26 +201,28 @@ calculateIndices <- function(data = all_data, combList = textFile2[[17]], theore
 
 all_combinations <- lapply(X = 1:length(textFile2), FUN = function(i){
   
-  theoList <- c(T, F)
-  for(j in 1:length(theoList)){
+  theoryList <- c("true", "false")
+  theoryResults <- lapply(X = 1:length(theoryList), function(j){
     
     typeList <- c("geometric", "arithmetic")
-    for(k in 1:length(typeList)){
+    typeResults <- lapply(X = 1:length(typeList), function(k){
       
       results <- calculateIndices(data = all_data,
                                   combList = textFile2[[i]],
-                                  theoretical = theoList[j],
+                                  theory = theoryList[j],
                                   fnt_type = typeList[k])
       results$mean_type <- typeList[k]
-      results$theoretical <- theoList[j]
+      results$theory <- theoryList[j]
       results$combination <- i
       return(results)
       
-    }
+    })
+    typeResults <- do.call(rbind, typeResults)
+    return(typeResults)
     
-  }
-  
-  return(results)
+  })
+  theoryResults <- do.call(rbind, theoryResults)
+  return(theoryResults)
   
 })
 all_combinations <- do.call(rbind, all_combinations)
@@ -233,7 +238,7 @@ all_combinations$theoretical <- factor(all_combinations$theoretical)
 all_combinations$combination <- factor(all_combinations$combination)
 
 test <- all_combinations %>%
-  dplyr::select(iso3c, theoretical, SFS_index, mean_type, Subsample, combination) %>%
+  dplyr::select(iso3c, theory, SFS_index, mean_type, Subsample, combination) %>%
   tidyr::spread(key = mean_type, value = SFS_index)
 
 all_combinations %>%
@@ -259,14 +264,14 @@ rf.vd <- DALEX::variable_dropout(explainer = rf.explainer, type = "raw")
 plot(rf.vd)
 
 
-all_combinations %>% filter(mean_type == "arithmetic") %>% ggplot(aes(x = SFS_index, fill = mean_type, colour = mean_type)) +
+all_combinations %>% ggplot(aes(x = SFS_index, fill = mean_type, colour = mean_type)) + # filter(mean_type == "arithmetic") %>% 
   geom_density(alpha = 0.1) +
-  facet_grid(theoretical~combination) +
+  facet_grid(theory~combination) +
   theme_classic()
 
 all_combinations2 <- all_combinations %>%
   select(SFS_index:Subsample, iso3c:combination) %>%
-  group_by(iso3c, mean_type, theoretical, combination) %>%
+  group_by(iso3c, mean_type, theory, combination) %>%
   summarise(SFS_index = median(SFS_index, na.rm = T))
 
 glm.fit <- glm(formula = SFS_index ~ ., data = all_combinations2[complete.cases(all_combinations2),], family = binomial)
@@ -286,11 +291,11 @@ all_combinations2[complete.cases(all_combinations2),] %>%
 
 all_combinations2 <- all_combinations %>%
   select(SFS_index:Subsample, iso3c:combination) %>%
-  group_by(iso3c, mean_type, theoretical, combination) %>%
+  group_by(iso3c, mean_type, theory, combination) %>%
   summarise(SFS_index = median(SFS_index, na.rm = T)) %>%
   spread(key = combination, value = SFS_index)
 names(all_combinations2)[4:ncol(all_combinations2)] <- paste0("comb_", names(all_combinations2)[4:ncol(all_combinations2)])
-all_combinations2$theoretical <- as.character(all_combinations2$theoretical)
+all_combinations2$theory <- as.character(all_combinations2$theory)
 
 parcoords::parcoords(all_combinations2[,1:13], rownames = FALSE, # [,c("iso3c", paste0("comb_", 1:10))]
                      reorder = TRUE, brushMode="1D",
@@ -300,15 +305,19 @@ parcoords::parcoords(all_combinations2[,1:13], rownames = FALSE, # [,c("iso3c", 
 
 cv_data <- all_combinations %>%
   select(SFS_index:Subsample, iso3c:combination) %>%
-  group_by(iso3c, mean_type, theoretical, combination) %>%
+  group_by(iso3c, mean_type, theory, combination) %>%
   summarise(cv = sd(SFS_index, na.rm = T)/mean(SFS_index, na.rm = T))
 
 cv_data %>% ggplot(aes(x = cv, fill = mean_type, colour = mean_type)) +
   geom_density(alpha = 0.1) +
-  facet_grid(theoretical~combination) +
+  facet_grid(theory~combination) +
   theme_classic()
 
-
+cv_data %>%
+  dplyr::filter(iso3c == "COL") %>%
+  ggplot(aes(x = cv, fill = mean_type, colour = mean_type)) +
+  geom_density(alpha = 0.1) +
+  facet_wrap(~theory)
 
 
 
