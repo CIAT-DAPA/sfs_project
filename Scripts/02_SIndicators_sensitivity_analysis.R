@@ -112,6 +112,19 @@ for(i in 1:length(nInd)){
 textFile2 <- textFile[combID]
 rm(textFile, dfs, nInd, combID)
 
+dfs2 <- dfs
+nIndicators <- unique(dfs2$nIndicators)
+max.test <- lapply(X = nIndicators, function(i){
+  x <- dfs2 %>% filter(nIndicators == i)
+  df <- x[which.max(x$nCountries),]
+  return(df)
+})
+max.test <- do.call(rbind, max.test)
+max.test <- max.test %>% select(nCountries, nIndicators, nEnv, nEco, nSoc, nFnt)
+
+dfs2 <- dfs2 %>% group_by(nIndicators) %>% summarise(MaxCount = max(nCountries))
+dfs2 %>% ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point()
+
 ## =================================================================================== ##
 ## Sensitivity analysis: standarizing each dataset for each combination of indicators
 ## =================================================================================== ##
@@ -365,6 +378,42 @@ median_calculated <- all_combinations2 %>%
   select(SFS_index:Subsample, iso3c:combination) %>%
   group_by(iso3c, mean_type, theory, combination) %>%
   summarise(SFS_index = median(SFS_index, na.rm = T))
+median_calculated %>%
+  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = as.numeric(combination), y = SFS_index, group = mean_type, fill = mean_type, colour = mean_type)) +
+  geom_point() + facet_grid(theory~iso3c) +
+  geom_hline(yintercept = 0, color = "red") +
+  scale_x_continuous(breaks = 1:24, labels = 4:27) +
+  xlab("Number of indicators")
+
+# Calculate successive differences
+successiveDiff <- median_calculated %>%
+  dplyr::group_by(iso3c, mean_type, theory) %>%
+  tidyr::nest() %>%
+  dplyr::mutate(sDiff = purrr::map(.x = .$data, .f = function(x){
+    df <- data.frame(combination = x$combination, Difference = x$SFS_index - dplyr::lag(x = x$SFS_index, n = 1))
+    return(df)
+  }))
+successiveDiff <- tidyr::unnest(successiveDiff)
+successiveDiff$combination1 <- NULL
+successiveDiff %>%
+  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = as.numeric(combination), y = Difference, group = mean_type, fill = mean_type, colour = mean_type)) +
+  geom_point() + facet_grid(theory~iso3c) +
+  geom_hline(yintercept = 0, color = "blue") +
+  scale_x_continuous(breaks = 1:24, labels = 4:27) +
+  xlab("Number of indicators")
+successiveDiff %>%
+  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = Difference, group = mean_type, fill = mean_type, colour = mean_type)) +
+  geom_density(alpha = .1) + facet_grid(theory~iso3c) +
+  geom_vline(xintercept = 0, color = "blue") +
+  # scale_x_continuous(breaks = 1:24, labels = 4:27) +
+  xlab("Differences")
+
+
+
+
 
 # Parallel coordinates plot
 median_calculated %>%
