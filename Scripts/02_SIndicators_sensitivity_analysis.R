@@ -40,10 +40,6 @@ suppressMessages(library(compiler))
 ## Define countries to work with
 ## ========================================================================== ##
 
-# Worldwide shapefile
-# countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
-# countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
-
 # Country code translation
 # country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
 country_codes <- countrycode::codelist %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
@@ -97,7 +93,7 @@ textFile <- lapply(textFile, function(x){
 })
 
 ## ========================================================================== ##
-## Selecting the maximum values
+## Selecting the maximum combination values
 ## ========================================================================== ##
 dfs <- readRDS("./Results/modelling_results/metrics_modeA_maxIter500.RDS")
 dfs$Combination <- 1:nrow(dfs)
@@ -110,6 +106,120 @@ for(i in 1:length(nInd)){
   combID[i] <- df$Combination
 }; rm(i, df)
 textFile2 <- textFile[combID]
+
+dfs2 <- dfs %>% dplyr::select(nCountries:nFnt)
+dfs2 <- dfs2 %>% dplyr::mutate(Indicators = textFile)
+dfs2$maxCombinations <- "No"
+dfs2$maxCombinations[combID] <- "Yes"
+dfs2$ID <- 1:nrow(dfs2)
+saveRDS(dfs2, "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/counts_and_indicators.rds")
+
+dfs2$Indicators[[20]] %in% dfs2$Indicators[[153]]
+
+lapply(2:length(combID), function(i){
+  
+  tryCatch(expr = {
+    indicatorsList <- dfs2$Indicators[[combID[i]]]               # List of indicators to evaluate
+    n              <- dfs2$nIndicators[combID[i]]                # Number of indicators for this combination
+    sub_comb       <- dfs2 %>% dplyr::filter(nIndicators == n-1) # Previous combination
+    continue_path  <- lapply(X = 1:nrow(sub_comb), function(j){
+      (sum(dfs2$Indicators[[i]] %in% dfs2$Indicators[[j]]) == n-1) %>% return()
+    }) %>% unlist
+    sub_comb       <- sub_comb[continue_path,]                   # Keep combinations which follow the path
+    sub_comb$ID[which.max(sub_comb$nCountries)] %>% print()
+    sub_comb$ID[which.max(sub_comb$nCountries)] %>% return()
+  })
+  
+})
+
+combID
+
+path_finder <- function(indicators = dfs2$Indicators[combID[17]][[1]], data = all_data){
+  
+  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
+  mtch <- match(indicators, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
+  id = 761
+  
+  indicatorsList <- dfs2$Indicators[[id]]               # List of indicators to evaluate
+  n              <- dfs2$nIndicators[id]                # Number of indicators for this combination
+  sub_comb       <- dfs2 %>% dplyr::filter(nIndicators == n-1) # Previous combination
+  continue_path  <- lapply(X = 1:nrow(sub_comb), function(j){
+    (sum(dfs2$Indicators[[j]] %in% dfs2$Indicators[[id]])) %>% return() #  == (n-1)
+  }) %>% unlist
+  sub_comb       <- sub_comb[continue_path,]                   # Keep combinations which follow the path
+  sub_comb$ID[which.max(sub_comb$nCountries)] %>% print()
+  sub_comb$ID[which.max(sub_comb$nCountries)] %>% return()
+  
+}
+path_finder(n = 6)
+
+quickSort <- function(vect) {
+  # Args:
+  #  vect: Numeric Vector
+  
+  # Stop if vector has length of 1
+  if (length(vect) <= 1) {
+    return(vect)
+  }
+  # Pick an element from the vector
+  element <- vect[1]
+  partition <- vect[-1]
+  # Reorder vector so that integers less than element
+  # come before, and all integers greater come after.
+  v1 <- partition[partition < element]
+  v2 <- partition[partition >= element]
+  # Recursively apply steps to smaller vectors.
+  v1 <- quickSort(v1)
+  v2 <- quickSort(v2)
+  return(c(v1, element, v2))
+}
+
+
+
+
+
+
+
+
+
+
+
+
+dfs2$Indicators[c(2,65,190,253,254,317,152)]
+
+recursive.factorial <- function(x) {
+  if (x == 0)    return (1)
+  else           return (x * recursive.factorial(x-1))
+}
+
+Combination = 882; nIndicators = 27; nCountries = 17
+compare(filter(nIndicators == 26), filter(nIndicators == 25)) %>% which.max
+compare(filter(nIndicators == 25), filter(nIndicators == 24)) %>% which.max
+
+
+which(dfs2$maxCombinations == "Yes")
+
+maximums <- which(dfs2$maxCombinations == "Yes")
+for(i in 1:lenght(maximums)){
+  for(j in maximums[i]:1){
+    length_base <- dfs2$Indicators[[i]] %>% length
+    length_mtch <- match(dfs2$Indicators[[i]], dfs2$Indicators[[j]]) %>% na.omit %>% length
+    
+    base = 27
+    
+    mtch = 26
+    mtch = 26 # 
+    mtch = 26
+    # Select the one which has the maximum number of countries
+    
+  }
+}
+
 rm(textFile, dfs, nInd, combID)
 
 dfs2 <- dfs
