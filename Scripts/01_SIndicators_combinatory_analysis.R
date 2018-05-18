@@ -11,38 +11,14 @@ wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_Sy
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
-suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
-suppressMessages(if(!require(rgdal)){install.packages('rgdal'); library(rgdal)} else {library(rgdal)})
-suppressMessages(if(!require(maptools)){install.packages('maptools'); library(maptools)} else {library(maptools)})
-suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
-suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
-suppressMessages(if(!require(doParallel)){install.packages('doParallel'); library(doParallel)} else {library(doParallel)})
-suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
-suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
-suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
-suppressMessages(if(!require(tidyverse)){install.packages('tidyverse'); library(tidyverse)} else {library(tidyverse)})
-suppressMessages(if(!require(countrycode)){install.packages('countrycode'); library(countrycode)} else {library(countrycode)})
-suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
-suppressMessages(if(!require(caret)){install.packages('caret'); library(caret)} else {library(caret)})
-suppressMessages(if(!require(missMDA)){install.packages('missMDA'); library(missMDA)} else {library(missMDA)})
-suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
-suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
-suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
-suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
-suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(corrplot)} else {library(corrplot)})
-suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
-suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
-suppressMessages(if(!require(gghighlight)){install.packages('gghighlight'); library(gghighlight)} else {library(gghighlight)})
-library(EnvStats)
-suppressMessages(library(compiler))
+library(pacman)
+pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
+               missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
+               EnvStats,compiler)
 
 ## ========================================================================== ##
 ## Define countries to work with
 ## ========================================================================== ##
-
-# Worldwide shapefile
-countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
-countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
 # Country code translation
 # country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)

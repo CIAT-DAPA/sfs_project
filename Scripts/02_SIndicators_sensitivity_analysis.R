@@ -11,30 +11,10 @@ wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_Sy
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
-suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
-suppressMessages(if(!require(rgdal)){install.packages('rgdal'); library(rgdal)} else {library(rgdal)})
-suppressMessages(if(!require(maptools)){install.packages('maptools'); library(maptools)} else {library(maptools)})
-suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
-suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
-suppressMessages(if(!require(doParallel)){install.packages('doParallel'); library(doParallel)} else {library(doParallel)})
-suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
-suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
-suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
-suppressMessages(if(!require(tidyverse)){install.packages('tidyverse'); library(tidyverse)} else {library(tidyverse)})
-suppressMessages(if(!require(countrycode)){install.packages('countrycode'); library(countrycode)} else {library(countrycode)})
-suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
-suppressMessages(if(!require(caret)){install.packages('caret'); library(caret)} else {library(caret)})
-suppressMessages(if(!require(missMDA)){install.packages('missMDA'); library(missMDA)} else {library(missMDA)})
-suppressMessages(if(!require(missForest)){install.packages('missForest'); library(missForest)} else {library(missForest)})
-suppressMessages(if(!require(treemap)){install.packages('treemap'); library(treemap)} else {library(treemap)})
-suppressMessages(if(!require(viridisLite)){install.packages('viridisLite'); library(viridisLite)} else {library(viridisLite)})
-suppressMessages(if(!require(highcharter)){install.packages('highcharter'); library(highcharter)} else {library(highcharter)})
-suppressMessages(if(!require(corrplot)){install.packages('corrplot'); library(corrplot)} else {library(corrplot)})
-suppressMessages(if(!require(cluster)){install.packages('cluster'); library(cluster)} else {library(cluster)})
-suppressMessages(if(!require(factoextra)){install.packages('factoextra'); library(factoextra)} else {library(factoextra)})
-suppressMessages(if(!require(gghighlight)){install.packages('gghighlight'); library(gghighlight)} else {library(gghighlight)})
-suppressMessages(if(!require(EnvStats)){install.packages('EnvStats'); library(EnvStats)} else {library(EnvStats)})
-suppressMessages(library(compiler))
+library(pacman)
+pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
+               missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
+               EnvStats,compiler)
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -78,7 +58,7 @@ rm(environmentDim, food_nutritionDim, socialDim, economicDim)
 ## Combinatory analysis
 ## ========================================================================== ##
 # Post-process indicators names
-textFile <- readLines("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt")
+textFile <- readLines("./Results/modelling_results/auxTxt.txt")
 textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
 textFile <- lapply(textFile, function(x){
   
@@ -104,136 +84,24 @@ for(i in 1:length(nInd)){
   df <- df %>% filter(nIndicators == nInd[i])
   df <- df[which.max(df$nCountries),]
   combID[i] <- df$Combination
-}; rm(i, df)
-textFile2 <- textFile[combID]
+}; rm(i, df, dfs, nInd)
+textFile2 <- textFile[combID]; rm(combID)
 
-dfs2 <- dfs %>% dplyr::select(nCountries:nFnt)
-dfs2 <- dfs2 %>% dplyr::mutate(Indicators = textFile)
-dfs2$maxCombinations <- "No"
-dfs2$maxCombinations[combID] <- "Yes"
-dfs2$ID <- 1:nrow(dfs2)
-saveRDS(dfs2, "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/counts_and_indicators.rds")
+dfs <- readRDS("./Results/modelling_results/counts_and_indicators.rds")
+dfs %>%
+  dplyr::group_by(nIndicators) %>%
+  dplyr::summarise(MaxCount = max(nCountries)) %>%
+  ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point()
 
-dfs2$Indicators[[20]] %in% dfs2$Indicators[[153]]
-
-lapply(2:length(combID), function(i){
-  
-  tryCatch(expr = {
-    indicatorsList <- dfs2$Indicators[[combID[i]]]               # List of indicators to evaluate
-    n              <- dfs2$nIndicators[combID[i]]                # Number of indicators for this combination
-    sub_comb       <- dfs2 %>% dplyr::filter(nIndicators == n-1) # Previous combination
-    continue_path  <- lapply(X = 1:nrow(sub_comb), function(j){
-      (sum(dfs2$Indicators[[i]] %in% dfs2$Indicators[[j]]) == n-1) %>% return()
-    }) %>% unlist
-    sub_comb       <- sub_comb[continue_path,]                   # Keep combinations which follow the path
-    sub_comb$ID[which.max(sub_comb$nCountries)] %>% print()
-    sub_comb$ID[which.max(sub_comb$nCountries)] %>% return()
-  })
-  
+## ========================================================================== ##
+## Find all possible combinations backwards
+## ========================================================================== ##
+nInd <- dfs$nIndicators[dfs$maxCombinations == "Yes"]
+textFile2
+paths <- lapply(X = 1:length(nInd), function(i){
+  cat("Processing combination:", nInd[i], "...\n")
+  path_finder(data = all_data, combList = textFile2[i][[1]], id = nInd[i])
 })
-
-combID
-
-path_finder <- function(indicators = dfs2$Indicators[combID[17]][[1]], data = all_data){
-  
-  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
-  mtch <- match(indicators, names(data))
-  envUpt <- base::intersect(envPos, mtch)
-  ecoUpt <- base::intersect(ecoPos, mtch)
-  socUpt <- base::intersect(socPos, mtch)
-  fntUpt <- base::intersect(fntPos, mtch)
-  
-  id = 761
-  
-  indicatorsList <- dfs2$Indicators[[id]]               # List of indicators to evaluate
-  n              <- dfs2$nIndicators[id]                # Number of indicators for this combination
-  sub_comb       <- dfs2 %>% dplyr::filter(nIndicators == n-1) # Previous combination
-  continue_path  <- lapply(X = 1:nrow(sub_comb), function(j){
-    (sum(dfs2$Indicators[[j]] %in% dfs2$Indicators[[id]])) %>% return() #  == (n-1)
-  }) %>% unlist
-  sub_comb       <- sub_comb[continue_path,]                   # Keep combinations which follow the path
-  sub_comb$ID[which.max(sub_comb$nCountries)] %>% print()
-  sub_comb$ID[which.max(sub_comb$nCountries)] %>% return()
-  
-}
-path_finder(n = 6)
-
-quickSort <- function(vect) {
-  # Args:
-  #  vect: Numeric Vector
-  
-  # Stop if vector has length of 1
-  if (length(vect) <= 1) {
-    return(vect)
-  }
-  # Pick an element from the vector
-  element <- vect[1]
-  partition <- vect[-1]
-  # Reorder vector so that integers less than element
-  # come before, and all integers greater come after.
-  v1 <- partition[partition < element]
-  v2 <- partition[partition >= element]
-  # Recursively apply steps to smaller vectors.
-  v1 <- quickSort(v1)
-  v2 <- quickSort(v2)
-  return(c(v1, element, v2))
-}
-
-
-
-
-
-
-
-
-
-
-
-
-dfs2$Indicators[c(2,65,190,253,254,317,152)]
-
-recursive.factorial <- function(x) {
-  if (x == 0)    return (1)
-  else           return (x * recursive.factorial(x-1))
-}
-
-Combination = 882; nIndicators = 27; nCountries = 17
-compare(filter(nIndicators == 26), filter(nIndicators == 25)) %>% which.max
-compare(filter(nIndicators == 25), filter(nIndicators == 24)) %>% which.max
-
-
-which(dfs2$maxCombinations == "Yes")
-
-maximums <- which(dfs2$maxCombinations == "Yes")
-for(i in 1:lenght(maximums)){
-  for(j in maximums[i]:1){
-    length_base <- dfs2$Indicators[[i]] %>% length
-    length_mtch <- match(dfs2$Indicators[[i]], dfs2$Indicators[[j]]) %>% na.omit %>% length
-    
-    base = 27
-    
-    mtch = 26
-    mtch = 26 # 
-    mtch = 26
-    # Select the one which has the maximum number of countries
-    
-  }
-}
-
-rm(textFile, dfs, nInd, combID)
-
-dfs2 <- dfs
-nIndicators <- unique(dfs2$nIndicators)
-max.test <- lapply(X = nIndicators, function(i){
-  x <- dfs2 %>% filter(nIndicators == i)
-  df <- x[which.max(x$nCountries),]
-  return(df)
-})
-max.test <- do.call(rbind, max.test)
-max.test <- max.test %>% select(nCountries, nIndicators, nEnv, nEco, nSoc, nFnt)
-
-dfs2 <- dfs2 %>% group_by(nIndicators) %>% summarise(MaxCount = max(nCountries))
-dfs2 %>% ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point()
 
 ## =================================================================================== ##
 ## Sensitivity analysis: standarizing each dataset for each combination of indicators
@@ -445,6 +313,63 @@ calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theor
   
 }
 
+combFiles <- list.files(path = "./Best_combinations/RDSfiles", full.names = T) %>% gtools::mixedsort()
+sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
+  
+  db <- readRDS(combFiles[i])
+  db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
+  db <- db %>% dplyr::filter(matches == 4)
+  db$nIndicators %>% table %>% names
+  db$nIndicators %>% table
+  nInd <- db$nIndicators %>% unique %>% sort
+  smpls <- round(table(db$nIndicators)/sum(table(db$nIndicators)) * 100) + 1
+  if(sum(table(db$nIndicators) > 100) > 1){
+    db_new <- lapply(X = 1:length(nInd), function(j){
+      db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
+      set.seed(1234)
+      smpl <- sample(x = 1:nrow(db_nInd), size = smpls[j], replace = F)
+      db_nInd <- db_nInd[smpl,]
+      return(db_nInd)
+    })
+    db_new <- do.call(rbind, db_new)
+  } else {
+    db_new <- db; rm(db)
+  }
+  
+  textFile2 <- db_new$Indicators
+  all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
+    
+    theoryList <- c("true", "false")
+    theoryResults <- lapply(X = 1:length(theoryList), function(j){
+      
+      typeList <- c("geometric", "arithmetic")
+      typeResults <- lapply(X = 1:length(typeList), function(k){
+        
+        results <- calculateIndices2(data = all_data,
+                                     combList = textFile2[[i]],
+                                     theory = theoryList[j],
+                                     fnt_type = typeList[k])
+        results$mean_type <- typeList[k]
+        results$theory <- theoryList[j]
+        results$combination <- i
+        results$nIndicators <- length(textFile2[[i]])
+        return(results)
+        
+      })
+      typeResults <- do.call(rbind, typeResults)
+      return(typeResults)
+      
+    })
+    theoryResults <- do.call(rbind, theoryResults)
+    return(theoryResults)
+    
+  })
+  all_combinations2 <- do.call(rbind, all_combinations2)
+  
+  return(all_combinations2)
+})
+
+textFile2 <- db_new$Indicators
 all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
   
   theoryList <- c("true", "false")
@@ -460,6 +385,7 @@ all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
       results$mean_type <- typeList[k]
       results$theory <- theoryList[j]
       results$combination <- i
+      results$nIndicators <- length(textFile2[[i]])
       return(results)
       
     })
@@ -472,10 +398,62 @@ all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
   
 })
 all_combinations2 <- do.call(rbind, all_combinations2)
-all_combinations2 %>% View
+
+##
+all_combinations2 %>% filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index, group = mean_type, fill = mean_type, colour = mean_type)) +
+  geom_point() + facet_grid(theory~iso3c) +
+  geom_hline(yintercept = 0, color = "red") +
+  scale_x_continuous(breaks = 4:27, labels = 4:27) +
+  xlab("Number of indicators")
+##
+all_combinations2 %>% dplyr::filter(mean_type == "geometric" & theory == "true") %>% ggplot(aes(x = reorder(iso3c, SFS_index, FUN = median), y = SFS_index)) + geom_boxplot()
+
+
+## Partial indices
+combList <- textFile2[[17]]
+
+# Step 1. Normalization function for all indicators
+normalization <- function(x){
+  y = x/max(x, na.rm = T)
+  # y = (x - min(x))/(max(x) - min(x))
+  return(y)
+}
+
+data <- all_data
+for(j in 2:ncol(data)){
+  data[,j] <- normalization(x = data[,j])
+  data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+}; rm(j)
+
+# Updating dimension indexes
+signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
+envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
+mtch <- match(combList, names(data))
+envUpt <- base::intersect(envPos, mtch)
+ecoUpt <- base::intersect(ecoPos, mtch)
+socUpt <- base::intersect(socPos, mtch)
+fntUpt <- base::intersect(fntPos, mtch)
+
+# Updating data set
+data <- data[which(complete.cases(data[, mtch])),]
+
+# HDI approach
+HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = "arithmetic")
+HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = "geometric")
+
+
+
+
+
+
+
+
 
 saveRDS(object = all_combinations2, file = "HDI_sensitivity_analysis2.rds")
 all_combinations2 <- readRDS("HDI_sensitivity_analysis2.rds")
+
+db %>% group_by(nIndicators) %>% sample()
 
 # Scatterplot
 all_combinations2 %>%
@@ -495,6 +473,10 @@ median_calculated %>%
   geom_hline(yintercept = 0, color = "red") +
   scale_x_continuous(breaks = 1:24, labels = 4:27) +
   xlab("Number of indicators")
+
+median_calculated %>%
+  group_by(iso3c, mean_type, theory) %>%
+  summarise(SFS_index = median(SFS_index, na.rm = T))
 
 # Calculate successive differences
 successiveDiff <- median_calculated %>%

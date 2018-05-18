@@ -1,0 +1,1 @@
+[['Emissions.agriculture.total', 'AgValueAdded', 'Female.labor.force', 'City.access']]
