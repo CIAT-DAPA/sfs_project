@@ -14,7 +14,7 @@ setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 library(pacman)
 pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-               EnvStats,compiler)
+               EnvStats, compiler, caretEnsemble)
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -96,132 +96,12 @@ dfs %>%
 ## ========================================================================== ##
 ## Find all possible combinations backwards
 ## ========================================================================== ##
-nInd <- dfs$nIndicators[dfs$maxCombinations == "Yes"]
-textFile2
-paths <- lapply(X = 1:length(nInd), function(i){
-  cat("Processing combination:", nInd[i], "...\n")
-  path_finder(data = all_data, combList = textFile2[i][[1]], id = nInd[i])
-})
-
-## =================================================================================== ##
-## Sensitivity analysis: standarizing each dataset for each combination of indicators
-## =================================================================================== ##
-calculateIndices <- function(data = all_data, combList = textFile2[[17]], theory = "true", fnt_type = "geometric"){
-  
-  theory <<- theory
-  fnt_type <<- fnt_type
-  
-  # Updating dimension indexes
-  signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
-  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
-  mtch <- match(combList, names(data))
-  envUpt <- base::intersect(envPos, mtch)
-  ecoUpt <- base::intersect(ecoPos, mtch)
-  socUpt <- base::intersect(socPos, mtch)
-  fntUpt <- base::intersect(fntPos, mtch)
-  
-  # Updating data set
-  data <- data[which(complete.cases(data[, mtch])),]
-  
-  # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
-    
-    rNames <- data$iso3c
-    
-    # Step 1. Normalization function for all indicators
-    normalization <- function(x){
-      y = x/max(x)
-      # y = (x - min(x))/(max(x) - min(x))
-      return(y)
-    }
-    
-    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
-    for(m in mtch){
-      data[,m] <- normalization(x = data[,m])
-      if(theory == "true"){
-        if(signs[m] < 0){data[,m] <- 1 - data[,m]}
-      }
-    }; rm(m)
-    
-    # Step 3. Calculate an index for each dimension
-    # Environmental: geometric mean
-    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
-    # Economic: arithmetic mean
-    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
-    # Social: geometric mean
-    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
-    # Food and nutrition: For testing
-    if(fnt_type == "geometric"){
-      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
-    } else {
-      if(fnt_type == "arithmetic"){
-        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
-      }
-    }
-    
-    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
-    
-    # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
-    rownames(indices) <- rNames
-    
-    return(indices)
-  }
-  #HDI_approach(data = data, varInd = mtch, theoretical = T, fnt_type = "arithmetic") %>% View
-  
-  ownJackknife <- function(x = data, FUN = HDI_approach, funName = "HDI_approach"){
-    folds <- nrow(x)
-    Function <- FUN
-    jckk <- lapply(X = 1:folds, FUN = function(i){
-      x <- x[-i,]
-      df <- Function(data = x, varInd = mtch, theory = theory, fnt_type = fnt_type)
-      df$Subsample <- i
-      df$Approach <- gsub(pattern = "_approach", replacement = "", x = funName)
-      df$iso3c <- rownames(df)
-      return(df)
-    })
-    return(jckk)
-  }
-  HDI_results <- ownJackknife(x = data, FUN = HDI_approach, funName = "HDI_approach")
-  HDI_results <- do.call(rbind, HDI_results)
-  rownames(HDI_results) <- 1:nrow(HDI_results)
-  
-  return(HDI_results)
-  
-}
-
-all_combinations <- lapply(X = 1:length(textFile2), FUN = function(i){
-  
-  theoryList <- c("true", "false")
-  theoryResults <- lapply(X = 1:length(theoryList), function(j){
-    
-    typeList <- c("geometric", "arithmetic")
-    typeResults <- lapply(X = 1:length(typeList), function(k){
-      
-      results <- calculateIndices(data = all_data,
-                                  combList = textFile2[[i]],
-                                  theory = theoryList[j],
-                                  fnt_type = typeList[k])
-      results$mean_type <- typeList[k]
-      results$theory <- theoryList[j]
-      results$combination <- i
-      return(results)
-      
-    })
-    typeResults <- do.call(rbind, typeResults)
-    return(typeResults)
-    
-  })
-  theoryResults <- do.call(rbind, theoryResults)
-  return(theoryResults)
-  
-})
-all_combinations <- do.call(rbind, all_combinations)
-all_combinations %>% View
-
-saveRDS(object = all_combinations, file = "HDI_sensitivity_analysis.rds")
-all_combinations <- readRDS("HDI_sensitivity_analysis.rds")
-
+# nInd <- dfs$nIndicators[dfs$maxCombinations == "Yes"]
+# textFile2
+# paths <- lapply(X = 1:length(nInd), function(i){
+#   cat("Processing combination:", nInd[i], "...\n")
+#   path_finder(data = all_data, combList = textFile2[i][[1]], id = nInd[i])
+# })
 
 ## =================================================================================== ##
 ## Sensitivity analysis: standarizing the dataset as first step
@@ -263,7 +143,10 @@ calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theor
     # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
     for(m in mtch){
       if(theory == "true"){
-        if(signs[m] < 0){data[,m] <- 1 - data[,m]}
+        if(signs[m] < 0){
+          data[,m] <- 1 - data[,m]
+          data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
+          }
       }
     }; rm(m)
     
@@ -319,17 +202,19 @@ sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
   db <- readRDS(combFiles[i])
   db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
   db <- db %>% dplyr::filter(matches == 4)
-  db$nIndicators %>% table %>% names
-  db$nIndicators %>% table
   nInd <- db$nIndicators %>% unique %>% sort
-  smpls <- round(table(db$nIndicators)/sum(table(db$nIndicators)) * 100) + 1
-  if(sum(table(db$nIndicators) > 100) > 1){
+  smpls <- table(db$nIndicators)[2]
+  if(length(nInd) > 4){
     db_new <- lapply(X = 1:length(nInd), function(j){
       db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
-      set.seed(1234)
-      smpl <- sample(x = 1:nrow(db_nInd), size = smpls[j], replace = F)
-      db_nInd <- db_nInd[smpl,]
-      return(db_nInd)
+      if(nrow(db_nInd) > 1){
+        set.seed(1234)
+        smpl <- sample(x = 1:nrow(db_nInd), size = smpls, replace = F)
+        db_nInd <- db_nInd[smpl,]
+        return(db_nInd)
+      } else {
+        return(db_nInd)
+      }
     })
     db_new <- do.call(rbind, db_new)
   } else {
@@ -339,7 +224,7 @@ sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
   textFile2 <- db_new$Indicators
   all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
     
-    theoryList <- c("true", "false")
+    theoryList <- c("true")
     theoryResults <- lapply(X = 1:length(theoryList), function(j){
       
       typeList <- c("geometric", "arithmetic")
@@ -368,11 +253,210 @@ sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
   
   return(all_combinations2)
 })
+saveRDS(sensitivity_results, "./sensitivity_analysis.rds")
+sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_old.rds")
+sensitivity_results[[19]]
+
+sensitivity_results[[19]] %>% filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index, group = mean_type, fill = mean_type, colour = mean_type)) +
+  geom_point() + facet_grid(~iso3c) +
+  geom_hline(yintercept = 0, color = "red") +
+  scale_x_continuous(breaks = 4:27, labels = 4:27) +
+  scale_y_continuous(limits = c(0, 1)) +
+  xlab("Number of indicators") +
+  ylab("Sustainable Food Systems index")
+
+sensitivity_results[[17]] %>%
+  dplyr::filter(mean_type == "geometric" & iso3c == "VNM") %>%
+  ggplot(aes(x = reorder(iso3c, SFS_index, FUN = median), y = SFS_index, fill = factor(nIndicators))) +
+  geom_boxplot() +
+  xlab("Country") +
+  ylab("Sustainable Food Systems index")
+
+set.seed(107)
+test <- snsr_flt[complete.cases(snsr_flt),]
+inTrain <- createDataPartition(y = test$SFS_index, p = .75, list = FALSE)
+training <- test[inTrain,]
+testing <- test[-inTrain,]
+my_control <- trainControl(
+  method="boot",
+  number=25,
+  savePredictions="final",
+  classProbs=TRUE,
+  index=createResample(training$SFS_index, 25),
+  summaryFunction=twoClassSummary
+)
+caretEnsemble::caretEnsemble()
+
+# Rank operators
+# Update indicators list
+textFile2_uptd <- textFile2[1:19]
+# Calculate SFS reference index
+calc_sfs_index <- function(combList = textFile2_uptd[[17]], data = all_data, fnt_type = "geometric"){
+  
+  # Step 1. Normalization function for all indicators
+  normalization <- function(x){
+    y = x/max(x, na.rm = T)
+    # y = (x - min(x))/(max(x) - min(x))
+    return(y)
+  }
+  
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
+  
+  # Updating dimension indexes
+  signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
+  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
+  mtch <- match(combList, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Updating data set
+  data <- data[which(complete.cases(data[, mtch])),]
+  
+  # HDI approach
+  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
+    
+    rNames <- data$iso3c
+    
+    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
+    for(m in mtch){
+      if(theory == "true"){
+        if(signs[m] < 0){
+          data[,m] <- 1 - data[,m]
+          data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
+        }
+      }
+    }; rm(m)
+    
+    # Step 3. Calculate an index for each dimension
+    # Environmental: geometric mean
+    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
+    # Economic: arithmetic mean
+    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
+    # Social: geometric mean
+    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
+    # Food and nutrition: For testing
+    if(fnt_type == "geometric"){
+      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
+    } else {
+      if(fnt_type == "arithmetic"){
+        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
+      }
+    }
+    
+    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
+    
+    # Step 4. Calculate a final composite index
+    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
+    rownames(indices) <- rNames
+    
+    return(indices)
+  }
+  ref_vals <- HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = fnt_type)
+  return(ref_vals)
+  
+}
+
+rank_summary <- rep(NA, length(textFile2_uptd))
+for(i in 1:length(textFile2_uptd)){
+  
+  ref_vals <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "geometric")
+  ref_cntr <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "geometric") %>% rownames %>% sort
+  
+  snsr_flt <- sensitivity_results[[i]] %>% dplyr::filter(mean_type == "geometric")
+  snsr_flt <- snsr_flt %>% dplyr::filter(iso3c %in% ref_cntr)
+  
+  calc_diff <- rep(NA, length(ref_cntr))
+  calc_medn <- rep(NA, length(ref_cntr))
+  for(j in 1:length(ref_cntr)){
+    calc_diff[j] <- median(snsr_flt[snsr_flt$iso3c == ref_cntr[j], "SFS_index"]) - ref_vals[rownames(ref_vals)==ref_cntr[j],"SFS_index"]
+    calc_medn[j] <- median(snsr_flt[snsr_flt$iso3c == ref_cntr[j], "SFS_index"])
+  }
+  
+  rank_summary[i] <- sum(abs(rank(ref_vals[,"SFS_index"]) - rank(calc_medn)))/length(ref_cntr)
+  
+}
+names(rank_summary) <- 4:22
+barplot(rank_summary)
+abline(h = 30, col = 2)
+
+#############################################################################
+sfsMap <- function(Scores){
+  
+  thm <- 
+    hc_theme(
+      colors = c("#1a6ecc", "#434348", "#90ed7d"),
+      chart = list(
+        backgroundColor = "transparent",
+        style = list(fontFamily = "Source Sans Pro")
+      ),
+      xAxis = list(gridLineWidth = 1)
+    )
+  
+  data("worldgeojson")
+  Scores <- apply(X = Scores, MARGIN = 2, FUN = function(x){(x - min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}) %>% as.data.frame
+  indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
+  
+  n <- 4
+  colstops <- data.frame(
+    q = 0:n/n,
+    c = substring(viridis(n + 1), 0, 7)) %>%
+    list.parse2()
+  
+  return(
+    highchart(type = "map") %>%
+      hc_add_series_map(map = worldgeojson, df = indices, value = "SFS_index", joinBy = "iso3") %>%
+      hc_colorAxis(stops = color_stops()) %>%
+      hc_tooltip(useHTML = TRUE, headerFormat = "",
+                 pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
+      hc_colorAxis(stops = colstops) %>%
+      hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
+      hc_mapNavigation(enabled = TRUE) %>%
+      hc_add_theme(thm)
+  )
+  
+}
+ref_vals <- calc_sfs_index(combList = textFile2[[20]], data = all_data, fnt_type = "geometric")
+sfsMap(Scores = ref_vals)
+#############################################################################
+
+
+vals <- rep(NA, length(ref_countries))
+for(i in 1:length(ref_countries)){
+  vals[i] <- median(filtered_df[filtered_df$iso3c == ref_countries[i], "SFS_index"]) - ref_values[rownames(ref_values)==ref_countries[i],"SFS_index"]
+}
+hist(vals)
+
+
+# 1. Obtain reference countries
+df <- sensitivity_results[[17]] %>%
+  dplyr::filter(mean_type == "geometric" & nIndicators == 20)
+ref_countries <- df$iso3c %>% unique %>% sort
+ref_values <- df %>% dplyr::filter(mean_type == "geometric" & nIndicators == 20)
+df <- sensitivity_results[[17]] %>%
+  dplyr::filter(iso3c %in% ref_countries)
+df[df$combination == 1, "iso3c"] %>% unique %>% length
+
+# 2. Calculate index for reference countries
+# 3. Obtain rank of reference countries
+# 4. Filter all possibilities by reference countries
+# 5. Obtain rank of countries for all possibilities
+
+
+
+
+
+
 
 textFile2 <- db_new$Indicators
 all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
   
-  theoryList <- c("true", "false")
+  theoryList <- c("true")
   theoryResults <- lapply(X = 1:length(theoryList), function(j){
     
     typeList <- c("geometric", "arithmetic")
@@ -410,43 +494,25 @@ all_combinations2 %>% filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VN
 all_combinations2 %>% dplyr::filter(mean_type == "geometric" & theory == "true") %>% ggplot(aes(x = reorder(iso3c, SFS_index, FUN = median), y = SFS_index)) + geom_boxplot()
 
 
-## Partial indices
-combList <- textFile2[[17]]
-
-# Step 1. Normalization function for all indicators
-normalization <- function(x){
-  y = x/max(x, na.rm = T)
-  # y = (x - min(x))/(max(x) - min(x))
-  return(y)
-}
-
-data <- all_data
-for(j in 2:ncol(data)){
-  data[,j] <- normalization(x = data[,j])
-  data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-}; rm(j)
-
-# Updating dimension indexes
-signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
-envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
-mtch <- match(combList, names(data))
-envUpt <- base::intersect(envPos, mtch)
-ecoUpt <- base::intersect(ecoPos, mtch)
-socUpt <- base::intersect(socPos, mtch)
-fntUpt <- base::intersect(fntPos, mtch)
-
-# Updating data set
-data <- data[which(complete.cases(data[, mtch])),]
-
-# HDI approach
-HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = "arithmetic")
-HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = "geometric")
 
 
-
-
-
-
+# ------------------------------------------------------------------------ #
+# Cluster
+data[,mtch]
+pacman::p_load(diceR)
+CC <- consensus_cluster(data[,mtch], nk = 2:10, p.item = 0.8, reps = 5,
+                        algorithms = c("hc", "pam", "diana"))
+co <- capture.output(str(CC))
+strwrap(co, width = 80)
+CC <- apply(CC, 2:4, impute_knn, data = data[,mtch], seed = 1)
+CC_imputed <- impute_missing(CC, data[,mtch], nk = 4)
+sum(is.na(CC))
+sum(is.na(CC_imputed))
+pam.4 <- CC[, , "PAM_Euclidean", "4", drop = FALSE]
+cm <- consensus_matrix(pam.4)
+dim(cm)
+hm <- graph_heatmap(pam.4)
+# ------------------------------------------------------------------------ #
 
 
 
