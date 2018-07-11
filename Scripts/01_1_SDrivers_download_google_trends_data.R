@@ -129,4 +129,59 @@ allGTrends <- lapply(1:nrow(countries_languages), function(i){
   terms <- do.call(rbind, terms)
   return(terms)
 })
+allGTrends <- allGTrends %>% purrr::map(function(x){
+  if(is.numeric(x$date)){
+    x$date <- as.Date(x$date, origin = "1970-01-01")
+  }; return(x)
+})
 allGTrends <- do.call(rbind, allGTrends)
+saveRDS(allGTrends, paste0("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_data.rds"))
+
+allGTrends <- readRDS("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_data.rds")
+
+# traditional version
+allGTrends2 <- allGTrends
+allGTrends2 <- allGTrends2[complete.cases(allGTrends2),]
+
+allGTrends3 <- allGTrends2 %>%
+  select(keyword, geo) %>%
+  unique %>%
+  as.tibble
+
+allGTrends3 <- allGTrends3 %>% dplyr::mutate(slope = lapply(1:nrow(allGTrends3), function(i){
+  
+  db_flt <- allGTrends %>% filter(keyword == allGTrends3$keyword[i] & geo == allGTrends3$geo[i])
+  TS <- db_flt$hits %>%
+    as.numeric %>%
+    na.omit %>%
+    ts(.,
+       start     = c(lubridate::year(db_flt$date)[1],
+                     lubridate::month(db_flt$date)[1]),
+       end       = c(lubridate::year(db_flt$date)[length(db_flt$date)],
+                     lubridate::month(db_flt$date)[length(db_flt$date)]),
+       frequency = 12)
+  
+  slope <- trend::sens.slope(x = TS)
+  slope <- slope$estimates
+  
+  return(slope)
+  
+}) %>% unlist)
+rm(allGTrends2)
+
+gTrends <- left_join(x = countries_languages %>% select(iso2c, iso3c), y = allGTrends3, by = c("iso2c" = "geo")) %>%
+  select(iso3c, keyword, slope)
+gTrends$keyword <- gTrends$keyword %>% factor
+levels(gTrends$keyword) <- c("healthy diet", "organic food", "organic food", "organic food", "junk food",
+                             "junk food", "organic food", "healthy diet", "healthy diet", "healthy diet",
+                             "healthy diet", "healthy diet", "healthy diet", "junk food", "junk food",
+                             "obesity", "obesity", "obesity", "obesity", "obesity", "obesity",
+                             "organic food", "obesity")
+gTrends <- gTrends %>% tidyr::spread(key = keyword, value = slope)
+gTrends$`<NA>` <- NULL
+gTrends[is.na(gTrends)] <- 0
+
+gTrends[,-1] %>% cor(method = "spearman") %>% corrplot::corrplot(method = "square")
+gTrends[,-1] %>% FactoMineR::PCA(scale.unit = T, graph = T)
+
+write.csv(gTrends, "./drivers_CB/Databases_modified/Demand_Consumer/Final/Change_google_trends.csv", row.names = F)

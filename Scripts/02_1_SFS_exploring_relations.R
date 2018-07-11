@@ -4,7 +4,10 @@
 
 # R options
 g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
-wk_dir <- "D:/OneDrive - CGIAR/escritorio2/SFS_A4NH_conference/Data/Indicators"
+
+OSys <- Sys.info()[1]
+OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
@@ -193,13 +196,53 @@ for(m in mtch){
   }
 }; rm(m)
 
-write.csv(sfs_index2, "./sfs_index_normalized_indicators.csv", row.names = F)
+write.csv(sfs_index2, "./sfs_index_normalized_indicators.csv", row.names = F); rm(sfs_index2)
 sfs_index <- read.csv("./sfs_index_normalized_indicators.csv")
+
+sfs_index %>%
+  select(SFS_index, Environment:Food_nutrition) %>%
+  cor(use = "pairwise.complete.obs", method = "spearman") %>%
+  corrplot::corrplot(method = "square")
 
 sfs_index %>%
   select(SFS_index, Emissions.agriculture.total:Serum.retinol.deficiency) %>%
   cor(use = "pairwise.complete.obs", method = "spearman") %>%
   corrplot::corrplot(method = "square")
+
+sfs_index %>%
+  ggplot(aes(x = AgValueAdded, y = SFS_index)) +
+  geom_point() +
+  theme_bw()
+sfs_index %>%
+  ggplot(aes(x = Diet.diversification, y = SFS_index)) +
+  geom_point() +
+  theme_bw()
+sfs_index %>%
+  ggplot(aes(x = Access.improved.water, y = SFS_index)) +
+  geom_point() +
+  theme_bw()
+
+control_prmt <- trainControl(method          = "LGOCV",
+                             p               = 0.7,
+                             number          = 10,
+                             savePredictions = "final",
+                             verboseIter     = T)
+
+model_list <- caretEnsemble::caretList(
+  SFS_index ~ .,
+  data = sfs_index %>%
+    select(SFS_index, Emissions.agriculture.total:Serum.retinol.deficiency),
+  trControl  = control_prmt,
+  tuneList   = list(ranger = caretModelSpec(method = "ranger", importance = "impurity")),
+  methodList = c("svmRadial", "glm", "knn", "avNNet")
+)
+
+impVar_list <- lapply(1:length(model_list), function(i){
+  vImportance <- caret::varImp(object = model_list[[i]])
+  impVar <- data.frame(impVar = rownames(vImportance$importance)[1:top_variables])
+  return(impVar)
+})
+
 
 sfs_index %>%
   select(SFS_index, Emissions.agriculture.total:Serum.retinol.deficiency) %>%
