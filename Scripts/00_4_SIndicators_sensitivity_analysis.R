@@ -14,7 +14,7 @@ setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 library(pacman)
 pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-               EnvStats, compiler, caretEnsemble)
+               EnvStats, compiler, caretEnsemble, tabplot)
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -55,6 +55,28 @@ rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
 rm(environmentDim, food_nutritionDim, socialDim, economicDim)
 
 ## ========================================================================== ##
+## Correlations
+## ========================================================================== ##
+
+M <- cor(all_data[,-1], use = "pairwise.complete.obs", method = "spearman")
+corrplot(M, method = "square")
+
+## ========================================================================== ##
+## Missing data
+## ========================================================================== ##
+
+library(tabplot)
+all_data2 <- all_data
+names(all_data2)[2:8] <- paste0("Env_", 1:7)
+names(all_data2)[9:11] <- paste0("Eco_", 1:3)
+names(all_data2)[12:14] <- paste0("Soc_", 1:3)
+names(all_data2)[15:ncol(all_data2)] <- paste0("FnN_", 1:14)
+tab <- tabplot::tableplot(dat = all_data2[,-1], nBins = nrow(all_data2), scales = "lin", fontsize = 6)
+tabplot::tableSave(tab, filename = "missing_data2.png", width = 8, height = 6, fontsize = 6, legend.lines = 6)
+
+all_data[,-1] %>% tabplot::tableplot()
+
+## ========================================================================== ##
 ## Combinatory analysis
 ## ========================================================================== ##
 # Post-process indicators names
@@ -91,7 +113,10 @@ dfs <- readRDS("./Results/modelling_results/counts_and_indicators.rds")
 dfs %>%
   dplyr::group_by(nIndicators) %>%
   dplyr::summarise(MaxCount = max(nCountries)) %>%
-  ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point()
+  ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point() +
+  theme_bw() +
+  xlab("Number of indicators") +
+  ylab("Number of countries")
 
 ## ========================================================================== ##
 ## Find all possible combinations backwards
@@ -196,75 +221,139 @@ calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theor
   
 }
 
-combFiles <- list.files(path = "./Best_combinations/RDSfiles", full.names = T) %>% gtools::mixedsort()
-sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
-  
-  db <- readRDS(combFiles[i])
-  db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
-  db <- db %>% dplyr::filter(matches == 4)
-  nInd <- db$nIndicators %>% unique %>% sort
-  smpls <- table(db$nIndicators)[2]
-  if(length(nInd) > 4){
-    db_new <- lapply(X = 1:length(nInd), function(j){
-      db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
-      if(nrow(db_nInd) > 1){
-        set.seed(1234)
-        smpl <- sample(x = 1:nrow(db_nInd), size = smpls, replace = F)
-        db_nInd <- db_nInd[smpl,]
-        return(db_nInd)
-      } else {
-        return(db_nInd)
-      }
-    })
-    db_new <- do.call(rbind, db_new)
-  } else {
-    db_new <- db; rm(db)
-  }
-  
-  textFile2 <- db_new$Indicators
-  all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
-    
-    theoryList <- c("true")
-    theoryResults <- lapply(X = 1:length(theoryList), function(j){
-      
-      typeList <- c("geometric", "arithmetic")
-      typeResults <- lapply(X = 1:length(typeList), function(k){
-        
-        results <- calculateIndices2(data = all_data,
-                                     combList = textFile2[[i]],
-                                     theory = theoryList[j],
-                                     fnt_type = typeList[k])
-        results$mean_type <- typeList[k]
-        results$theory <- theoryList[j]
-        results$combination <- i
-        results$nIndicators <- length(textFile2[[i]])
-        return(results)
-        
-      })
-      typeResults <- do.call(rbind, typeResults)
-      return(typeResults)
-      
-    })
-    theoryResults <- do.call(rbind, theoryResults)
-    return(theoryResults)
-    
-  })
-  all_combinations2 <- do.call(rbind, all_combinations2)
-  
-  return(all_combinations2)
-})
-saveRDS(sensitivity_results, "./sensitivity_analysis.rds")
-sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_old.rds")
+sensitivity_results <- readRDS("./sensitivity_analysis_fltr.rds")
+# combFiles <- list.files(path = "./Best_combinations/RDSfiles", full.names = T) %>% gtools::mixedsort()
+# sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
+#   
+#   db <- readRDS(combFiles[i])
+#   db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
+#   db <- db %>% dplyr::filter(matches == 4)
+#   nInd <- db$nIndicators %>% unique %>% sort
+#   smpls <- table(db$nIndicators)[2]
+#   if(length(nInd) > 4){
+#     db_new <- lapply(X = 1:length(nInd), function(j){
+#       db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
+#       if(nrow(db_nInd) > 1){
+#         set.seed(1234)
+#         smpl <- sample(x = 1:nrow(db_nInd), size = smpls, replace = F)
+#         db_nInd <- db_nInd[smpl,]
+#         return(db_nInd)
+#       } else {
+#         return(db_nInd)
+#       }
+#     })
+#     db_new <- do.call(rbind, db_new)
+#   } else {
+#     db_new <- db; rm(db)
+#   }
+#   
+#   textFile2 <- db_new$Indicators
+#   all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
+#     
+#     theoryList <- c("true")
+#     theoryResults <- lapply(X = 1:length(theoryList), function(j){
+#       
+#       typeList <- c("geometric", "arithmetic")
+#       typeResults <- lapply(X = 1:length(typeList), function(k){
+#         
+#         results <- calculateIndices2(data = all_data,
+#                                      combList = textFile2[[i]],
+#                                      theory = theoryList[j],
+#                                      fnt_type = typeList[k])
+#         results$mean_type <- typeList[k]
+#         results$theory <- theoryList[j]
+#         results$combination <- i
+#         results$nIndicators <- length(textFile2[[i]])
+#         return(results)
+#         
+#       })
+#       typeResults <- do.call(rbind, typeResults)
+#       return(typeResults)
+#       
+#     })
+#     theoryResults <- do.call(rbind, theoryResults)
+#     return(theoryResults)
+#     
+#   })
+#   all_combinations2 <- do.call(rbind, all_combinations2)
+#   
+#   return(all_combinations2)
+# })
+# saveRDS(sensitivity_results, "./sensitivity_analysis.rds")
+# sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis.rds")
+# sensitivity_results_fltr <- sensitivity_results %>% purrr::map(.f = function(x){
+#   x_fltr <- x %>% dplyr::filter(mean_type == "arithmetic")
+#   x_fltr$Approach <- x_fltr$mean_type <- x_fltr$theory <- NULL
+#   return(x_fltr)
+# })
+# saveRDS(sensitivity_results_fltr, "./sensitivity_analysis_fltr.rds")
+sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_fltr.rds")
 sensitivity_results[[19]]
 
-sensitivity_results[[19]] %>% filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
-  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index, group = mean_type, fill = mean_type, colour = mean_type)) +
-  geom_point() + facet_grid(~iso3c) +
+# Measure importance of factors
+sensitivity_results[[17]] %>% View()
+
+datos <- sensitivity_results[[17]] %>% filter(iso3c == "BEL")
+model <- aov(SFS_index ~ Subsample + combination + Subsample:combination, data = datos)
+summary(model)
+datos %>% ggplot(aes(x = combination, y = Subsample, fill = SFS_index)) + geom_raster()
+
+## =================================================================================== ##
+## Stability plot: internal variability
+## =================================================================================== ##
+
+# Este si va
+sensitivity_results[[17]] %>% group_by(nIndicators, iso3c) %>%
+  summarise(SFS_index = mean(SFS_index)) %>%
+  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
+  geom_point() + facet_wrap(~iso3c, ncol = 3) +
   geom_hline(yintercept = 0, color = "red") +
   scale_x_continuous(breaks = 4:27, labels = 4:27) +
   scale_y_continuous(limits = c(0, 1)) +
   xlab("Number of indicators") +
   ylab("Sustainable Food Systems index")
+
+## =================================================================================== ##
+## Instability plot: external variability
+## =================================================================================== ##
+
+edge_path <- lapply(1:length(textFile2), function(i){
+  tbl <- calc_sfs_index(combList = textFile2[[i]], data = all_data, fnt_type = "arithmetic")
+  tbl$nIndicators <- length(textFile2[[i]])
+  tbl$iso3c <- rownames(tbl)
+  rownames(tbl) <- 1:nrow(tbl)
+  tbl$nCountries <- nrow(tbl)
+  return(tbl)
+})
+edge_path <- do.call(rbind, edge_path)
+
+# Example 6 countries
+edge_path %>% group_by(nIndicators, iso3c) %>%
+  summarise(SFS_index = mean(SFS_index)) %>%
+  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
+  geom_point() + facet_wrap(~iso3c, ncol = 3) +
+  geom_hline(yintercept = 0, color = "red") +
+  scale_x_continuous(breaks = 4:27, labels = 4:27) +
+  scale_y_continuous(limits = c(0, 1)) +
+  xlab("Number of indicators") +
+  ylab("Sustainable Food Systems index")
+
+edge_path %>% group_by(nIndicators, iso3c) %>%
+  ggplot(aes(x = factor(nIndicators), y = SFS_index)) +
+  geom_boxplot() + #facet_wrap(~iso3c, ncol = 3) +
+  geom_hline(yintercept = 0, color = "red") +
+  #scale_x_continuous(breaks = 4:27, labels = 4:27) +
+  scale_y_continuous(limits = c(0, 1)) +
+  xlab("Number of indicators") +
+  ylab("Sustainable Food Systems index")
+
+
+
+
+
+
 
 sensitivity_results[[17]] %>%
   dplyr::filter(mean_type == "geometric" & iso3c == "VNM") %>%
@@ -363,27 +452,60 @@ calc_sfs_index <- function(combList = textFile2_uptd[[17]], data = all_data, fnt
 }
 
 rank_summary <- rep(NA, length(textFile2_uptd))
+stdv_summary <- rep(NA, length(textFile2_uptd))
 for(i in 1:length(textFile2_uptd)){
   
-  ref_vals <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "geometric")
-  ref_cntr <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "geometric") %>% rownames %>% sort
+  ref_vals <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "arithmetic")
+  ref_cntr <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "arithmetic") %>% rownames %>% sort
   
-  snsr_flt <- sensitivity_results[[i]] %>% dplyr::filter(mean_type == "geometric")
+  snsr_flt <- sensitivity_results[[i]]
   snsr_flt <- snsr_flt %>% dplyr::filter(iso3c %in% ref_cntr)
   
   calc_diff <- rep(NA, length(ref_cntr))
   calc_medn <- rep(NA, length(ref_cntr))
+  calc_stdv <- rep(NA, length(ref_cntr))
   for(j in 1:length(ref_cntr)){
     calc_diff[j] <- median(snsr_flt[snsr_flt$iso3c == ref_cntr[j], "SFS_index"]) - ref_vals[rownames(ref_vals)==ref_cntr[j],"SFS_index"]
     calc_medn[j] <- median(snsr_flt[snsr_flt$iso3c == ref_cntr[j], "SFS_index"])
+    calc_stdv[j] <- sd(snsr_flt[snsr_flt$iso3c == ref_cntr[j], "SFS_index"])
   }
   
   rank_summary[i] <- sum(abs(rank(ref_vals[,"SFS_index"]) - rank(calc_medn)))/length(ref_cntr)
+  stdv_summary[i] <- sd(calc_stdv)
   
 }
+
 names(rank_summary) <- 4:22
 barplot(rank_summary)
 abline(h = 30, col = 2)
+
+names(stdv_summary) <- 4:22
+barplot(rank_summary[-1]/stdv_summary[-1])
+abline(h = 30, col = 2)
+
+gnrl_summary <- data.frame(cmbn = 4:22, rank = rank_summary, stdv = stdv_summary)
+gnrl_summary <- cbind(gnrl_summary, scale(gnrl_summary[,2:3], center = T, scale = T))
+colnames(gnrl_summary)[4:5] <- c("rank_scaled", "stdv_scaled")
+gnrl_summary$nCountries <- dfs$nCountries[dfs$maxCombinations == "Yes"][1:nrow(gnrl_summary)]
+
+p <- gnrl_summary %>% ggplot(aes(factor(cmbn), rank, fill = "Rank change")) + geom_bar(stat = "identity")
+p <- p + geom_bar(aes(factor(cmbn), stdv*1000, fill = "Variability", alpha = 0.8), stat = "identity")
+p <- p + scale_y_continuous(sec.axis = sec_axis(~./1000, name = "Standard deviation"))
+p <- p + scale_colour_manual(values = c("blue", "red"))
+p <- p + xlab("Number of indicators")
+p <- p + ylab("Rank change")
+p <- p + guides(alpha = F)
+p <- p + theme(legend.title = element_blank())
+p <- p + ggplot2::annotate("text", x = 1:19, y = gnrl_summary$rank + 1, label = gnrl_summary$nCountries)
+p
+
+
+gnrl_summary2 <- gnrl_summary %>% dplyr::select(cmbn, rank_scaled, stdv_scaled) %>% tidyr::gather(key = , value = , -cmbn)
+
+gnrl_summary %>% filter(cmbn %in% 15:20) %>%
+  ggplot(aes(x = cmbn, y = mtrc, colour = stdv, size = stdv)) +
+  geom_point()
+
 
 #############################################################################
 sfsMap <- function(Scores){
@@ -399,7 +521,7 @@ sfsMap <- function(Scores){
     )
   
   data("worldgeojson")
-  Scores <- apply(X = Scores, MARGIN = 2, FUN = function(x){(x - min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}) %>% as.data.frame
+  # Scores <- apply(X = Scores, MARGIN = 2, FUN = function(x){(x - min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))}) %>% as.data.frame
   indices <- data.frame(iso3 = rownames(Scores), round(Scores, 2))
   
   n <- 4
@@ -414,14 +536,14 @@ sfsMap <- function(Scores){
       hc_colorAxis(stops = color_stops()) %>%
       hc_tooltip(useHTML = TRUE, headerFormat = "",
                  pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
-      hc_colorAxis(stops = colstops) %>%
+      hc_colorAxis(stops = colstops, min = 0, max = 1) %>%
       hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
       hc_mapNavigation(enabled = TRUE) %>%
       hc_add_theme(thm)
   )
   
 }
-ref_vals <- calc_sfs_index(combList = textFile2[[20]], data = all_data, fnt_type = "geometric")
+ref_vals <- calc_sfs_index(combList = textFile2[[24]], data = all_data, fnt_type = "arithmetic")
 sfsMap(Scores = ref_vals)
 #############################################################################
 
