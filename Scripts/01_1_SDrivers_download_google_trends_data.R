@@ -100,28 +100,33 @@ test2 %>% ggplot(aes(x = Year, y = Median)) + geom_line() + theme_bw()
 
 allGTrends <- lapply(1:nrow(countries_languages), function(i){
   
-  tryCatch(expr = {
-    tbl_gt <- get_gtrends(code     = countries_languages$iso2c[i] %>% as.character,
-                          key      = countries_languages$key_terms[[i]],
-                          language = countries_languages$code[i] %>% as.character)
-  },
-  error = function(e){
-    cat("Download process failed in combination:", i,"\n")
-    return("Continue ...\n")
+  terms <- lapply(1:length(key_terms[[i]]), function(j){
+    
+    tryCatch(expr = {
+      tbl_gt <- get_gtrends(code     = countries_languages$iso2c[i] %>% as.character,
+                            key      = countries_languages$key_terms[[i]][j],
+                            language = countries_languages$code[i] %>% as.character)
+    },
+    error = function(e){
+      cat("Download process failed in combination:", i,"\n")
+      return("Continue ...\n")
+    })
+    if(!is.null(tbl_gt)){
+      tbl_gt$language <- countries_languages$Language[i] %>% as.character
+      return(tbl_gt)
+    } else {
+      tbl_gt <- data.frame(date     = NA,
+                           hits     = NA,
+                           keyword  = countries_languages$key_terms[[i]][j],
+                           geo      = countries_languages$iso2c[i] %>% as.character,
+                           gprop    = "web",
+                           category = 0,
+                           language = countries_languages$Language[i] %>% as.character)
+      return(tbl_gt)
+    }
+    
   })
-  if(exists("tbl_gt")){
-    tbl_gt$language <- countries_languages$Language[i] %>% as.character
-    return(tbl_gt)
-  } else {
-    tbl_gt <- data.frame(date = NA,
-                         hits = NA,
-                         keyword = NA,
-                         geo = countries_languages$iso2c[i] %>% as.character,
-                         gprop = "web",
-                         category = 0,
-                         language = countries_languages$Language[i] %>% as.character)
-    return(tbl_gt)
-  }
-  
+  terms <- do.call(rbind, terms)
+  return(terms)
 })
 allGTrends <- do.call(rbind, allGTrends)
