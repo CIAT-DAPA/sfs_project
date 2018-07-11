@@ -100,7 +100,7 @@ test2 %>% ggplot(aes(x = Year, y = Median)) + geom_line() + theme_bw()
 
 allGTrends <- lapply(1:nrow(countries_languages), function(i){
   
-  terms <- lapply(1:length(key_terms[[i]]), function(j){
+  terms <- lapply(1:length(countries_languages$key_terms[[i]]), function(j){
     
     tryCatch(expr = {
       tbl_gt <- get_gtrends(code     = countries_languages$iso2c[i] %>% as.character,
