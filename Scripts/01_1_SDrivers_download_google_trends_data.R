@@ -1,13 +1,19 @@
+# Download Google Trends data: SFS project - drivers
+# Implemented by: H. Achicanoy & P. Alvarez
+# http://www.loc.gov/standards/iso639-2/php/code_list.php
+# CIAT, 2018
+
+# R options
+g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
+
+OSys <- Sys.info()[1]
+OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/Drivers", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Drivers")
+setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
-library(gtrendsR)
-library(tidyverse)
-library(future.apply)
-library(countrycode)
-
-# List of countries ISO2 code
-data(countries)
-ccode <- countries$country_code %>% unique %>% na.omit %>% as.character
+library(pacman)
+pacman::p_load(gtrendsR, tidyverse, future.apply, countrycode)
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -32,14 +38,10 @@ countries_languages <- left_join(x = countries_languages, y = country_codes %>% 
 rm(country_codes)
 countries_languages <- countries_languages %>% as.tibble()
 
-countries_languages$key_terms <- NA
-for(i in 1:nrow(countries_languages)){
-  countries_languages$key_terms[i] <- list(key_terms[[which(names(key_terms) == countries_languages$Language[i])]])
-}; rm(i)
+## ========================================================================== ##
+## Key-terms for searching
+## ========================================================================== ##
 
-# http://www.loc.gov/standards/iso639-2/php/code_list.php
-
-# List of keyterms for searching
 key_terms <- list(english    = c("healthy diet", "junk food", "obesity", "organic food"),
                   spanish    = c("dieta saludable", "comida chatarra", "obesidad", "alimentos organicos"),
                   french     = c("alimentation saine", "malbouffe", "obesité", "aliments biologiques"),
@@ -51,25 +53,32 @@ key_terms <- list(english    = c("healthy diet", "junk food", "obesity", "organi
                   german     = c("gesunde ernährung", "junk food", "Übergewicht", "bio lebensmittel"),
                   dutch      = c("gezond voedsel", "junk food", "obesitas", "biologisch voedsel"))
 
-# iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
+countries_languages$key_terms <- NA
+for(i in 1:nrow(countries_languages)){
+  countries_languages$key_terms[i] <- list(key_terms[[which(names(key_terms) == countries_languages$Language[i])]])
+}; rm(i)
 
-# List of languages
-# lngg_list <- c("en", "es", "fr", "pt", "vi", "zh", "id", "it", "de", "nl")
+## ========================================================================== ##
+## Basic function to extract time series for each search
+## ========================================================================== ##
 
-# Basic function to extract time series for each search
 get_gtrends <- function(code = "US", key = "healthy diet", language = "en"){
   
-  df <- gtrendsR::gtrends(keyword = key,
-                          geo = code,
-                          gprop = "web",
-                          hl = language,
-                          low_search_volume = T)
+  df <- gtrendsR::gtrends(keyword           = key,
+                          geo               = code,
+                          gprop             = "web",
+                          hl                = language,
+                          low_search_volume = T,
+                          time              = "all")
   df <- df$interest_over_time
   return(df)
   
 }
 
-# Explore some results
+## ========================================================================== ##
+## Some examples
+## ========================================================================== ##
+
 plot(gtrends(geo = "US", keyword = "healthy diet", hl = "en", low_search_volume = T))
 plot(gtrends(geo = "CO", keyword = "dieta saludable", hl = "es", low_search_volume = T))
 plot(gtrends(geo = "FR", keyword = "alimentation saine", hl = "fr", low_search_volume = T))
@@ -85,17 +94,10 @@ test$Month <- lubridate::month(test$date)
 test2 <- test %>% group_by(Year) %>% summarise(Median = median(hits, na.rm = T))
 test2 %>% ggplot(aes(x = Year, y = Median)) + geom_line() + theme_bw()
 
-# Create all possible combinations
-combinations <- lapply(1:length(key_terms), function(i){
-  tbl <- expand.grid(ccode, key_terms[[i]], lngg_list) %>% as.data.frame
-  return(tbl)
-})
-combinations <- do.call(rbind, combinations)
-combinations$Var1 <- as.character(combinations$Var1)
-combinations$Var2 <- as.character(combinations$Var2)
-combinations$Var3 <- as.character(combinations$Var3)
+## ========================================================================== ##
+# Download Google Trends data
+## ========================================================================== ##
 
-# Download data from all possible combinations
 allGTrends <- lapply(1:nrow(countries_languages), function(i){
   
   tryCatch(expr = {
@@ -122,147 +124,4 @@ allGTrends <- lapply(1:nrow(countries_languages), function(i){
   }
   
 })
-
-
-
-
-
-
-
-
-
-
-allGTrends <- future_lapply(1:nrow(combinations), function(i){
-  
-  tryCatch(expr = {
-    tbl_gt <- get_gtrends(code = combinations[i,1], key = combinations[i,2], language = combinations[i,3])
-  },
-  error = function(e){
-    cat("Download process failed in combination:", i,"\n")
-    return("Continue ...\n")
-  })
-  if(exists("tbl_gt")){
-    tbl_gt$language <- combinations[i,3]
-    return(tbl_gt)
-  } else {
-    tbl_gt <- data.frame(date = NA, hits = NA, keyword = combinations[i,2], geo = combinations[i,1], gprop = "web", category = 0, language = combinations[i,3])
-    return(tbl_gt)
-  }
-  
-})
-
-
-#############################################################################
-#############################################################################
-#############################################################################
-#############################################################################
-
-
-
-
-countryList <- lapply(1:length(ccode), function(i){ # Country
-  
-  termsList <- lapply(1:length(key_terms), function(j){ # Language
-    
-    keyList <- lapply(1:length(key_terms[[j]]), function(k){
-      
-      lngList <- lapply(1:length(lngg_list), function(l){
-        
-        tryCatch(expr = {
-          df <- get_gtrends(code = ccode[i], key = key_terms[[j]][k], language = lngg_list[l])
-          df$language <- lngg_list[k]
-        })
-        if(exists("df")){
-          return(df)
-        } else {
-          df <- data.frame(date = NA, hits = NA, keyword = key_terms[j], geo = ccode[i], gprop = "web", category = 0, language = lngg_list[k])
-          return(df)
-        }
-        
-      })
-      lngList <- do.call(rbind, lngList)
-      return(lngList)
-    })
-    keyList <- do.call(rbind, keyList)
-    return(keyList)
-  })
-  termsList <- do.call(rbind, termsList)
-  return(termsList)
-})
-countryList <- do.call(rbind, countryList)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-wrld_info <- lapply(X = 1:length(ccode), function(i){
-  
-  key_info <- lapply(1:length(key_terms), function(j){
-    
-    language_info <- lapply(1:length(lngg_list), function(k){
-      
-      tryCatch(expr = {
-        df <- get_gtrends(code = ccode[i], key = key_terms[j], language = lngg_list[k])
-        df$language <- lngg_list[k]
-      })
-      if(exists("df")){
-        return(df)
-      } else {
-        df <- data.frame(date = NA, hits = NA, keyword = key_terms[j], geo = ccode[i], gprop = "web", category = 0, language = lngg_list[k])
-      }
-      
-    })
-    language_info <- do.call(rbind, language_info)
-    return(language_info)
-    
-  })
-  key_info <- do.call(rbind, key_info)
-  return(key_info)
-  
-})
-
-
-
-
-gt.df <- gtrends(keyword = c("健康的饮食", "dieta saludable", "healthy diet", "régime équilibrét"), 
-                        geo = "USA", gprop = "web", time = "2004-01-01 2017-12-31")[[1]]
-
-gtrends(keyword = "healthy diet", geo = "FR", gprop = "web", hl = "fr", time = "2004-01-01 2017-12-31")$interest_over_time
-gtrends(keyword = "healthy diet", geo = "US", gprop = "web", hl = "fr", time = "2004-01-01 2017-12-31")$interest_over_time
-us_info <- gtrends(keyword = "healthy diet", geo = "US", gprop = "web", hl = "en-US", time = "2004-01-01 2017-12-31")$interest_over_time
-us_info %>% ggplot(aes(x = date, y = hits)) + geom_line()
-us_info %>% ggplot(aes(x = hits)) + geom_histogram(bins = 15)
-summary(us_info)
-uk_info <- gtrends(keyword = "healthy diet", geo = "GB", gprop = "web", hl = "en-US", time = "2004-01-01 2017-12-31")$interest_over_time
-uk_info %>% ggplot(aes(x = date, y = hits)) + geom_line()
-uk_info %>% ggplot(aes(x = hits)) + geom_histogram(bins = 15)
-summary(uk_info)
-
-# problem with the languages in this package
-google.trends = gtrends(c("healthy diet"), 
-                        geo =c('US','CO','DE','FR' ), gprop = "web", hl = "fr", time = "2004-01-01 2016-01-01")[[1]]
-
-gt2 = dcast(google.trends, date ~ keyword + geo, value.var = "hits")
-rownames(gt2) = gt2$date
-
-par(mfrow=c(3,2))
-
-for(i in 2:ncol(gt2)){
-  plot(gt2$date,gt2[,i],type='l',xlab=names(gt2)[1],ylab=names(gt2)[i])
-}
-
-
-quantile(...)
-sum(table(dist2$DTWarp[quantile(...)])) > 10
-
-
-
+allGTrends <- do.call(rbind, allGTrends)

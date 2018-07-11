@@ -1,10 +1,13 @@
 # Processing and integrating data: SFS project - drivers
 # Implemented by: H. Achicanoy & P. Alvarez
-# CIAT, 2017
+# CIAT, 2018
 
 # R options
 g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
-wk_dir <- "D:/OneDrive - CGIAR/escritorio2/SFS_A4NH_conference/Data/Drivers"
+
+OSys <- Sys.info()[1]
+OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
+wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/Drivers", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/Drivers")
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
@@ -50,7 +53,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2015
   ## Countries with data: 214
   
-  pop_growth <- read.csv("./Databases_modified/Demand_Consumer/Final/population_growth_annual_CB.csv")
+  pop_growth <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/population_growth_annual_CB.csv")
   pop_growth$Country.Name <- pop_growth$Indicator.Name <- pop_growth$Indicator.Code <- NULL
   colnames(pop_growth)[1] <- "iso3c"
   colnames(pop_growth)[-1] <- gsub("X", "Y", colnames(pop_growth)[-1])
@@ -68,7 +71,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2015
   ## Countries with data: 192
   
-  gdp_growth <- read.csv("./Databases_modified/Demand_Consumer/Final/gdp_annual_growth_CB.csv")
+  gdp_growth <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/gdp_annual_growth_CB.csv")
   gdp_growth$Country.Name <- gdp_growth$Series.Name <- gdp_growth$Series.Code <- NULL
   colnames(gdp_growth)[1] <- "iso3c"
   colnames(gdp_growth)[-1] <- paste0("Y", 2000:2016)
@@ -86,7 +89,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2005:2015
   ## Countries with data: 213
   
-  urban_pop <- read.csv("./Databases_modified/Demand_Consumer/Final/urb_pop_perc_total_CB.csv")
+  urban_pop <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/urb_pop_perc_total_CB.csv")
   urban_pop$Country <- urban_pop$Indicator.Name <- urban_pop$Indicator.Code <- NULL
   colnames(urban_pop)[1] <- "iso3c"
   colnames(urban_pop)[-1] <- paste0("Y", 1960:2016)
@@ -106,7 +109,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2008:2015
   ## Countries with data: 78
   
-  employers <- read.csv("./Databases_modified/Demand_Consumer/Final/female_employment_CB.csv")
+  employers <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/female_employment_CB.csv")
   employers$Country.Name <- employers$Series.Name <- employers$Series.Code <- NULL
   colnames(employers)[1] <- "iso3c"
   colnames(employers)[-1] <- gsub("X", "Y", colnames(employers)[-1])
@@ -126,7 +129,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2005:2015
   ## Countries with data: 91
   
-  empl_industry <- read.csv("./Databases_modified/Demand_Consumer/Final/employment_in_industry_female_CB.csv")
+  empl_industry <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/employment_in_industry_female_CB.csv")
   empl_industry$Country.Name <- empl_industry$Indicator.Name <- empl_industry$Indicator.Code <- NULL  ### se van a crear las columnas Series.name, Series.Code y Country.Name
   colnames(empl_industry)[1] <- "iso3c"
   colnames(empl_industry)[-1] <- gsub("X", "Y", colnames(empl_industry)[-1])
@@ -146,7 +149,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2005:2015
   ## Countries with data: 92
   
-  empl_services <- read.csv("./Databases_modified/Demand_Consumer/Final/employment_in_services_female_CB.csv")
+  empl_services <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/employment_in_services_female_CB.csv")
   empl_services$Country.Name <- empl_services$Indicator.Name <- empl_services$Indicator.Code <- NULL
   colnames(empl_services)[1] <- "iso3c"
   colnames(empl_services)[-1] <- gsub("X", "Y", colnames(empl_services)[-1])
@@ -166,7 +169,7 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2005:2015
   ## Countries with data: 87
   
-  empl_agriculture <- read.csv("./Databases_modified/Demand_Consumer/Final/employment_in_agriculture_female_CB.csv")
+  empl_agriculture <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/employment_in_agriculture_female_CB.csv")
   empl_agriculture$Country.Name <- empl_agriculture$Indicator.Name <- empl_agriculture$Indicator.Code <- NULL
   colnames(empl_agriculture)[1] <- "iso3c"
   colnames(empl_agriculture)[-1] <- gsub("X", "Y", colnames(empl_agriculture)[-1])
@@ -220,7 +223,7 @@ if(!file.exists("./production_supply.csv")){
   ## Years: 1991:2015
   ## Countries with data: 227
   
-  temp <- read.csv("./Databases_modified/Production_Supply/Final/annual_temperature.csv")
+  temp <- read.csv("./drivers_CB/Databases_modified/Production_Supply/Final/annual_temperature.csv")
   temp <- temp %>% tidyr::spread(key = Year, value = tas)
   temp$chg_hist_temp <- apply(temp, 1, function(x){
     y <- as.numeric(x[-1])
@@ -240,7 +243,7 @@ if(!file.exists("./production_supply.csv")){
   ## Years: 1991:2015
   ## Countries with data: 205
   
-  prec <- read.csv("./Databases_modified/Production_Supply/Final/annual_rainfall.csv")
+  prec <- read.csv("./drivers_CB/Databases_modified/Production_Supply/Final/annual_rainfall.csv")
   prec <- prec %>% tidyr::spread(key = Year, value = pr)
   prec$chg_hist_prec <- apply(prec, 1, function(x){
     y <- as.numeric(x[-1])
@@ -260,27 +263,48 @@ if(!file.exists("./production_supply.csv")){
   ## Years: 1991:2015
   ## Countries with data: 227
   
-  sd_temp <- read.csv("./Databases_modified/Production_Supply/Final/annual_variability_temperature.csv")
-  temp <- temp %>% tidyr::spread(key = Year, value = tas)
-  temp$chg_hist_temp <- apply(temp, 1, function(x){
+  sd_temp <- read.csv("./drivers_CB/Databases_modified/Production_Supply/Final/annual_variability_temperature.csv")
+  sd_temp <- sd_temp %>% tidyr::spread(key = Year, value = tas)
+  sd_temp$chg_sd_temp <- apply(sd_temp, 1, function(x){
     y <- as.numeric(x[-1])
     TS <- ts(data = y, start = 1991, end = 2015, frequency = 1)
     slope <- trend::sens.slope(x = TS)
     return(slope$estimates)
   })
-  colnames(temp)[1] <- "iso3c"
-  temp <- temp %>% dplyr::select(iso3c, chg_hist_temp)
+  colnames(sd_temp)[1] <- "iso3c"
+  sd_temp <- sd_temp %>% dplyr::select(iso3c, chg_sd_temp)
   
-  temp <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = temp, by = "iso3c")
-  temp %>% complete.cases %>% sum
+  sd_temp <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = sd_temp, by = "iso3c")
+  sd_temp %>% complete.cases %>% sum
   
-  ## 3. Cereal yield ## average last 10 years
+  
+  ## 4. Annual variability in precipitation per country ## trend all years
+  ## Units: (Celsius)
+  ## Years: 1991:2015
+  ## Countries with data: 205
+  
+  sd_prec <- read.csv("./drivers_CB/Databases_modified/Production_Supply/Final/annual_variability_rainfall.csv")
+  sd_prec <- sd_prec %>% tidyr::spread(key = Year, value = pr)
+  sd_prec$chg_sd_prec <- apply(sd_prec, 1, function(x){
+    y <- as.numeric(x[-1])
+    TS <- ts(data = y, start = 1991, end = 2015, frequency = 1)
+    slope <- trend::sens.slope(x = TS)
+    return(slope$estimates)
+  })
+  colnames(sd_prec)[1] <- "iso3c"
+  sd_prec <- sd_prec %>% dplyr::select(iso3c, chg_sd_prec)
+  
+  sd_prec <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = sd_prec, by = "iso3c")
+  sd_prec %>% complete.cases %>% sum
+  
+  
+  ## 5. Cereal yield ## average last 10 years
   ## Measure:
   ## Units: (kh/ha)
   ## Years: 2005:2015
   ## Countries with data: 179
   
-  cereal_yld <- read.csv("./Databases_modified/Production_Supply/final/cereal_yield.csv")
+  cereal_yld <- read.csv("./drivers_CB/Databases_modified/Production_Supply/final/cereal_yield.csv")
   cereal_yld$Country.Name <- cereal_yld$Indicator.Name <- cereal_yld$Indicator.Code <- NULL
   colnames(cereal_yld)[1] <- "iso3c"
   colnames(cereal_yld)[-1] <- paste0("Y", 1961:2016)
@@ -294,14 +318,14 @@ if(!file.exists("./production_supply.csv")){
   cereal_yld %>% complete.cases %>% sum
   
   
-  ## 4. Agricultural land
+  ## 6. Agricultural land
   ## Measure: 
   ## Original name: 
   ## Units: ()
   ## Years: 
   ## Countries with data: 206
   
-  ag_land <- read.csv("./Databases_modified/Production_Supply/final/agricultural_land.csv")
+  ag_land <- read.csv("./drivers_CB/Databases_modified/Production_Supply/final/agricultural_land.csv")
   ag_land$Country.Name <- ag_land$Indicator.Name <- ag_land$Indicator.Code <- NULL
   colnames(ag_land)[1] <- "iso3c"
   colnames(ag_land)[-1] <- paste0("Y", 1960:2015)
@@ -315,26 +339,26 @@ if(!file.exists("./production_supply.csv")){
   ag_land %>% complete.cases %>% sum
   
   
-  ## 5. Road infrastructure
+  ## 7. Road infrastructure
   ## Measure: 
   ## Units: (m/km)
   ## Years: 
   ## Countries with data: 246
   
-  road_infr <- read.csv("./Databases_modified/Production_Supply/final/Proxy_chg_road_infr.csv")
+  road_infr <- read.csv("./drivers_CB/Databases_modified/Production_Supply/final/Proxy_chg_road_infr.csv")
   road_infr <- road_infr %>% select(iso3c, MEAN)
   colnames(road_infr)[2] <- "chg_road_infr"
   road_infr <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = road_infr, by = "iso3c")
   road_infr %>% complete.cases %>% sum
   
   
-  ## 6. Mobile cellular subscriptions (per 100 people)
+  ## 8. Mobile cellular subscriptions (per 100 people)
   ## Measure: 
   ## Units: ()
   ## Years: 
   ## Countries with data: 201
   
-  mobile <- read.csv("./Databases_modified/Production_Supply/final/cellphone.csv")
+  mobile <- read.csv("./drivers_CB/Databases_modified/Production_Supply/final/cellphone.csv")
   mobile$Country.Name <- mobile$Indicator.Name <- NULL
   colnames(mobile)[1] <- "iso3c"
   colnames(mobile)[-1] <- gsub("X", "Y", colnames(mobile)[-1])
@@ -348,13 +372,13 @@ if(!file.exists("./production_supply.csv")){
   mobile %>% complete.cases %>% sum
   
   
-  ## 7. Cereal crop yield vs fertilizer application
+  ## 9. Cereal crop yield vs fertilizer application
   ## Measure: 
   ## Units: ()
   ## Years: 2003:2012
   ## Countries with data: 149
   
-  yield_fertil <- read.csv("./Databases_modified/Production_Supply/cereal_yield_vs_fertilizer.csv") %>% tbl_df()
+  yield_fertil <- read.csv("./drivers_CB/Databases_modified/Production_Supply/cereal_yield_vs_fertilizer.csv") %>% tbl_df()
   yield_fertil$id <- yield_fertil %>% group_indices(Country.Code) 
   yield_fertil$Total.population..Gapminder. <- NULL
   names(yield_fertil)[4:5] <- gsub(pattern = ".", replacement = "_", names(yield_fertil)[4:5], fixed = T)
@@ -390,13 +414,13 @@ if(!file.exists("./production_supply.csv")){
   chg_yield_fert %>% complete.cases %>% sum
   
   
-  ## 8. Fertilizer consumption (kg/ha of arable land)
+  ## 10. Fertilizer consumption (kg/ha of arable land)
   ## Measure: 
   ## Units: ()
   ## Years: 2003:2013
   ## Countries with data: 152
   
-  fertil_consump <- read.csv("./Databases_modified/Production_Supply/final/fert_consump_kg_CB.csv")
+  fertil_consump <- read.csv("./drivers_CB/Databases_modified/Production_Supply/final/fert_consump_kg_CB.csv")
   fertil_consump$Country.Name <- fertil_consump$Indicator.Name <- fertil_consump$Indicator.Code <- NULL
   colnames(fertil_consump)[1] <- "iso3c"
   colnames(fertil_consump)[-1] <- gsub("X", "Y", colnames(fertil_consump)[-1])
@@ -413,6 +437,8 @@ if(!file.exists("./production_supply.csv")){
   
   production_supply <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = temp, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = prec, by = c("country.name.en", "iso3c"))
+  production_supply <- dplyr::left_join(x = production_supply, y = sd_temp, by = c("country.name.en", "iso3c"))
+  production_supply <- dplyr::left_join(x = production_supply, y = sd_prec, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = cereal_yld, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = ag_land, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = road_infr, by = c("country.name.en", "iso3c"))
@@ -421,7 +447,7 @@ if(!file.exists("./production_supply.csv")){
   production_supply <- dplyr::left_join(x = production_supply, y = fertil_consump, by = c("country.name.en", "iso3c"))
   
   production_supply <- production_supply[-which(is.na(production_supply$iso3c)),]
-  production_supply <- production_supply[-which(apply(X = production_supply[,3:ncol(production_supply)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 8),]
+  production_supply <- production_supply[-which(apply(X = production_supply[,3:ncol(production_supply)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 10),]
   rownames(production_supply) <- production_supply$country.name.en
   production_supply$country.name.en <- NULL
   
@@ -452,7 +478,7 @@ if(!file.exists("./trade_distribution.csv")){
   ## Years: 2005:2015
   ## Countries with data: 144
   
-  food_export <- read.csv("./Databases_modified/Trade_Distribution/food_export.csv")
+  food_export <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/food_export.csv")
   food_export$Country.name <- food_export$Indicator.Name <- food_export$Indicator.Code <- NULL
   colnames(food_export)[1] <- "iso3c"
   colnames(food_export)[-1] <- gsub("X", "Y", colnames(food_export)[-1])
@@ -472,7 +498,7 @@ if(!file.exists("./trade_distribution.csv")){
   ## Years: 2004:2014
   ## Countries with data: 186
   
-  foreign_invest <- read.csv("./Databases_modified/Trade_Distribution/foreign_dir_invest_GDP_CB.csv")
+  foreign_invest <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/foreign_dir_invest_GDP_CB.csv")
   foreign_invest$Country.name <- foreign_invest$Series.Name <- NULL
   colnames(foreign_invest)[1] <- "iso3c"
   colnames(foreign_invest)[-1] <- gsub("X", "Y", colnames(foreign_invest)[-1])
@@ -492,7 +518,7 @@ if(!file.exists("./trade_distribution.csv")){
   ## Years: 2005:2015
   ## Countries with data: 163
   
-  gross_capital <- read.csv("./Databases_modified/Trade_Distribution/gross_fixed_cap_for_CB.csv")
+  gross_capital <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/gross_fixed_cap_for_CB.csv")
   gross_capital$Country.Name <- gross_capital$Indicator.Name <- gross_capital$Indicator.Code <- NULL
   colnames(gross_capital)[1] <- "iso3c"
   colnames(gross_capital)[-1] <- gsub("X", "Y", colnames(gross_capital)[-1])
@@ -512,7 +538,7 @@ if(!file.exists("./trade_distribution.csv")){
   ## Years: 2004:2014
   ## Countries with data: 189
   
-  merch_trade <- read.csv("./Databases_modified/Trade_Distribution/merchandise_trade_CB.csv")
+  merch_trade <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/merchandise_trade_CB.csv")
   merch_trade$country.name <-  merch_trade$Series.Name <- NULL
   colnames(merch_trade)[1] <- "iso3c"
   colnames(merch_trade)[-1] <- gsub("X", "Y", colnames( merch_trade)[-1])
@@ -555,9 +581,9 @@ if(!file.exists("./trade_distribution.csv")){
 ## ALL DRIVERS
 ## ========================================================================== ##
 
-if(file.exists("C:/Users/haachicanoy/Desktop/SFS_A4NH_conference/Data/Drivers/demand_consumer.csv")){demand_consumer <- read.csv("C:/Users/haachicanoy/Desktop/SFS_A4NH_conference/Data/Drivers/demand_consumer.csv", row.names = 1)}
-if(file.exists("C:/Users/haachicanoy/Desktop/SFS_A4NH_conference/Data/Drivers/production_supply.csv")){production_supply <- read.csv("C:/Users/haachicanoy/Desktop/SFS_A4NH_conference/Data/Drivers/production_supply.csv", row.names = 1)}
-if(file.exists("C:/Users/haachicanoy/Desktop/SFS_A4NH_conference/Data/Drivers/trade_distribution.csv")){trade_distribution <- read.csv("C:/Users/haachicanoy/Desktop/SFS_A4NH_conference/Data/Drivers/trade_distribution.csv", row.names = 1)}
+if(file.exists("./demand_consumer.csv")){demand_consumer <- read.csv("./demand_consumer.csv", row.names = 1)}
+if(file.exists("./production_supply.csv")){production_supply <- read.csv("./production_supply.csv", row.names = 1)}
+if(file.exists("./trade_distribution.csv")){trade_distribution <- read.csv("./trade_distribution.csv", row.names = 1)}
 
 drivers <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = demand_consumer, by = "iso3c")
 drivers <- dplyr::left_join(x = drivers, y = production_supply, by = "iso3c")
