@@ -498,21 +498,32 @@ if(!file.exists("./trade_distribution.csv")){
   food_export %>% complete.cases %>% sum
   
   
-  ## 2. Foreign direct investment (% of GDP)
+  ## 2. Change in foreign direct investment per capita (current US$ dollars)
   ## Measure: 
   ## Units:
   ## Years: 2004:2014
   ## Countries with data: 186
   
-  foreign_invest <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/foreign_dir_invest_GDP_CB.csv")
-  foreign_invest$Country.name <- foreign_invest$Series.Name <- NULL
+  foreign_invest <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/foreign_dir_invest_dollars_CB.csv")
+  foreign_invest$Country.Name <- foreign_invest$Indicator.Name <- foreign_invest$Indicator.Code <- NULL
   colnames(foreign_invest)[1] <- "iso3c"
   colnames(foreign_invest)[-1] <- gsub("X", "Y", colnames(foreign_invest)[-1])
   
-  base <- foreign_invest %>% dplyr::select(Y2003:Y2005) %>% rowMeans(., na.rm = T)
-  recent <- foreign_invest %>% dplyr::select(Y2013:Y2015) %>% rowMeans(., na.rm = T)
+  population <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/population_total_annual_CB.csv")
+  population$Country.Name <- population$Series.Name <- population$Series.Code <- NULL
+  colnames(population)[1] <- "iso3c"
+  colnames(population)[-1] <- gsub("X", "Y", colnames(population)[-1])
+  population <- population %>% dplyr::select(iso3c, Y1970:Y2017)
+  
+  # Foreign investments
+  base <- foreign_invest %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
+  recent <- foreign_invest %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
   foreign_invest$chg_foreign_invest <- (recent - base); rm(recent, base)
   foreign_invest <- foreign_invest %>% dplyr::select(iso3c, chg_foreign_invest)
+  
+  # Population
+  
+  # Calculate per capita
   
   foreign_invest <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = foreign_invest, by = "iso3c")
   foreign_invest %>% complete.cases %>% sum

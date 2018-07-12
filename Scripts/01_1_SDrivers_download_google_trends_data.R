@@ -139,6 +139,46 @@ saveRDS(allGTrends, paste0("./drivers_CB/Databases_modified/Demand_Consumer/Fina
 
 allGTrends <- readRDS("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_data.rds")
 
+allGTrends %>%
+  filter(geo == "BR") %>%
+  ggplot(aes(x = date, y = hits %>% as.numeric, colour = keyword)) +
+  geom_line()
+
+ts_brazil <- allGTrends %>%
+  filter(geo == "BR") %>%
+  split(.$keyword)
+ts_brazil <- ts_brazil[-1]
+
+ma_brazil <- ts_brazil %>%
+  map(function(X){
+    TS <- X$hits %>%
+      as.numeric %>%
+      na.omit %>%
+      ts(.,
+         start     = c(lubridate::year(X$date)[1],
+                       lubridate::month(X$date)[1]),
+         end       = c(lubridate::year(X$date)[length(X$date)],
+                       lubridate::month(X$date)[length(X$date)]),
+         frequency = 12)
+    trend_brazil <- forecast::ma(TS, order = 12, centre = T)
+    plot(TS)
+    lines(trend_brazil)
+    return(trend_brazil)
+  })
+
+plot(ma_brazil[[1]], ylim = c(0, 100), ylab = "Hits")
+lines(ma_brazil[[2]], col = 2)
+lines(ma_brazil[[3]], col = 4)
+lines(sum(ma_brazil[[1]], ma_brazil[[2]], ma_brazil[[3]], na.rm = T), col = 5)
+
+
+
+trend_brazil <- forecast::ma(ts_brazil, order = 5, centre = T)
+plot(as.ts(timeserie_beer))
+lines(trend_beer)
+plot(as.ts(trend_beer))
+
+
 # traditional version
 allGTrends2 <- allGTrends
 allGTrends2 <- allGTrends2[complete.cases(allGTrends2),]

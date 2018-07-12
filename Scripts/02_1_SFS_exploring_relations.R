@@ -14,7 +14,7 @@ setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 library(pacman)
 pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-               EnvStats, compiler, caretEnsemble)
+               EnvStats, compiler, caretEnsemble, DALEX)
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -236,6 +236,54 @@ model_list <- caretEnsemble::caretList(
   tuneList   = list(ranger = caretModelSpec(method = "ranger", importance = "impurity")),
   methodList = c("svmRadial", "glm", "knn", "avNNet")
 )
+
+explainer_regr_rf <- DALEX::explain(model_list$ranger, label="rf", 
+                                    data = sfs_index, y = sfs_index$SFS_index)
+explainer_regr_svm <- DALEX::explain(model_list$svmRadial, label="svm", 
+                                    data = sfs_index, y = sfs_index$SFS_index)
+explainer_regr_glm <- DALEX::explain(model_list$glm, label="glm", 
+                                     data = sfs_index, y = sfs_index$SFS_index)
+explainer_regr_knn <- DALEX::explain(model_list$knn, label="knn", 
+                                     data = sfs_index, y = sfs_index$SFS_index)
+explainer_regr_avNNet <- DALEX::explain(model_list$avNNet, label="avNNet", 
+                                     data = sfs_index, y = sfs_index$SFS_index)
+
+mp_regr_rf <- model_performance(explainer_regr_rf)
+mp_regr_svm <- model_performance(explainer_regr_svm)
+mp_regr_glm <- model_performance(explainer_regr_glm)
+mp_regr_knn <- model_performance(explainer_regr_knn)
+mp_regr_avNNet <- model_performance(explainer_regr_avNNet)
+
+plot(mp_regr_rf, mp_regr_svm, mp_regr_glm, mp_regr_knn, mp_regr_avNNet)
+plot(mp_regr_rf, mp_regr_svm, mp_regr_glm, mp_regr_knn, mp_regr_avNNet, geom = "boxplot")
+
+vi_regr_rf <- variable_importance(explainer_regr_rf, loss_function = loss_root_mean_square)
+vi_regr_svm <- variable_importance(explainer_regr_svm, loss_function = loss_root_mean_square)
+vi_regr_glm <- variable_importance(explainer_regr_glm, loss_function = loss_root_mean_square)
+vi_regr_knn <- variable_importance(explainer_regr_knn, loss_function = loss_root_mean_square)
+vi_regr_avNNet <- variable_importance(explainer_regr_avNNet, loss_function = loss_root_mean_square)
+
+plot(vi_regr_rf, vi_regr_svm, vi_regr_glm, vi_regr_knn, vi_regr_avNNet)
+
+
+sfs_index %>%
+  select(SFS_index:Serum.retinol.deficiency) %>%
+  gather(key = Variable, value = Value, -(iso3c:country.name.en)) %>%
+  filter(iso3c == "CAN") %>%
+  ggplot(aes(x = reorder(Variable, -Value), y = Value)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+sfs_index %>%
+  select(SFS_index:Serum.retinol.deficiency) %>%
+  gather(key = Variable, value = Value, -(iso3c:country.name.en)) %>%
+  filter(iso3c == "SEN") %>%
+  ggplot(aes(x = reorder(Variable, -Value), y = Value)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+
+
 
 impVar_list <- lapply(1:length(model_list), function(i){
   vImportance <- caret::varImp(object = model_list[[i]])
