@@ -498,7 +498,7 @@ if(!file.exists("./trade_distribution.csv")){
   food_export %>% complete.cases %>% sum
   
   
-  ## 2. Change in foreign direct investment per capita (current US$ dollars)
+  ## 2. Change over time in foreign direct investment (US$ dollars per capita)
   ## Measure: 
   ## Units:
   ## Years: 2004:2014
@@ -518,64 +518,74 @@ if(!file.exists("./trade_distribution.csv")){
   # Foreign investments
   base <- foreign_invest %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
   recent <- foreign_invest %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
-  foreign_invest$chg_foreign_invest <- (recent - base); rm(recent, base)
-  foreign_invest <- foreign_invest %>% dplyr::select(iso3c, chg_foreign_invest)
-  
-  # Population
-  
-  # Calculate per capita
+  FDI <- data.frame(iso3c = foreign_invest$iso3c, base = base, recent = recent)
+  base <- population %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
+  recent <- population %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
+  POP <- data.frame(iso3c = population$iso3c, base = base, recent = recent)
+  ALL <- dplyr::inner_join(x = FDI, y = POP, by = "iso3c"); rm(base, recent, FDI, POP)
+  base <- ALL$base.x/ALL$base.y
+  recent <- ALL$recent.x/ALL$recent.y
+  foreign_invest <- data.frame(iso3c = ALL$iso3c, chg_foreign_invest = (recent - base)); rm(recent, base)
   
   foreign_invest <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = foreign_invest, by = "iso3c")
   foreign_invest %>% complete.cases %>% sum
   
   
-  ## 3. Gross fixed capital formation (% of GDP)
-  ## Measure: 
-  ## Units:
-  ## Years: 2005:2015
-  ## Countries with data: 163
-  
-  gross_capital <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/gross_fixed_cap_for_CB.csv")
-  gross_capital$Country.Name <- gross_capital$Indicator.Name <- gross_capital$Indicator.Code <- NULL
-  colnames(gross_capital)[1] <- "iso3c"
-  colnames(gross_capital)[-1] <- gsub("X", "Y", colnames(gross_capital)[-1])
-  
-  base <- gross_capital %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
-  recent <- gross_capital %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
-  gross_capital$chg_gross_capital <- (recent - base); rm(recent, base)
-  gross_capital <- gross_capital %>% dplyr::select(iso3c, chg_gross_capital)
-  
-  gross_capital <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = gross_capital, by = "iso3c")
-  gross_capital %>% complete.cases %>% sum
-  
-  
-  ## 4. Merchandise trade (% of GDP)
+  ## 3. Change over time in services trade (US$ dollars per capita)
   ## Measure: 
   ## Units: 
   ## Years: 2004:2014
   ## Countries with data: 189
   
-  merch_trade <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/merchandise_trade_CB.csv")
-  merch_trade$country.name <-  merch_trade$Series.Name <- NULL
-  colnames(merch_trade)[1] <- "iso3c"
-  colnames(merch_trade)[-1] <- gsub("X", "Y", colnames( merch_trade)[-1])
+  serv_exp <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/service_exports.csv")
+  serv_exp$Country.Name <- serv_exp$Indicator.Name <- serv_exp$Indicator.Code <- NULL
+  colnames(serv_exp)[1] <- "iso3c"
+  colnames(serv_exp)[-1] <- gsub("X", "Y", colnames(serv_exp)[-1])
   
-  base <-  merch_trade %>% dplyr::select(Y2003:Y2005) %>% rowMeans(., na.rm = T)
-  recent <- merch_trade %>% dplyr::select(Y2013:Y2015) %>% rowMeans(., na.rm = T)
-  merch_trade$chg_merch_trade <- (recent - base); rm(recent, base)
-  merch_trade <- merch_trade %>% dplyr::select(iso3c, chg_merch_trade)
+  serv_imp <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/service_imports.csv")
+  serv_imp$Country.Name <- serv_imp$Indicator.Name <- serv_imp$Indicator.Code <- NULL
+  colnames(serv_imp)[1] <- "iso3c"
+  colnames(serv_imp)[-1] <- gsub("X", "Y", colnames(serv_imp)[-1])
   
-  merch_trade <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = merch_trade, by = "iso3c")
-  merch_trade %>% complete.cases %>% sum
+  serv_trd <- data.frame(iso3c = serv_exp$iso3c,
+                         ifelse(is.na(as.matrix(serv_exp[,-1])),
+                                ifelse(is.na(as.matrix(serv_imp[,-1])),
+                                       NA,
+                                       as.matrix(serv_imp[,-1])),
+                                ifelse(is.na(as.matrix(serv_imp[,-1])),
+                                       as.matrix(serv_exp[,-1]),
+                                       as.matrix(serv_exp[,-1]) + as.matrix(serv_imp[,-1])))
+                         )
+  rm(serv_exp, serv_imp)
+  serv_trd <- serv_trd %>% dplyr::select(iso3c, Y1970:Y2017)
+  
+  population <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/population_total_annual_CB.csv")
+  population$Country.Name <- population$Series.Name <- population$Series.Code <- NULL
+  colnames(population)[1] <- "iso3c"
+  colnames(population)[-1] <- gsub("X", "Y", colnames(population)[-1])
+  population <- population %>% dplyr::select(iso3c, Y1970:Y2017)
+  
+  base <- serv_trd %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
+  recent <- serv_trd %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
+  SERV <- data.frame(iso3c = serv_trd$iso3c, base = base, recent = recent)
+  base <- population %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
+  recent <- population %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
+  POP <- data.frame(iso3c = population$iso3c, base = base, recent = recent)
+  ALL <- dplyr::inner_join(x = SERV, y = POP, by = "iso3c"); rm(base, recent, SERV, POP)
+  base <- ALL$base.x/ALL$base.y
+  recent <- ALL$recent.x/ALL$recent.y
+  serv_trd <- data.frame(iso3c = ALL$iso3c, chg_serv_trd = (recent - base)); rm(recent, base)
+  
+  serv_trd <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = serv_trd, by = "iso3c")
+  serv_trd %>% complete.cases %>% sum
   
   
   trade_distribution <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = food_export, by = c("country.name.en", "iso3c"))
   trade_distribution <- dplyr::left_join(x = trade_distribution, y = foreign_invest, by = c("country.name.en", "iso3c"))
-  trade_distribution <- dplyr::left_join(x = trade_distribution, y = gross_capital, by = c("country.name.en", "iso3c"))
-  trade_distribution <- dplyr::left_join(x = trade_distribution, y = merch_trade, by = c("country.name.en", "iso3c"))
+  trade_distribution <- dplyr::left_join(x = trade_distribution, y = serv_trd, by = c("country.name.en", "iso3c"))
   
   trade_distribution <- trade_distribution[-which(is.na(trade_distribution$iso3c)),]
-  trade_distribution <- trade_distribution[-which(apply(X = trade_distribution[,3:ncol(trade_distribution)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 4),]
+  trade_distribution <- trade_distribution[-which(apply(X = trade_distribution[,3:ncol(trade_distribution)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 3),]
   rownames(trade_distribution) <- trade_distribution$country.name.en
   trade_distribution$country.name.en <- NULL
   

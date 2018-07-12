@@ -144,10 +144,12 @@ allGTrends %>%
   ggplot(aes(x = date, y = hits %>% as.numeric, colour = keyword)) +
   geom_line()
 
+"NG", "VN", "AR"
+
 ts_brazil <- allGTrends %>%
-  filter(geo == "BR") %>%
+  filter(geo == "BE" & date >= "2007-01-01") %>%
   split(.$keyword)
-ts_brazil <- ts_brazil[-1]
+# ts_brazil <- ts_brazil[-2]
 
 ma_brazil <- ts_brazil %>%
   map(function(X){
@@ -169,8 +171,7 @@ ma_brazil <- ts_brazil %>%
 plot(ma_brazil[[1]], ylim = c(0, 100), ylab = "Hits")
 lines(ma_brazil[[2]], col = 2)
 lines(ma_brazil[[3]], col = 4)
-lines(sum(ma_brazil[[1]], ma_brazil[[2]], ma_brazil[[3]], na.rm = T), col = 5)
-
+lines(ma_brazil[[4]], col = 3)
 
 
 trend_brazil <- forecast::ma(ts_brazil, order = 5, centre = T)
