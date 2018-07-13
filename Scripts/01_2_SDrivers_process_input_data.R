@@ -46,8 +46,6 @@ if(!file.exists("./demand_consumer.csv")){
   ## Years: 2012:2016
   ## Countries with data: 95
   google_trends <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/Change_google_trends.csv")
-  colnames(google_trends) <- gsub(pattern = ".", replacement = "_", colnames(google_trends), fixed = T)
-  colnames(google_trends)[-1] <- paste0("chg_", colnames(google_trends)[-1])
   
   google_trends <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = google_trends, by = "iso3c")
   google_trends %>% complete.cases %>% sum
@@ -199,7 +197,7 @@ if(!file.exists("./demand_consumer.csv")){
   demand_consumer <- dplyr::left_join(x = demand_consumer, y = empl_agriculture, by = c("country.name.en", "iso3c"))
   
   demand_consumer <- demand_consumer[-which(is.na(demand_consumer$iso3c)),]
-  demand_consumer <- demand_consumer[-which(apply(X = demand_consumer[,3:ncol(demand_consumer)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 11),]
+  demand_consumer <- demand_consumer[-which(apply(X = demand_consumer[,3:ncol(demand_consumer)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 8),]
   rownames(demand_consumer) <- demand_consumer$country.name.en
   demand_consumer$country.name.en <- NULL
   

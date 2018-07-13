@@ -53,6 +53,14 @@ key_terms <- list(english    = c("healthy diet", "junk food", "obesity", "organi
                   german     = c("gesunde ernährung", "junk food", "Übergewicht", "bio lebensmittel"),
                   dutch      = c("gezond voedsel", "junk food", "obesitas", "biologisch voedsel"))
 
+key_terms <- list(english    = c("healthy diet", "junk food", "organic food"),
+                  spanish    = c("dieta saludable", "comida chatarra", "alimentos organicos"),
+                  french     = c("alimentation saine", "malbouffe", "aliments biologiques"),
+                  portuguese = c("dieta saudável", "comida não saudável", "comida orgânica"),
+                  italian    = c("dieta sana", "cibo spazzatura", "cibo organico"),
+                  german     = c("gesunde ernährung", "junk food", "bio lebensmittel"),
+                  dutch      = c("gezond voedsel", "junk food", "biologisch voedsel"))
+
 countries_languages$key_terms <- NA
 for(i in 1:nrow(countries_languages)){
   countries_languages$key_terms[i] <- list(key_terms[[which(names(key_terms) == countries_languages$Language[i])]])
@@ -135,23 +143,74 @@ allGTrends <- allGTrends %>% purrr::map(function(x){
   }; return(x)
 })
 allGTrends <- do.call(rbind, allGTrends)
-saveRDS(allGTrends, paste0("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_data.rds"))
+allGTrends <- allGTrends[complete.cases(allGTrends),]; rownames(allGTrends) <- 1:nrow(allGTrends)
+saveRDS(allGTrends, paste0("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_complete_ts.rds"))
 
-allGTrends <- readRDS("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_data.rds")
+allGTrends <- readRDS("./drivers_CB/Databases_modified/Demand_Consumer/Final/Google_trends_complete_ts.rds")
 
+cList <- allGTrends$geo %>% as.character %>% unique
+ch_diet_health_attn <- lapply(1:length(cList), function(i){
+  
+  # Individual time series since 2007-01-01
+  indv_ts <- allGTrends %>%
+    filter(geo == cList[i] & date >= "2007-01-01") %>%
+    split(.$keyword)
+  
+  # Calculating moving average
+  mv_av_ts <- indv_ts %>%
+    map(function(X){
+      TS <- X$hits %>%
+        as.numeric %>%
+        na.omit %>%
+        ts(.,
+           start     = c(lubridate::year(X$date)[1],
+                         lubridate::month(X$date)[1]),
+           end       = c(lubridate::year(X$date)[length(X$date)],
+                         lubridate::month(X$date)[length(X$date)]),
+           frequency = 12)
+      trend_ts <- forecast::ma(TS, order = 12, centre = T)
+      # plot(TS); lines(trend_ts)
+      return(trend_ts)
+    })
+  
+  # Calculating aggregate number of hits for healthy diet, junk food and organic food terms
+  slope_ts <- mv_av_ts %>%
+    purrr::map(as.numeric) %>%
+    purrr::reduce(`+`) %>%
+    ts(start = c(2007, 1), end = c(2018, 7), frequency = 12) %>%
+    na.omit %>%
+    trend::sens.slope(.)
+  
+  # Return slope of Google trends
+  return(slope_ts$estimates)
+  
+}) %>% unlist
+
+gTrends <- left_join(x = countries_languages %>%
+                       select(iso2c, iso3c),
+                     y = data.frame(iso2c = cList, ch_diet_health_attn = ch_diet_health_attn),
+                     by = "iso2c") %>%
+  select(iso3c, ch_diet_health_attn)
+rm(cList, ch_diet_health_attn)
+write.csv(gTrends, "./drivers_CB/Databases_modified/Demand_Consumer/Final/Change_google_trends.csv", row.names = F)
+
+# ----------------------------------------------- #
+# Test with one country
+# ----------------------------------------------- #
+
+# Plotting time series
 allGTrends %>%
-  filter(geo == "BR") %>%
+  filter(geo == "AR") %>%
   ggplot(aes(x = date, y = hits %>% as.numeric, colour = keyword)) +
   geom_line()
 
-"NG", "VN", "AR"
-
-ts_brazil <- allGTrends %>%
-  filter(geo == "BE" & date >= "2007-01-01") %>%
+# Filtering and splitting time series
+ts_country <- allGTrends %>%
+  filter(geo == "AR" & date >= "2007-01-01") %>%
   split(.$keyword)
-# ts_brazil <- ts_brazil[-2]
 
-ma_brazil <- ts_brazil %>%
+# Calculating moving average per time serie
+ma_country <- ts_country %>%
   map(function(X){
     TS <- X$hits %>%
       as.numeric %>%
@@ -162,67 +221,19 @@ ma_brazil <- ts_brazil %>%
          end       = c(lubridate::year(X$date)[length(X$date)],
                        lubridate::month(X$date)[length(X$date)]),
          frequency = 12)
-    trend_brazil <- forecast::ma(TS, order = 12, centre = T)
+    trend_ts <- forecast::ma(TS, order = 12, centre = T)
     plot(TS)
-    lines(trend_brazil)
-    return(trend_brazil)
+    lines(trend_ts)
+    return(trend_ts)
   })
 
-plot(ma_brazil[[1]], ylim = c(0, 100), ylab = "Hits")
-lines(ma_brazil[[2]], col = 2)
-lines(ma_brazil[[3]], col = 4)
-lines(ma_brazil[[4]], col = 3)
+plot(ma_country[[1]], ylim = c(0, 200), ylab = "Hits") # Black
+lines(ma_country[[2]], col = 2) # Red
+lines(ma_country[[3]], col = 4) # Blue
+lines(ma_country[[4]], col = 3) # Green
 
+total <- ma_country[[1]] %>% as.numeric + ma_country[[2]] %>% as.numeric + ma_country[[3]] %>% as.numeric
+ts_total <- ts(total, start = c(2007, 1), end = c(2018, 7), frequency = 12)
 
-trend_brazil <- forecast::ma(ts_brazil, order = 5, centre = T)
-plot(as.ts(timeserie_beer))
-lines(trend_beer)
-plot(as.ts(trend_beer))
-
-
-# traditional version
-allGTrends2 <- allGTrends
-allGTrends2 <- allGTrends2[complete.cases(allGTrends2),]
-
-allGTrends3 <- allGTrends2 %>%
-  select(keyword, geo) %>%
-  unique %>%
-  as.tibble
-
-allGTrends3 <- allGTrends3 %>% dplyr::mutate(slope = lapply(1:nrow(allGTrends3), function(i){
-  
-  db_flt <- allGTrends %>% filter(keyword == allGTrends3$keyword[i] & geo == allGTrends3$geo[i])
-  TS <- db_flt$hits %>%
-    as.numeric %>%
-    na.omit %>%
-    ts(.,
-       start     = c(lubridate::year(db_flt$date)[1],
-                     lubridate::month(db_flt$date)[1]),
-       end       = c(lubridate::year(db_flt$date)[length(db_flt$date)],
-                     lubridate::month(db_flt$date)[length(db_flt$date)]),
-       frequency = 12)
-  
-  slope <- trend::sens.slope(x = TS)
-  slope <- slope$estimates
-  
-  return(slope)
-  
-}) %>% unlist)
-rm(allGTrends2)
-
-gTrends <- left_join(x = countries_languages %>% select(iso2c, iso3c), y = allGTrends3, by = c("iso2c" = "geo")) %>%
-  select(iso3c, keyword, slope)
-gTrends$keyword <- gTrends$keyword %>% factor
-levels(gTrends$keyword) <- c("healthy diet", "organic food", "organic food", "organic food", "junk food",
-                             "junk food", "organic food", "healthy diet", "healthy diet", "healthy diet",
-                             "healthy diet", "healthy diet", "healthy diet", "junk food", "junk food",
-                             "obesity", "obesity", "obesity", "obesity", "obesity", "obesity",
-                             "organic food", "obesity")
-gTrends <- gTrends %>% tidyr::spread(key = keyword, value = slope)
-gTrends$`<NA>` <- NULL
-gTrends[is.na(gTrends)] <- 0
-
-gTrends[,-1] %>% cor(method = "spearman") %>% corrplot::corrplot(method = "square")
-gTrends[,-1] %>% FactoMineR::PCA(scale.unit = T, graph = T)
-
-write.csv(gTrends, "./drivers_CB/Databases_modified/Demand_Consumer/Final/Change_google_trends.csv", row.names = F)
+lines(ts_total, col = 5)
+trend::sens.slope(na.omit(ts_total))
