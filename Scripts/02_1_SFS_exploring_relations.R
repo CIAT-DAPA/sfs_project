@@ -198,6 +198,33 @@ for(m in mtch){
 
 write.csv(sfs_index2, "./sfs_index_normalized_indicators.csv", row.names = F); rm(sfs_index2)
 sfs_index <- read.csv("./sfs_index_normalized_indicators.csv")
+sfs_index$SFS_index_v1 <- sfs_index %>% select(Emissions.agriculture.total:Serum.retinol.deficiency) %>% apply(., 1, FUN = EnvStats::geoMean)
+sfs_index$SFS_index_v2 <- sfs_index %>% select(Emissions.agriculture.total:Serum.retinol.deficiency) %>% apply(., 1, FUN = mean)
+
+plot(sfs_index$SFS_index,
+     sfs_index$SFS_index_v1,
+     pch = 20,
+     xlim = c(0,1),
+     ylim = c(0,1),
+     xlab = "Reference SFS index",
+     ylab = "SFS index (GeoMean all variables)")
+abline(0,1)
+
+plot(sfs_index$SFS_index,
+     sfs_index$SFS_index_v2,
+     pch = 20,
+     xlim = c(0,1),
+     ylim = c(0,1),
+     xlab = "Reference SFS index",
+     ylab = "SFS index (ArithMean all variables)")
+abline(0,1)
+
+sfs_index %>%
+  select(SFS_index, SFS_index_v1, SFS_index_v2) %>%
+  gather(key = "Approach", value = "Values") %>%
+  ggplot(aes(x = Values, group = Approach, fill = Approach, colour = Approach, alpha = .3)) +
+  geom_density() +
+  xlim(0, 1)
 
 sfs_index %>%
   select(SFS_index, Environment:Food_nutrition) %>%
