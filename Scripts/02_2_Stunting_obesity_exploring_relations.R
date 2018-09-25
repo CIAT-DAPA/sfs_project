@@ -121,6 +121,58 @@ obesity$chg_obesity <- calc_extrm_diff(db = obesity)
 obesity <- dplyr::inner_join(x = country_codes, y = obesity %>% dplyr::select(Country, chg_obesity), by = c("country.name.en" = "Country"))
 obesity <- obesity %>% dplyr::select(country.name.en, iso3c, chg_obesity)
 
+
+
+
+###########################
+# Level of obesity
+obesity <- read_csv(file = "./Input_data_final/Food_Nutrition/Obesity.csv", col_names = T, skip = 2)
+names(obesity)[1] <- "Country"
+names(obesity)[2:ncol(obesity)] <- gsub(pattern = "_1", replacement = "", x = names(obesity)[2:ncol(obesity)])
+obesity <- obesity[-1,]
+names(obesity)[2:ncol(obesity)] <- paste0(names(obesity)[2:ncol(obesity)], "-", obesity[1,2:ncol(obesity)])
+obesity <- obesity[-1,]
+obesity <- obesity %>% gather(year_sex, Value, -Country) %>% separate(year_sex, c("Year", "Sex"))
+obesity$Value <- gsub(pattern = " \\[*.*?\\]", replacement = "", x = obesity$Value) %>% as.character %>% as.numeric
+aux <- obesity %>% group_by(Country, Year) %>% summarise(Value = mean(Value, na.rm = T))
+aux$Sex <- "Average"
+obesity <- rbind(obesity %>% as.data.frame, aux %>% as.data.frame); rm(aux)
+
+obesity <- obesity %>% filter(Sex == "Average")
+obesity$Country <- as.character(obesity$Country)
+obesity$Year <- as.numeric(as.character(obesity$Year))
+obesity$Sex <- NULL
+colnames(obesity)[3] <- "Obesity"
+obesity$Country[which(obesity$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+obesity$Country[which(obesity$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+obesity$Country[which(obesity$Country == "Czechia")] <- "Czech Republic"
+obesity$Country[which(obesity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+obesity$Country[which(obesity$Country == "Sudan (former)")] <- "Sudan"
+obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+obesity$Country[which(obesity$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+obesity$Country[which(obesity$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+obesity <- obesity %>% filter(Year >= 2000)
+obesity <- obesity[!(obesity$Country == "Sudan" & is.na(obesity$Obesity)),]
+
+# obesity %>% ggplot(aes(x = Year, y = Obesity, group = Country)) + geom_line(alpha = .2) + theme_bw()
+
+yearsList <- obesity$Year %>% unique %>% sort
+obesityList <- lapply(1:length(yearsList), function(i){
+  df <- obesity %>% filter(Year == yearsList[i])
+  df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+  return(df)
+})
+lapply(obesityList, dim)
+
+recentObesity <- obesityList[[length(obesityList)]]
+recentObesity <- recentObesity %>% dplyr::select(country.name.en, iso3c, Obesity)
+recentObesity <- recentObesity[complete.cases(recentObesity),]; rownames(recentObesity) <- 1:nrow(recentObesity)
+rm(obesity, obesityList)
+###########################
+
+
+
+
 # Load drivers dataset
 if(file.exists("../Drivers/demand_consumer.csv")){demand_consumer <- read.csv("../Drivers/demand_consumer.csv", row.names = 1)}
 if(file.exists("../Drivers/production_supply.csv")){production_supply <- read.csv("../Drivers/production_supply.csv", row.names = 1)}
@@ -164,5 +216,49 @@ drvrs_obesity[,-1] %>%
   cor(use = "pairwise.complete.obs", method = "spearman") %>%
   corrplot::corrplot(method = "square")
 
+png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_obesity_drivers.png")
+drvrs_obesity[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
+drvrs_obesity[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
+                                                                                                 diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
+dev.off()
+
+mid <- mean(drvrs_obesity$chg_pop_growth, na.rm = T)
+drvrs_obesity %>%
+  select(chg_serv_trd, chg_obesity, chg_pop_growth, chg_employers) %>%
+  drop_na() %>%
+  .[-which.max(.$chg_serv_trd),] %>%
+  ggplot(aes(x = log(chg_serv_trd), y = chg_obesity, size = chg_employers, colour = chg_pop_growth)) +
+  scale_color_gradient2(midpoint=mid, low="blue", mid="green",
+                        high="red", space ="Lab" ) +
+  geom_point()
+
+sum(!is.na(drvrs_obesity$chg_employers))
+
 # Look the main correlated drivers and those two indicators
 # Based on a correlation scheme choose the three drivers for doing the plot Chris wants
+
+
+drvrs_lvl_obesity <- dplyr::left_join(x = drivers, y = recentObesity %>% dplyr::select(iso3c, Obesity), by = "iso3c")
+
+
+mid <- mean(drvrs_lvl_obesity$chg_road_infr, na.rm = T)
+drvrs_lvl_obesity %>%
+  select(chg_serv_trd, Obesity, chg_road_infr, chg_urban_pop) %>%
+  drop_na() %>%
+  .[-which.max(.$chg_serv_trd),] %>%
+  ggplot(aes(x = log(chg_serv_trd), y = Obesity, size = chg_urban_pop, colour = chg_road_infr)) +
+  scale_color_gradient2(midpoint=mid, low="blue", mid="green",
+                        high="red", space ="Lab" ) +
+  geom_point()
+
+drvrs_lvl_obesity[,-1] %>%
+  cor(use = "pairwise.complete.obs", method = "spearman") %>%
+  corrplot::corrplot(method = "square")
+
+png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_level_obesity_drivers.png")
+drvrs_lvl_obesity[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
+drvrs_lvl_obesity[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
+                                                                                            diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
+dev.off()
+
+hist(drvrs_lvl_obesity$chg_road_infr)

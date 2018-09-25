@@ -523,11 +523,11 @@ dev.off()
 all_data <- dplyr::left_join(x = drivers, y = sfs_index, by = "iso3c")
 
 all_data %>%
-  select(chg_mobile, SFS_index) %>%
+  select(chg_serv_trd, SFS_index) %>%
   drop_na() %>%
-  ggplot(aes(x = chg_mobile, y = SFS_index)) +
+  ggplot(aes(x = chg_serv_trd, y = SFS_index)) +
   geom_point() +
-  geom_smooth()
+  geom_smooth(se = F)
 
 hist(all_data$ch_yield_fertil)
 
