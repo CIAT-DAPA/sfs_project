@@ -11,10 +11,10 @@ wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_Sy
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
-library(pacman)
-pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
-               missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-               EnvStats, compiler, caretEnsemble, tabplot)
+suppressMessages(library(pacman))
+suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
+                                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
+                                EnvStats, compiler, caretEnsemble, tabplot, moments))
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -52,14 +52,38 @@ all_data <- all_data[-which(is.na(all_data$iso3c)),]
 
 all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = all_data, by = "iso3c")
 rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
+
+all_data$pH <- abs(all_data$pH - 7)
+
 rm(environmentDim, food_nutritionDim, socialDim, economicDim)
 
 ## ========================================================================== ##
 ## Correlations
 ## ========================================================================== ##
 
-M <- cor(all_data[,-1], use = "pairwise.complete.obs", method = "spearman")
-corrplot(M, method = "square")
+# Raw data (just transforming pH indicator)
+png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix.png")
+all_data[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
+all_data[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
+                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 1)
+dev.off()
+
+# Transformed data (after transforming pH indicator and applyin Box-Cox transform for skewed indicators)
+skew <- apply(X = all_data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
+all_data_transformed <- all_data
+for(i in 2:length(skew)){
+  if(skew[i] > 2 | skew[i] < -2){
+    all_data_transformed[,i][which(all_data_transformed[,i] == 0)] <- 0.01
+    optPar   <- EnvStats::boxcox(x = all_data_transformed[,i], optimize = T)
+    all_data_transformed[,i] <- EnvStats::boxcoxTransform(x = all_data_transformed[,i], lambda = optPar$lambda)
+  } else { all_data_transformed[,i] <- all_data_transformed[,i] }
+}
+png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_trns_data.png")
+all_data_transformed[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
+all_data_transformed[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
+                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 1)
+dev.off()
+rm(all_data_transformed)
 
 ## ========================================================================== ##
 ## Missing data
@@ -110,13 +134,32 @@ for(i in 1:length(nInd)){
 textFile2 <- textFile[combID]; rm(combID)
 
 dfs <- readRDS("./Results/modelling_results/counts_and_indicators.rds")
-dfs %>%
+
+# Edge of maximum number of countries: 24 possibilities
+tsv <- dfs %>%
   dplyr::group_by(nIndicators) %>%
   dplyr::summarise(MaxCount = max(nCountries)) %>%
-  ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point() +
+  ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point(size = 4) +
   theme_bw() +
+  scale_x_continuous(breaks = 4:27) +
+  scale_y_continuous(breaks = seq(0, 170, 25), limits = c(0, 170)) +
   xlab("Number of indicators") +
-  ylab("Number of countries")
+  ylab("Number of countries with complete data") +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15))
+ggsave(filename = "./_graphs/countries_vs_indicators.png", plot = tsv, device = "png", units = "in", width = 8, height = 8)
+
+# All possible combinations
+tsv <- dfs %>%
+  ggplot(aes(x = nIndicators, y = nCountries)) + geom_point(size = 4) +
+  theme_bw() +
+  scale_x_continuous(breaks = 4:27) +
+  scale_y_continuous(breaks = seq(0, 170, 25), limits = c(0, 170)) +
+  xlab("Number of indicators") +
+  ylab("Number of countries with complete data") +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15))
+ggsave(filename = "./_graphs/all_possible_combinations.png", plot = tsv, device = "png", units = "in", width = 8, height = 8)
 
 ## ========================================================================== ##
 ## Find all possible combinations backwards
@@ -131,22 +174,33 @@ dfs %>%
 ## =================================================================================== ##
 ## Sensitivity analysis: standarizing the dataset as first step
 ## =================================================================================== ##
-calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theory = "true", fnt_type = "geometric"){
+skew_methods <- c("none", "log", "box_cox")
+calculateIndices2 <- function(data = all_data, correct_skew = "none", combList = textFile2[[17]], theory = "true", fnt_type = "geometric"){
+  
+  # Measure skewness and apply scale transformations
+  skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
+  if(correct_skew == "log"){
+    for(i in 2:length(skew)){
+      if(skew[i] > 2 | skew[i] < -2){data[,i][which(data[,i] == 0)] <- 0.01; data[,i] <- log(data[,i])} else {data[,i] <- data[,i]}
+    }
+  } else {
+    if(correct_skew == "box_cox"){
+      for(i in 2:length(skew)){
+        if(skew[i] > 2 | skew[i] < -2){
+          data[,i][which(data[,i] == 0)] <- 0.01
+          optPar   <- EnvStats::boxcox(x = data[,i], optimize = T)
+          data[,i] <- EnvStats::boxcoxTransform(x = data[,i], lambda = optPar$lambda)
+        } else { data[,i] <- data[,i] }
+      }
+    } else {
+      if(correct_skew == "none"){
+        data <- data
+      }
+    }
+  }
   
   theory <<- theory
   fnt_type <<- fnt_type
-  
-  # Step 1. Normalization function for all indicators
-  normalization <- function(x){
-    y = x/max(x, na.rm = T)
-    # y = (x - min(x))/(max(x) - min(x))
-    return(y)
-  }
-  
-  for(j in 2:ncol(data)){
-    data[,j] <- normalization(x = data[,j])
-    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-  }; rm(j)
   
   # Updating dimension indexes
   signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
@@ -157,6 +211,18 @@ calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theor
   socUpt <- base::intersect(socPos, mtch)
   fntUpt <- base::intersect(fntPos, mtch)
   
+  # Step 1. Normalization function for all indicators
+  normalization <- function(x){
+    # y <- x/max(x, na.rm = T)
+    y <- (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
+    return(y)
+  }
+  
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
+  
   # Updating data set
   data <- data[which(complete.cases(data[, mtch])),]
   
@@ -165,7 +231,7 @@ calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theor
     
     rNames <- data$iso3c
     
-    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
+    # Step 2. Apply a correction for those indicators which have negative polarity
     for(m in mtch){
       if(theory == "true"){
         if(signs[m] < 0){
@@ -221,7 +287,7 @@ calculateIndices2 <- function(data = all_data, combList = textFile2[[17]], theor
   
 }
 
-sensitivity_results <- readRDS("./sensitivity_analysis_fltr.rds")
+sensitivity_results <- readRDS("./sensitivity_analysis_skewness_fltr.rds")
 # combFiles <- list.files(path = "./Best_combinations/RDSfiles", full.names = T) %>% gtools::mixedsort()
 # sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
 #   
@@ -287,7 +353,7 @@ sensitivity_results <- readRDS("./sensitivity_analysis_fltr.rds")
 #   return(x_fltr)
 # })
 # saveRDS(sensitivity_results_fltr, "./sensitivity_analysis_fltr.rds")
-sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_fltr.rds")
+sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_skewness_fltr.rds")
 sensitivity_results[[19]]
 
 # Measure importance of factors
@@ -303,7 +369,7 @@ datos %>% ggplot(aes(x = combination, y = Subsample, fill = SFS_index)) + geom_r
 ## =================================================================================== ##
 
 # Este si va
-sensitivity_results[[17]] %>% group_by(nIndicators, iso3c) %>%
+tsv <- sensitivity_results[[17]] %>% group_by(nIndicators, iso3c) %>%
   summarise(SFS_index = mean(SFS_index)) %>%
   filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
   ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
@@ -312,14 +378,18 @@ sensitivity_results[[17]] %>% group_by(nIndicators, iso3c) %>%
   scale_x_continuous(breaks = 4:27, labels = 4:27) +
   scale_y_continuous(limits = c(0, 1)) +
   xlab("Number of indicators") +
-  ylab("Sustainable Food Systems index")
+  ylab("Sustainability aggregated score") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15))
+ggsave(filename = "./_graphs/stability_backwards_20indicators.png", plot = tsv, device = "png", units = "in", width = 16, height = 8)
 
 ## =================================================================================== ##
 ## Instability plot: external variability
 ## =================================================================================== ##
 
 edge_path <- lapply(1:length(textFile2), function(i){
-  tbl <- calc_sfs_index(combList = textFile2[[i]], data = all_data, fnt_type = "arithmetic")
+  tbl <- calc_sfs_index(combList = textFile2[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
   tbl$nIndicators <- length(textFile2[[i]])
   tbl$iso3c <- rownames(tbl)
   rownames(tbl) <- 1:nrow(tbl)
@@ -329,7 +399,7 @@ edge_path <- lapply(1:length(textFile2), function(i){
 edge_path <- do.call(rbind, edge_path)
 
 # Example 6 countries
-edge_path %>% group_by(nIndicators, iso3c) %>%
+tsv <- edge_path %>% group_by(nIndicators, iso3c) %>%
   summarise(SFS_index = mean(SFS_index)) %>%
   filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
   ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
@@ -338,16 +408,24 @@ edge_path %>% group_by(nIndicators, iso3c) %>%
   scale_x_continuous(breaks = 4:27, labels = 4:27) +
   scale_y_continuous(limits = c(0, 1)) +
   xlab("Number of indicators") +
-  ylab("Sustainable Food Systems index")
+  ylab("Sustainability aggregated score") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15))
+ggsave(filename = "./_graphs/stability_issue_6countries.png", plot = tsv, device = "png", units = "in", width = 20, height = 8)
 
-edge_path %>% group_by(nIndicators, iso3c) %>%
+tsv <- edge_path %>% group_by(nIndicators, iso3c) %>%
   ggplot(aes(x = factor(nIndicators), y = SFS_index)) +
   geom_boxplot() + #facet_wrap(~iso3c, ncol = 3) +
   geom_hline(yintercept = 0, color = "red") +
   #scale_x_continuous(breaks = 4:27, labels = 4:27) +
   scale_y_continuous(limits = c(0, 1)) +
   xlab("Number of indicators") +
-  ylab("Sustainable Food Systems index")
+  ylab("Sustainability aggregated score (for all countries)") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15))
+ggsave(filename = "./_graphs/stability_issue_all_countries.png", plot = tsv, device = "png", units = "in", width = 12, height = 8)
 
 
 
@@ -381,19 +459,30 @@ caretEnsemble::caretEnsemble()
 # Update indicators list
 textFile2_uptd <- textFile2[1:19]
 # Calculate SFS reference index
-calc_sfs_index <- function(combList = textFile2_uptd[[17]], data = all_data, fnt_type = "geometric"){
+skew_methods <- c("none", "log", "box_cox")
+calc_sfs_index <- function(combList = textFile2_uptd[[17]], correct_skew = "none", data = all_data, fnt_type = "geometric"){
   
-  # Step 1. Normalization function for all indicators
-  normalization <- function(x){
-    y = x/max(x, na.rm = T)
-    # y = (x - min(x))/(max(x) - min(x))
-    return(y)
+  # Measure skewness and apply scale transformations
+  skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
+  if(correct_skew == "log"){
+    for(i in 2:length(skew)){
+      if(skew[i] > 2 | skew[i] < -2){data[,i][which(data[,i] == 0)] <- 0.01; data[,i] <- log(data[,i])} else {data[,i] <- data[,i]}
+    }
+  } else {
+    if(correct_skew == "box_cox"){
+      for(i in 2:length(skew)){
+        if(skew[i] > 2 | skew[i] < -2){
+          data[,i][which(data[,i] == 0)] <- 0.01
+          optPar   <- EnvStats::boxcox(x = data[,i], optimize = T)
+          data[,i] <- EnvStats::boxcoxTransform(x = data[,i], lambda = optPar$lambda)
+        } else { data[,i] <- data[,i] }
+      }
+    } else {
+      if(correct_skew == "none"){
+        data <- data
+      }
+    }
   }
-  
-  for(j in 2:ncol(data)){
-    data[,j] <- normalization(x = data[,j])
-    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-  }; rm(j)
   
   # Updating dimension indexes
   signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
@@ -403,6 +492,18 @@ calc_sfs_index <- function(combList = textFile2_uptd[[17]], data = all_data, fnt
   ecoUpt <- base::intersect(ecoPos, mtch)
   socUpt <- base::intersect(socPos, mtch)
   fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Step 1. Normalization function for all indicators
+  normalization <- function(x){
+    # y = x/max(x, na.rm = T)
+    y = (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
+    return(y)
+  }
+  
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
   
   # Updating data set
   data <- data[which(complete.cases(data[, mtch])),]
@@ -455,11 +556,11 @@ rank_summary <- rep(NA, length(textFile2_uptd))
 stdv_summary <- rep(NA, length(textFile2_uptd))
 for(i in 1:length(textFile2_uptd)){
   
-  ref_vals <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "arithmetic")
-  ref_cntr <- calc_sfs_index(combList = textFile2_uptd[[i]], data = all_data, fnt_type = "arithmetic") %>% rownames %>% sort
+  ref_vals <- calc_sfs_index(combList = textFile2_uptd[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
+  ref_cntr <- calc_sfs_index(combList = textFile2_uptd[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic") %>% rownames %>% sort
   
   snsr_flt <- sensitivity_results[[i]]
-  snsr_flt <- snsr_flt %>% dplyr::filter(iso3c %in% ref_cntr)
+  snsr_flt <- snsr_flt %>% dplyr::filter(iso3c %in% ref_cntr & skew_method == "box_cox")
   
   calc_diff <- rep(NA, length(ref_cntr))
   calc_medn <- rep(NA, length(ref_cntr))
@@ -475,29 +576,28 @@ for(i in 1:length(textFile2_uptd)){
   
 }
 
-names(rank_summary) <- 4:22
-barplot(rank_summary)
-abline(h = 30, col = 2)
-
-names(stdv_summary) <- 4:22
-barplot(rank_summary[-1]/stdv_summary[-1])
-abline(h = 30, col = 2)
-
 gnrl_summary <- data.frame(cmbn = 4:22, rank = rank_summary, stdv = stdv_summary)
 gnrl_summary <- cbind(gnrl_summary, scale(gnrl_summary[,2:3], center = T, scale = T))
 colnames(gnrl_summary)[4:5] <- c("rank_scaled", "stdv_scaled")
 gnrl_summary$nCountries <- dfs$nCountries[dfs$maxCombinations == "Yes"][1:nrow(gnrl_summary)]
 
-p <- gnrl_summary %>% ggplot(aes(factor(cmbn), rank, fill = "Rank change")) + geom_bar(stat = "identity")
-p <- p + geom_bar(aes(factor(cmbn), stdv*1000, fill = "Variability", alpha = 0.8), stat = "identity")
-p <- p + scale_y_continuous(sec.axis = sec_axis(~./1000, name = "Standard deviation"))
-p <- p + scale_colour_manual(values = c("blue", "red"))
-p <- p + xlab("Number of indicators")
-p <- p + ylab("Rank change")
-p <- p + guides(alpha = F)
-p <- p + theme(legend.title = element_blank())
-p <- p + ggplot2::annotate("text", x = 1:19, y = gnrl_summary$rank + 1, label = gnrl_summary$nCountries)
-p
+tsv <- gnrl_summary %>%
+  ggplot(aes(factor(cmbn), rank, fill = "Rank change")) +
+  geom_bar(stat = "identity") +
+  geom_bar(aes(factor(cmbn), stdv*1000, fill = "Variability", alpha = 0.8), stat = "identity") +
+  scale_y_continuous(sec.axis = sec_axis(~./1000, name = "Standard deviation")) +
+  scale_colour_manual(values = c("blue", "red")) +
+  xlab("Number of indicators") +
+  ylab("Rank change") +
+  guides(alpha = F) +
+  theme(legend.title = element_blank()) +
+  ggplot2::annotate("text", x = 1:19, y = gnrl_summary$rank + 1, label = lag(x = gnrl_summary$nCountries, n = 1) - gnrl_summary$nCountries, size = 5) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15),
+        legend.title = element_blank(),
+        legend.text  = element_text(size = 15))
+ggsave(filename = "./_graphs/optimal_combination.png", plot = tsv, device = "png", units = "in", width = 12, height = 8)
 
 
 gnrl_summary2 <- gnrl_summary %>% dplyr::select(cmbn, rank_scaled, stdv_scaled) %>% tidyr::gather(key = , value = , -cmbn)
@@ -507,6 +607,7 @@ gnrl_summary %>% filter(cmbn %in% 15:20) %>%
   geom_point()
 
 
+## Visualize data
 #############################################################################
 sfsMap <- function(Scores){
   
@@ -536,16 +637,47 @@ sfsMap <- function(Scores){
       hc_colorAxis(stops = color_stops()) %>%
       hc_tooltip(useHTML = TRUE, headerFormat = "",
                  pointFormat = "{point.name} has a SFS index of {point.SFS_index}") %>%
-      hc_colorAxis(stops = colstops, min = 0, max = 1) %>%
+      hc_colorAxis(stops = colstops, min = min(indices$SFS_index), max = max((indices$SFS_index))) %>%
       hc_legend(valueDecimals = 0, valueSuffix = "%") %>%
       hc_mapNavigation(enabled = TRUE) %>%
       hc_add_theme(thm)
   )
   
 }
-ref_vals <- calc_sfs_index(combList = textFile2[[24]], data = all_data, fnt_type = "arithmetic")
+ref_vals <- calc_sfs_index(combList = textFile2[[17]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
+ref_vals <- calc_sfs_index(combList = textFile2[[1]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
+ref_vals <- calc_sfs_index(combList = textFile2[[24]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
+
+ref_vals$Country <- country_codes$country.name.en[match(rownames(ref_vals), country_codes$iso3c)]
+
+ref_vals %>%
+  ggplot(aes(x = reorder(Country, SFS_index), y = SFS_index, fill = SFS_index)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  xlab("")
+
+ref_vals$ISO3 <- rownames(ref_vals); rownames(ref_vals) <- 1:nrow(ref_vals)
 sfsMap(Scores = ref_vals)
 #############################################################################
+
+library(sf)
+library(spData)
+library(spDataLarge)
+library(tmap)
+library(RColorBrewer)
+
+world <- sf::st_read("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Input_data/world_shape/all_countries_robinson_all.shp")
+world2 <- dplyr::left_join(x = world, y = ref_vals, by = "ISO3")
+
+tsv <- tm_shape(world2) +
+  tm_polygons("SFS_index", palette = brewer.pal(n = 100, name = "RdBu")) +
+  tm_borders("gray20", lwd = .5) +
+  tm_grid(projection = "longlat") +
+  tm_layout(inner.margins = c(0, .02, .02, .02))
+tmap_save(tm = tsv, filename = "_graphs/sfs_index_map.png", width = 16, height = 8, units = "in")
+tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_164countries.png", width = 16, height = 8, units = "in")
+tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_17countries.png", width = 16, height = 8, units = "in")
+
 
 
 vals <- rep(NA, length(ref_countries))

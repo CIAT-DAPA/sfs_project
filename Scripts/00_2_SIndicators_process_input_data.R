@@ -33,7 +33,7 @@ countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
 countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
 # Country code translation
-country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
+country_codes <- countrycode::codelist %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
 country_codes$country.name.en <- country_codes$country.name.en %>% as.character
 country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
 country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
@@ -127,6 +127,7 @@ if(!file.exists("environmental_dimension.csv")){
   pH <- pH %>% select(ISO3, Value) %>% group_by(ISO3) %>% summarise(pH = median(Value, na.rm = T))
   pH <- dplyr::inner_join(x = country_codes, y = pH, by = c("iso3c" = "ISO3"))
   pH <- pH %>% dplyr::select(country.name.en, iso3c, pH)
+  pH$pH <- abs(pH$pH - 7)
   
   
   ## 3. Water withdrawal

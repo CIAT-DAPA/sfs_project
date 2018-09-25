@@ -625,4 +625,5 @@ drivers[,-1] %>%
   cor(use = "pairwise.complete.obs", method = "spearman") %>%
   corrplot::corrplot(method = "square")
 drivers[,-1] %>%
-  FactoMineR::PCA(scale.unit = T, graph = T)
+  FactoMineR::PCA(scale.unit = T, graph = T) # %>%
+  # FactoMineR::HCPC(res = ., nb.clust = -1) %>%

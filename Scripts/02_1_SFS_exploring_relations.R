@@ -58,19 +58,30 @@ rm(environmentDim, food_nutritionDim, socialDim, economicDim)
 ## Function for calculating SFS index
 ## ========================================================================== ##
 
-calc_sfs_index <- function(combList = textFile2_uptd[[17]], data = all_data, fnt_type = "geometric"){
+# skew_methods <- c("none", "log", "box_cox")
+calc_sfs_index <- function(combList = textFile2_uptd[[17]], correct_skew = "none", data = all_data, fnt_type = "arithmetic"){
   
-  # Step 1. Normalization function for all indicators
-  normalization <- function(x){
-    y = x/max(x, na.rm = T)
-    # y = (x - min(x))/(max(x) - min(x))
-    return(y)
+  # Measure skewness and apply scale transformations
+  skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
+  if(correct_skew == "log"){
+    for(i in 2:length(skew)){
+      if(skew[i] > 2 | skew[i] < -2){data[,i][which(data[,i] == 0)] <- 0.01; data[,i] <- log(data[,i])} else {data[,i] <- data[,i]}
+    }
+  } else {
+    if(correct_skew == "box_cox"){
+      for(i in 2:length(skew)){
+        if(skew[i] > 2 | skew[i] < -2){
+          data[,i][which(data[,i] == 0)] <- 0.01
+          optPar   <- EnvStats::boxcox(x = data[,i], optimize = T)
+          data[,i] <- EnvStats::boxcoxTransform(x = data[,i], lambda = optPar$lambda)
+        } else { data[,i] <- data[,i] }
+      }
+    } else {
+      if(correct_skew == "none"){
+        data <- data
+      }
+    }
   }
-  
-  for(j in 2:ncol(data)){
-    data[,j] <- normalization(x = data[,j])
-    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-  }; rm(j)
   
   # Updating dimension indexes
   signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
@@ -80,6 +91,18 @@ calc_sfs_index <- function(combList = textFile2_uptd[[17]], data = all_data, fnt
   ecoUpt <- base::intersect(ecoPos, mtch)
   socUpt <- base::intersect(socPos, mtch)
   fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Step 1. Normalization function for all indicators
+  normalization <- function(x){
+    # y = x/max(x, na.rm = T)
+    y = (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
+    return(y)
+  }
+  
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
   
   # Updating data set
   data <- data[which(complete.cases(data[, mtch])),]
@@ -165,7 +188,7 @@ textFile2 <- textFile[combID]; rm(combID)
 ## Calculate SFS index
 ## ========================================================================== ##
 
-sfs_index <- calc_sfs_index(combList = textFile2[[17]], data = all_data, fnt_type = "arithmetic")
+sfs_index <- calc_sfs_index(combList = textFile2[[17]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
 sfs_index$iso3c <- rownames(sfs_index)
 sfs_index <- left_join(x = sfs_index, y = country_codes %>% select(iso3c, country.name.en), by = "iso3c")
 write.csv(sfs_index, "./sfs_index.csv", row.names = F)
@@ -175,9 +198,32 @@ write.csv(sfs_index, "./sfs_index_indicators.csv", row.names = F)
 
 sfs_index2 <- sfs_index
 
+# Measure skewness and apply scale transformations
+data <- sfs_index2[,textFile2[[17]]]
+skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
+if(correct_skew == "log"){
+  for(i in 2:length(skew)){
+    if(skew[i] > 2 | skew[i] < -2){data[,i][which(data[,i] == 0)] <- 0.01; data[,i] <- log(data[,i])} else {data[,i] <- data[,i]}
+  }
+} else {
+  if(correct_skew == "box_cox"){
+    for(i in 2:length(skew)){
+      if(skew[i] > 2 | skew[i] < -2){
+        data[,i][which(data[,i] == 0)] <- 0.01
+        optPar   <- EnvStats::boxcox(x = data[,i], optimize = T)
+        data[,i] <- EnvStats::boxcoxTransform(x = data[,i], lambda = optPar$lambda)
+      } else { data[,i] <- data[,i] }
+    }
+  } else {
+    if(correct_skew == "none"){
+      data <- data
+    }
+  }
+}
+
 normalization <- function(x){
-  y = x/max(x, na.rm = T)
-  # y = (x - min(x))/(max(x) - min(x))
+  # y = x/max(x, na.rm = T)
+  y = (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
   return(y)
 }
 sfs_index2[,textFile2[[17]]] <- apply(sfs_index2[,textFile2[[17]]], 2, function(x){
@@ -220,11 +266,18 @@ plot(sfs_index$SFS_index,
 abline(0,1)
 
 sfs_index %>%
-  select(SFS_index, SFS_index_v1, SFS_index_v2) %>%
-  gather(key = "Approach", value = "Values") %>%
+  select(iso3c, SFS_index, SFS_index_v1, SFS_index_v2) %>%
+  gather(key = "Approach", value = "Values", -iso3c) %>%
   ggplot(aes(x = Values, group = Approach, fill = Approach, colour = Approach, alpha = .3)) +
   geom_density() +
   xlim(0, 1)
+
+sfs_index %>%
+  select(iso3c, SFS_index, SFS_index_v1, SFS_index_v2) %>%
+  gather(key = "Approach", value = "Values", -iso3c) %>%
+  ggplot(aes(x = reorder(iso3c, Values), y = Values, group = Approach, fill = Approach, colour = Approach)) +
+  geom_point() +
+  coord_flip()
 
 sfs_index %>%
   select(SFS_index, Environment:Food_nutrition) %>%
@@ -292,22 +345,37 @@ vi_regr_avNNet <- variable_importance(explainer_regr_avNNet, loss_function = los
 
 plot(vi_regr_rf, vi_regr_svm, vi_regr_glm, vi_regr_knn, vi_regr_avNNet)
 
-
+# Top 6 countries
 sfs_index %>%
   select(SFS_index:Serum.retinol.deficiency) %>%
   gather(key = Variable, value = Value, -(iso3c:country.name.en)) %>%
-  filter(iso3c == "CAN") %>%
-  ggplot(aes(x = reorder(Variable, -Value), y = Value)) +
+  filter(iso3c %in% c("CAN", "NZL", "USA", "AUS", "FRA", "NOR")) %>%
+  mutate(Category = ifelse(Variable == "SFS_index", "SFS_index",
+                           ifelse(Variable %in% c("Emissions.agriculture.total","Water.withdrawal","Soil.carbon.content","Arable.land","GEF.benefits.biodiversity"), "Environment",
+                                  ifelse(Variable == "AgValueAdded", "Economic",
+                                         ifelse(Variable == "Female.labor.force", "Social",
+                                                ifelse(Variable %in% c("Food.available","Food.consumption","City.access","Access.improved.water","Access.electricity","Price.volatility.index","Food.supply.variability","Foodborne.illness","Food.loss","Diet.diversification","Crop.diversity","Obesity","Serum.retinol.deficiency"), "Food and nutrition", NA)))))) %>%
+  ggplot(aes(x = factor(Variable, levels = c(rev(names(all_data)[-1]), "SFS_index")), y = Value, fill = Category)) +
   geom_bar(stat = "identity") +
-  coord_flip()
+  coord_flip() +
+  facet_wrap(~ factor(iso3c, levels = c("CAN", "NZL", "USA", "AUS", "FRA", "NOR"))) +
+  xlab("") + ylab("Index value")
 
+# Bottom 6 countries
 sfs_index %>%
   select(SFS_index:Serum.retinol.deficiency) %>%
   gather(key = Variable, value = Value, -(iso3c:country.name.en)) %>%
-  filter(iso3c == "SEN") %>%
-  ggplot(aes(x = reorder(Variable, -Value), y = Value)) +
+  filter(iso3c %in% c("SEN", "NER", "BGD", "BFA", "IND", "NPL")) %>%
+  mutate(Category = ifelse(Variable == "SFS_index", "SFS_index",
+                           ifelse(Variable %in% c("Emissions.agriculture.total","Water.withdrawal","Soil.carbon.content","Arable.land","GEF.benefits.biodiversity"), "Environment",
+                                  ifelse(Variable == "AgValueAdded", "Economic",
+                                         ifelse(Variable == "Female.labor.force", "Social",
+                                                ifelse(Variable %in% c("Food.available","Food.consumption","City.access","Access.improved.water","Access.electricity","Price.volatility.index","Food.supply.variability","Foodborne.illness","Food.loss","Diet.diversification","Crop.diversity","Obesity","Serum.retinol.deficiency"), "Food and nutrition", NA)))))) %>%
+  ggplot(aes(x = factor(Variable, levels = c(rev(names(all_data)[-1]), "SFS_index")), y = Value, fill = Category)) +
   geom_bar(stat = "identity") +
-  coord_flip()
+  coord_flip() +
+  facet_wrap(~ factor(iso3c, levels = rev(c("SEN", "NER", "BGD", "BFA", "IND", "NPL")))) +
+  xlab("") + ylab("Index value")
 
 
 
@@ -346,7 +414,7 @@ explainer <- lime::lime(x = sfs_index, rf_fit)
 model_type(rf_fit)
 explanation <- lime::explain(x = sfs_index %>%
                                select(Emissions.agriculture.total:Serum.retinol.deficiency),
-                             explainer = explainer,
+                             explainer = explainer
                              )
 
 
@@ -444,3 +512,23 @@ rf_fit <- caret::train(SFS_index ~ .,
                        data = tbl %>% select(SFS_index, chg_pop_growth:chg_merch_trade) %>% filter(complete.cases(.)),
                        method = "ranger")
 partial(rf_fit, pred.var = "chg_merch_trade", plot = T, rug = T)
+
+
+png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_sfs_index_drivers.png")
+all_data[,-c(1, 23:26)] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
+all_data[,-c(1, 23:26)] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
+                                                                                           diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
+dev.off()
+
+all_data <- dplyr::left_join(x = drivers, y = sfs_index, by = "iso3c")
+
+all_data %>%
+  select(chg_mobile, SFS_index) %>%
+  drop_na() %>%
+  ggplot(aes(x = chg_mobile, y = SFS_index)) +
+  geom_point() +
+  geom_smooth()
+
+hist(all_data$ch_yield_fertil)
+
+write.csv(all_data, "./drivers_sfs_index.csv", row.names = F)

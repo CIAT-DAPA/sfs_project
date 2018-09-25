@@ -1,3 +1,5 @@
+envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
+
 eco_soc <- all_data[,c(1, ecoPos, socPos)]
 eco_soc <- eco_soc[complete.cases(eco_soc),]
 
@@ -51,11 +53,6 @@ fnt_combinations[,200]
 
 
 combList <- names(all_data)[c(env_combinations[,10], ecoPos, socPos, fnt_combinations[,145])]
-
-purrr::cross3(.x = env_mtchs$combination %>% purrr::map(.f = function(x){colnames(all_data[,env_combinations[,x]])}),
-              .y = list(c(colnames(all_data[,ecoPos]), colnames(all_data[,socPos]))),
-              .z = fnt_mtchs$combination %>% purrr::map(.f = function(x){colnames(all_data[,fnt_combinations[,x]])}))
-
 combListDF <- expand.grid(
   
   env_mtchs$combination %>% purrr::map(.f = function(x){colnames(all_data[,env_combinations[,x]])}),
@@ -72,17 +69,54 @@ index_simulation <- lapply(1:ncol(combList), function(i){
   db_res <- calc_sfs_index(combList = combList[,i], data = all_data, fnt_type = "arithmetic")
   db_res$Combination <- i
   db_res$iso3c <- rownames(db_res)
+  db_res$Approach <- "Proposed"
+  
+  normalization <- function(x){
+    y = x/max(x, na.rm = T)
+    return(y)
+  }
+  data <- all_data
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
+  signs <- c(NA, -1, +1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, +1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
+  theory <- T
+  mtch <- match(combList[,i], names(data))
+  for(m in mtch){
+    if(theory){
+      if(signs[m] < 0){
+        data[,m] <- 1 - data[,m]
+        data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
+      }
+    }
+  }; rm(m)
+  data <- data %>% select(iso3c, combList[,i] %>% as.character)
+  data <- data %>% filter(iso3c %in% ref_countries)
+  data2 <- data
+  data2$SFS_index <- data2 %>% select(-iso3c) %>% apply(., 1, FUN = EnvStats::geoMean)
+  data2$Combination <- i
+  data2$Approach <- "All geometric"
+  data3 <- data
+  data3$SFS_index <- data3 %>% select(-iso3c) %>% apply(., 1, FUN = mean)
+  data3$Combination <- i
+  data3$Approach <- "All arithmetic"
+  
+  db_res <- plyr::rbind.fill(db_res,
+                             data2 %>% select(iso3c, SFS_index, Combination, Approach),
+                             data3 %>% select(iso3c, SFS_index, Combination, Approach))
+  
   return(db_res)
   
 })
 index_simulation <- do.call(rbind, index_simulation)
 index_simulation %>%
-  ggplot(aes(x = reorder(iso3c, SFS_index, FUN = median), y = SFS_index)) +
-  geom_boxplot() +
-  geom_jitter(position = position_jitter(0.2)) +
-  geom_point(data = sfs_index[which(sfs_index$iso3c %in% unique(index_simulation$iso3c)),] %>%
-               select(iso3c, SFS_index),
-             aes(x = iso3c, y = SFS_index), col = "red", size = 5) +
+  ggplot(aes(x = reorder(iso3c, SFS_index, FUN = median), y = SFS_index, fill = Approach)) +
+  geom_boxplot(position=position_dodge(1)) +
+  # geom_jitter(position = position_jitter(0.2)) +
+  # geom_point(data = sfs_index[which(sfs_index$iso3c %in% unique(index_simulation$iso3c)),] %>%
+  #              select(iso3c, SFS_index) %>% mutate(Approach = "Proposed"),
+  #            aes(x = iso3c, y = SFS_index), col = "red", size = 3) +
   ylim(0, 1) +
   xlab("Countries") +
   ylab("SFS index")
