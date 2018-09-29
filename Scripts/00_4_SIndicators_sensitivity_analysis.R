@@ -21,41 +21,13 @@ suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doPa
 ## ========================================================================== ##
 
 # Country code translation
-# country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
-country_codes <- countrycode::codelist %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
-country_codes$country.name.en <- country_codes$country.name.en %>% as.character
-country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Gambia (Islamic Republic of the)")] <- "Gambia"
-country_codes$country.name.en[which(country_codes$country.name.en == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, U.S.")] <- "United States Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela, Bolivarian Republic of")] <- "Venezuela"
-country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
-country_codes$country.name.en[which(country_codes$country.name.en == "Bolivia (Plurinational State of)")] <- "Bolivia"
-country_codes$fao[which(country_codes == "Reunion")] <- 182
+country_codes <- read.csv("./country_codes_update_28_09_18.csv")
 
 ## ========================================================================== ##
-## Load data by dimension
+## Load SFS indicators data
 ## ========================================================================== ##
 
-if(file.exists("environmental_dimension.csv")){environmentDim <- read.csv("environmental_dimension.csv", row.names = 1)}
-if(file.exists("economic_dimension.csv")){economicDim <- read.csv("economic_dimension.csv", row.names = 1)}
-if(file.exists("social_dimension.csv")){socialDim <- read.csv("social_dimension.csv", row.names = 1)}
-if(file.exists("food_nutrition_dimension.csv")){food_nutritionDim <- read.csv("food_nutrition_dimension.csv", row.names = 1)}
-
-all_data <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = environmentDim, by = "iso3c")
-all_data <- dplyr::left_join(x = all_data, y = economicDim, by = "iso3c")
-all_data <- dplyr::left_join(x = all_data, y = socialDim, by = "iso3c")
-all_data <- dplyr::left_join(x = all_data, y = food_nutritionDim, by = "iso3c")
-all_data <- all_data[-which(apply(X = all_data[,2:ncol(all_data)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 27),]
-all_data <- all_data[-which(is.na(all_data$iso3c)),]
-
-all_data <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = all_data, by = "iso3c")
-rownames(all_data) <- all_data$country.name.en; all_data$country.name.en <- NULL
-
-all_data$pH <- abs(all_data$pH - 7)
-
-rm(environmentDim, food_nutritionDim, socialDim, economicDim)
+all_data <- read.csv("sfs_raw_indicators.csv", row.names = 1)
 
 ## ========================================================================== ##
 ## Correlations
@@ -65,7 +37,7 @@ rm(environmentDim, food_nutritionDim, socialDim, economicDim)
 png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix.png")
 all_data[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
 all_data[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
-                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 1)
+                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
 dev.off()
 
 # Transformed data (after transforming pH indicator and applyin Box-Cox transform for skewed indicators)
@@ -81,9 +53,9 @@ for(i in 2:length(skew)){
 png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_trns_data.png")
 all_data_transformed[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
 all_data_transformed[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
-                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 1)
+                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
 dev.off()
-rm(all_data_transformed)
+rm(all_data_transformed, optPar, i, skew)
 
 ## ========================================================================== ##
 ## Missing data
