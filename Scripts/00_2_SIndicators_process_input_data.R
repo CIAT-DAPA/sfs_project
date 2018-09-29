@@ -11,39 +11,21 @@ wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_Sy
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
-suppressMessages(if(!require(raster)){install.packages('raster'); library(raster)} else {library(raster)})
-suppressMessages(if(!require(rgdal)){install.packages('rgdal'); library(rgdal)} else {library(rgdal)})
-suppressMessages(if(!require(maptools)){install.packages('maptools'); library(maptools)} else {library(maptools)})
-suppressMessages(if(!require(jsonlite)){install.packages('jsonlite'); library(jsonlite)} else {library(jsonlite)})
-suppressMessages(if(!require(foreach)){install.packages('foreach'); library(foreach)} else {library(foreach)})
-suppressMessages(if(!require(doParallel)){install.packages('doParallel'); library(doParallel)} else {library(doParallel)})
-suppressMessages(if(!require(XML)){install.packages('XML'); library(XML)} else {library(XML)})
-suppressMessages(if(!require(plspm)){install.packages('plspm'); library(plspm)} else {library(plspm)})
-suppressMessages(if(!require(reshape)){install.packages('reshape'); library(reshape)} else {library(reshape)})
-suppressMessages(if(!require(tidyverse)){install.packages('tidyverse'); library(tidyverse)} else {library(tidyverse)})
-suppressMessages(if(!require(countrycode)){install.packages('countrycode'); library(countrycode)} else {library(countrycode)})
-suppressMessages(library(compiler))
+suppressMessages(library(pacman))
+suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
+                                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
+                                EnvStats, compiler, caretEnsemble))
 
 ## ========================================================================== ##
 ## Define countries to work with
 ## ========================================================================== ##
 
 # Worldwide shapefile
-countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
-countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
+# countries <- rgdal::readOGR(dsn = "./Input_data/world_shape", "all_countries")
+# countries$COUNTRY <- iconv(countries$COUNTRY, from = "UTF-8", to = "latin1")
 
 # Country code translation
-country_codes <- countrycode::codelist %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
-country_codes$country.name.en <- country_codes$country.name.en %>% as.character
-country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Gambia (Islamic Republic of the)")] <- "Gambia"
-country_codes$country.name.en[which(country_codes$country.name.en == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, U.S.")] <- "United States Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela, Bolivarian Republic of")] <- "Venezuela"
-country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
-country_codes$country.name.en[which(country_codes$country.name.en == "Bolivia (Plurinational State of)")] <- "Bolivia"
-country_codes$fao[which(country_codes == "Reunion")] <- 182
+country_codes <- read.csv("./country_codes_update_28_09_18.csv")
 
 ## ========================================================================== ##
 ## ENVIRONMENT
@@ -52,13 +34,13 @@ country_codes$fao[which(country_codes == "Reunion")] <- 182
 # We need to include water quality indicators
 if(!file.exists("environmental_dimension.csv")){
   
-  ## 1. GHG Emissions (CO2eq)
+  ## 1. GHG emissions in total agriculture (gigagrams)
   ## Measure: Air quality
   ## Original name: GHG emissions by sector
   ## Sectors: agriculture, energy, forest, industrial processes, land use, other sources, residential, transport, waste
   ## Units: gigagrams
   ## Years: 1990:2010 (Selected period: 2000:2010)
-  ## Countries with data: 2019, years: 2010
+  ## Countries with data: 184, years: 2010
   
   emission <- read.csv("./Input_data_final/Environment/emission.csv")
   emission <- emission %>% dplyr::select(Country, Item, Year, Value)
@@ -85,16 +67,40 @@ if(!file.exists("environmental_dimension.csv")){
   #   theme_bw()
   emission <- emission %>% spread(Source, Emission)
   emission$Country <- emission$Country %>% as.character
-  emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
   emission$Country[which(emission$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-  emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
-  emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
-  emission$Country[which(emission$Country == "Czechia")] <- "Czech Republic"
+  emission$Country[which(emission$Country == "Brunei Darussalam")] <- "Brunei"
+  emission$Country[which(emission$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  emission$Country[which(emission$Country == "Cabo Verde")] <- "Cape Verde"
+  emission$Country[which(emission$Country == "China, Hong Kong SAR")] <- "Hong Kong"
+  emission$Country[which(emission$Country == "China, Macao SAR")] <- "Macau"
+  emission$Country[which(emission$Country == "China, mainland")] <- "China"
+  emission$Country[which(emission$Country == "China, Taiwan Province of")] <- "Taiwan"
+  emission$Country[which(emission$Country == "Congo")] <- "Republic of the Congo"
+  emission$Country[which(emission$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  emission$Country[which(emission$Country == "Democratic Republic of the Congo")] <- "Democratic Republic of the Congo"
+  emission$Country[which(emission$Country == "Falkland Islands (Malvinas)")] <- "Falkland Islands"
   emission$Country[which(emission$Country == "French Southern and Antarctic Territories")] <- "French Southern Territories"
-  emission$Country[which(emission$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  emission$Country[which(emission$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
-  emission$Country[which(emission$Country == "Pitcairn Islands")] <- "Pitcairn"
+  emission$Country[which(emission$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  emission$Country[which(emission$Country == "Lao People's Democratic Republic")] <- "Laos"
+  emission$Country[which(emission$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  emission$Country[which(emission$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
+  emission$Country[which(emission$Country == "RÃ©union")] <- "Reunion"
+  emission$Country[which(emission$Country == "Republic of Korea")] <- "South Korea"
+  emission$Country[which(emission$Country == "Republic of Moldova")] <- "Moldova"
+  emission$Country[which(emission$Country == "Russian Federation")] <- "Russia"
+  emission$Country[which(emission$Country == "Saint Helena, Ascension and Tristan da Cunha")] <- "St. Helena"
+  emission$Country[which(emission$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  emission$Country[which(emission$Country == "Saint Lucia")] <- "St. Lucia"
+  emission$Country[which(emission$Country == "Saint Pierre and Miquelon")] <- "St. Pierre and Miquelon"
+  emission$Country[which(emission$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  emission$Country[which(emission$Country == "Sudan (former)")] <- "Sudan"
+  emission$Country[which(emission$Country == "Syrian Arab Republic")] <- "Syria"
+  emission$Country[which(emission$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  emission$Country[which(emission$Country == "United Republic of Tanzania")] <- "Tanzania"
+  emission$Country[which(emission$Country == "United States of America")] <- "United States"
+  emission$Country[which(emission$Country == "United States Virgin Islands")] <- "U.S. Virgin Islands"
   emission$Country[which(emission$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  emission$Country[which(emission$Country == "Viet Nam")] <- "Vietnam"
   emission$Country[which(emission$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
   
   yearsList <- emission$Year %>% unique %>% sort
@@ -108,6 +114,7 @@ if(!file.exists("environmental_dimension.csv")){
   recentEmission <- emissionList[[length(emissionList)]]
   recentEmission <- recentEmission %>% dplyr::select(country.name.en, iso3c, Emissions.agriculture.total)
   recentEmission <- recentEmission[complete.cases(recentEmission),]; rownames(recentEmission) <- 1:nrow(recentEmission)
+  recentEmission <- recentEmission[recentEmission[,1:2] %>% unique %>% rownames %>% as.numeric,]
   rm(emissionList, emission)
   
   
@@ -136,7 +143,7 @@ if(!file.exists("environmental_dimension.csv")){
   ## Units: (%)
   ## Years: 2000:2016 (not all years have data)
   ## Countries with data: depends on the year
-  ## Averaging by the period 2000-2016, we get 174 countries
+  ## Averaging by the period 2000-2016, we get 150 countries
   
   water <- readxl::read_excel(path = "./Input_data_final/Environment/water.xlsx", sheet = 1, col_names = T)
   water <- water[1:200,]
@@ -154,12 +161,26 @@ if(!file.exists("environmental_dimension.csv")){
   rownames(water) <- 1:nrow(water)
   water <- water %>% filter(Year >= 2000)
   water$Country <- water$Country %>% as.character
-  water$Country[which(water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-  water$Country[which(water$Country == "Czechia")] <- "Czech Republic"
-  water$Country[which(water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  water$Country[which(water$Country == "Occupied Palestinian Territory")] <- "Palestine"
-  water$Country[which(water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
   water$Country[which(water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  water$Country[which(water$Country == "Cabo Verde")] <- "Cape Verde"
+  water$Country[which(water$Country == "Congo")] <- "Republic of the Congo"
+  water$Country[which(water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  water$Country[which(water$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  water$Country[which(water$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  water$Country[which(water$Country == "Lao People's Democratic Republic")] <- "Laos"
+  water$Country[which(water$Country == "Occupied Palestinian Territory")] <- "Palestinian Territories"
+  water$Country[which(water$Country == "Republic of Korea")] <- "South Korea"
+  water$Country[which(water$Country == "Republic of Moldova")] <- "Moldova"
+  water$Country[which(water$Country == "Russian Federation")] <- "Russia"
+  water$Country[which(water$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  water$Country[which(water$Country == "Saint Lucia")] <- "St. Lucia"
+  water$Country[which(water$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  water$Country[which(water$Country == "Syrian Arab Republic")] <- "Syria"
+  water$Country[which(water$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  water$Country[which(water$Country == "United Republic of Tanzania")] <- "Tanzania"
+  water$Country[which(water$Country == "United States of America")] <- "United States"
+  water$Country[which(water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  water$Country[which(water$Country == "Viet Nam")] <- "Vietnam"
   
   # water %>% ggplot(aes(x = Year, y = Water.withdrawal, group = Country)) +
   #   geom_line(alpha = .2) + 
@@ -193,14 +214,32 @@ if(!file.exists("environmental_dimension.csv")){
   carbon_soil <- carbon_soil %>% dplyr::select(Country.Code, Country, Value)
   colnames(carbon_soil)[3] <- "Soil.carbon.content"
   carbon_soil$Country <- as.character(carbon_soil$Country)
+  carbon_soil$Country[which(carbon_soil$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  carbon_soil$Country[which(carbon_soil$Country == "Brunei Darussalam")] <- "Brunei"
   carbon_soil$Country[which(carbon_soil$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  carbon_soil$Country[which(carbon_soil$Country == "Cabo Verde")] <- "Cape Verde"
+  carbon_soil$Country[which(carbon_soil$Country == "Congo")] <- "Republic of the Congo"
+  carbon_soil$Country[which(carbon_soil$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  carbon_soil$Country[which(carbon_soil$Country == "Falkland Islands (Malvinas)")] <- "Falkland Islands"
+  carbon_soil$Country[which(carbon_soil$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  carbon_soil$Country[which(carbon_soil$Country == "Lao People's Democratic Republic")] <- "Laos"
+  carbon_soil$Country[which(carbon_soil$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
   carbon_soil$Country[which(carbon_soil$Country == "RÃ©union")] <- "Reunion"
+  carbon_soil$Country[which(carbon_soil$Country == "Republic of Korea")] <- "South Korea"
+  carbon_soil$Country[which(carbon_soil$Country == "Republic of Moldova")] <- "Moldova"
+  carbon_soil$Country[which(carbon_soil$Country == "Russian Federation")] <- "Russia"
+  carbon_soil$Country[which(carbon_soil$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  carbon_soil$Country[which(carbon_soil$Country == "Saint Lucia")] <- "St. Lucia"
+  carbon_soil$Country[which(carbon_soil$Country == "Saint Pierre and Miquelon")] <- "St. Pierre and Miquelon"
+  carbon_soil$Country[which(carbon_soil$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
   carbon_soil$Country[which(carbon_soil$Country == "Sudan (former)")] <- "Sudan"
-  carbon_soil$Country[which(carbon_soil$Country == "Czechia")] <- "Czech Republic"
-  carbon_soil$Country[which(carbon_soil$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  carbon_soil$Country[which(carbon_soil$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  carbon_soil$Country[which(carbon_soil$Country == "Syrian Arab Republic")] <- "Syria"
+  carbon_soil$Country[which(carbon_soil$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  carbon_soil$Country[which(carbon_soil$Country == "United Republic of Tanzania")] <- "Tanzania"
+  carbon_soil$Country[which(carbon_soil$Country == "United States of America")] <- "United States"
+  carbon_soil$Country[which(carbon_soil$Country == "United States Virgin Islands")] <- "U.S. Virgin Islands"
   carbon_soil$Country[which(carbon_soil$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-  carbon_soil$Country.Code[which(carbon_soil$Country == "Sudan")] <- 276
+  carbon_soil$Country[which(carbon_soil$Country == "Viet Nam")] <- "Vietnam"
   
   # carbon_soil %>% ggplot(aes(x = reorder(Country, Soil.carbon.content), y = Soil.carbon.content)) +
   #   geom_bar(stat = "identity") +
@@ -223,18 +262,35 @@ if(!file.exists("environmental_dimension.csv")){
   arable_land <- arable_land %>% dplyr::select(Country, Year, Value)
   arable_land <- arable_land %>% filter(Year >= 2000)
   arable_land$Country <- as.character(arable_land$Country)
-  arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
-  arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
-  arable_land$Country[which(arable_land$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
-  arable_land$Country[which(arable_land$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  arable_land$Country[which(arable_land$Country == "Czechia")] <- "Czech Republic"
-  arable_land$Country[which(arable_land$Country == "Ethiopia PDR")] <- "Ethiopia"
-  arable_land$Country[which(arable_land$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
-  arable_land$Country[which(arable_land$Country == "Occupied Palestinian Territory")] <- "Palestine"
-  arable_land$Country[which(arable_land$Country == "Sudan (former)")] <- "Sudan"
-  arable_land$Country[which(arable_land$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
   arable_land$Country[which(arable_land$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-  
+  arable_land$Country[which(arable_land$Country == "Brunei Darussalam")] <- "Brunei"
+  arable_land$Country[which(arable_land$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  arable_land$Country[which(arable_land$Country == "Cabo Verde")] <- "Cape Verde"
+  arable_land$Country[which(arable_land$Country == "Congo")] <- "Republic of the Congo"
+  arable_land$Country[which(arable_land$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  arable_land$Country[which(arable_land$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  arable_land$Country[which(arable_land$Country == "Lao People's Democratic Republic")] <- "Laos"
+  arable_land$Country[which(arable_land$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  arable_land$Country[which(arable_land$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
+  arable_land$Country[which(arable_land$Country == "Occupied Palestinian Territory")] <- "Palestinian Territories"
+  arable_land$Country[which(arable_land$Country == "RÃ©union")] <- "Reunion"
+  arable_land$Country[which(arable_land$Country == "Republic of Korea")] <- "South Korea"
+  arable_land$Country[which(arable_land$Country == "Republic of Moldova")] <- "Moldova"
+  arable_land$Country[which(arable_land$Country == "Russian Federation")] <- "Russia"
+  arable_land$Country[which(arable_land$Country == "Saint Helena, Ascension and Tristan da Cunha")] <- "St. Helena"
+  arable_land$Country[which(arable_land$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  arable_land$Country[which(arable_land$Country == "Saint Lucia")] <- "St. Lucia"
+  arable_land$Country[which(arable_land$Country == "Saint Pierre and Miquelon")] <- "St. Pierre and Miquelon"
+  arable_land$Country[which(arable_land$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  arable_land$Country[which(arable_land$Country == "Sudan (former)")] <- "Sudan"
+  arable_land$Country[which(arable_land$Country == "Syrian Arab Republic")] <- "Syria"
+  arable_land$Country[which(arable_land$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  arable_land$Country[which(arable_land$Country == "United Republic of Tanzania")] <- "Tanzania"
+  arable_land$Country[which(arable_land$Country == "United States of America")] <- "United States"
+  arable_land$Country[which(arable_land$Country == "United States Virgin Islands")] <- "U.S. Virgin Islands"
+  arable_land$Country[which(arable_land$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  arable_land$Country[which(arable_land$Country == "Viet Nam")] <- "Vietnam"
+  arable_land$Country[which(arable_land$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
   colnames(arable_land)[3] <- "Arable.land"
   
   # arable_land %>% ggplot(aes(x = Year, y = Arable.land, group = Country)) +
@@ -280,6 +336,27 @@ if(!file.exists("environmental_dimension.csv")){
   #   theme_bw() +
   #   theme(axis.text.x = element_text(angle = 90))
   
+  GBI$Country <- as.character(GBI$Country)
+  GBI$Country[which(GBI$Country == "Brunei Darussalam")] <- "Brunei"
+  GBI$Country[which(GBI$Country == "Cabo Verde")] <- "Cape Verde"
+  GBI$Country[which(GBI$Country == "Congo")] <- "Republic of the Congo"
+  GBI$Country[which(GBI$Country == "Czech Republic")] <- "Czechia"
+  GBI$Country[which(GBI$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  GBI$Country[which(GBI$Country == "Guinea Bissau")] <- "Guinea-Bissau"
+  GBI$Country[which(GBI$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  GBI$Country[which(GBI$Country == "Lao People's Democratic Republic")] <- "Laos"
+  GBI$Country[which(GBI$Country == "Korea")] <- "South Korea"
+  GBI$Country[which(GBI$Country == "Republic of Moldova")] <- "Moldova"
+  GBI$Country[which(GBI$Country == "Russian Federation")] <- "Russia"
+  GBI$Country[which(GBI$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  GBI$Country[which(GBI$Country == "Saint Lucia")] <- "St. Lucia"
+  GBI$Country[which(GBI$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  GBI$Country[which(GBI$Country == "Syrian Arab Republic")] <- "Syria"
+  GBI$Country[which(GBI$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  GBI$Country[which(GBI$Country == "United Republic of Tanzania")] <- "Tanzania"
+  GBI$Country[which(GBI$Country == "United States of America")] <- "United States"
+  GBI$Country[which(GBI$Country == "Viet Nam")] <- "Vietnam"
+  
   GBI <- dplyr::inner_join(x = country_codes, y = GBI, by = c("country.name.en" = "Country"))
   GBI <- GBI %>% dplyr::select(country.name.en, iso3c, GEF.benefits.biodiversity)
   
@@ -294,11 +371,20 @@ if(!file.exists("environmental_dimension.csv")){
   energy <- read.csv("./Input_data_final/Environment/energy.csv")
   energy <- energy %>% dplyr::select(Country, Year, Value)
   energy$Country <- as.character(energy$Country)
-  energy$Country[which(energy$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
-  energy$Country[which(energy$Country == "Sudan (former)")] <- "Sudan"
   energy$Country[which(energy$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  energy$Country[which(energy$Country == "Brunei Darussalam")] <- "Brunei"
+  energy$Country[which(energy$Country == "CÃ´te d'Ivoire")] <- "Ivory Coast"
+  energy$Country[which(energy$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  energy$Country[which(energy$Country == "Republic of Korea")] <- "South Korea"
+  energy$Country[which(energy$Country == "Republic of Moldova")] <- "Moldova"
+  energy$Country[which(energy$Country == "Russian Federation")] <- "Russia"
+  energy$Country[which(energy$Country == "Sudan (former)")] <- "Sudan"
+  energy$Country[which(energy$Country == "Syrian Arab Republic")] <- "Syria"
+  energy$Country[which(energy$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  energy$Country[which(energy$Country == "United Republic of Tanzania")] <- "Tanzania"
+  energy$Country[which(energy$Country == "United States of America")] <- "United States"
   energy$Country[which(energy$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-  energy$Country[which(energy$Country == "Czechia")] <- "Czech Republic"
+  energy$Country[which(energy$Country == "Viet Nam")] <- "Vietnam"
   colnames(energy)[3] <- "Energy.agriculture"
   energy <- energy %>% filter(Year >= 2000)
   
@@ -351,9 +437,9 @@ suppressMessages(library(corrplot))
 tableplot(environmentDim[,-1], nBins = nrow(environmentDim))
 
 # Correlation
-M <- cor(environmentDim[,-1], use = "complete.obs", method = "spearman")
-corrplot(M, method = "square")
-plot(environmentDim$Emissions.agriculture.total, environmentDim$GBI, pch = 20)
+environmentDim[,-1] %>%
+  cor(use = "complete.obs", method = "spearman") %>%
+  corrplot(method = "square")
 
 # PCA
 FactoMineR::PCA(X = environmentDim[complete.cases(environmentDim),-1])
@@ -387,38 +473,6 @@ if(!file.exists("economic_dimension.csv")){
   # AgValueAdded %>% ggplot(aes(x = Year, y = AgValueAdded, group = Country)) +
   #   geom_line(alpha = .5) + theme_bw()
   
-  AgValueAdded$Country <- AgValueAdded$Country %>% as.character
-  AgValueAdded$Country[which(AgValueAdded$Country == "Bahamas, The")] <- "Bahamas"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Cote d'Ivoire")] <- "Ivory Coast"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Congo, Rep.")] <- "Congo"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Egypt, Arab Rep.")] <- "Egypt"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Gambia, The")] <- "Gambia"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Hong Kong SAR, China")] <- "Hong Kong"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-  AgValueAdded$Country[which(AgValueAdded$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Korea, Rep.")] <- "Republic of Korea"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
-  AgValueAdded$Country[which(AgValueAdded$Country == "St. Lucia")] <- "Saint Lucia"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Macao SAR, China")] <- "Macao"
-  AgValueAdded$Country[which(AgValueAdded$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Moldova")] <- "Republic of Moldova"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
-  AgValueAdded$Country[grep(pattern = "Korea, Dem. People", x = AgValueAdded$Country)] <- "Democratic People's Republic of Korea"
-  AgValueAdded$Country[which(AgValueAdded$Country == "West Bank and Gaza")] <- "Palestine"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Slovak Republic")] <- "Slovakia"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Tanzania")] <- "United Republic of Tanzania"
-  AgValueAdded$Country[which(AgValueAdded$Country == "United States")] <- "United States of America"
-  AgValueAdded$Country[which(AgValueAdded$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Venezuela, RB")] <- "Venezuela"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Vietnam")] <- "Viet Nam"
-  AgValueAdded$Country[which(AgValueAdded$Country == "Yemen, Rep.")] <- "Yemen"
-  AgValueAdded$ISO3 <- NULL
-  
   # yearsList <- AgValueAdded$Year %>% unique %>% sort
   # AgValueAddedList <- lapply(1:length(yearsList), function(i){
   #   df <- AgValueAdded %>% filter(Year == yearsList[i])
@@ -431,8 +485,8 @@ if(!file.exists("economic_dimension.csv")){
   # recentAgValueAdded <- recentAgValueAdded %>% dplyr::select(country.name.en, iso3c, AgValueAdded)
   
   AgValueAdded <- AgValueAdded %>% filter(Year >= 2006)
-  AgValueAdded <- AgValueAdded %>% group_by(Country) %>% summarise(AgValueAdded = median(AgValueAdded, na.rm = T))
-  recentAgValueAdded <- dplyr::inner_join(x = country_codes, y = AgValueAdded, by = c("country.name.en" = "Country"))
+  AgValueAdded <- AgValueAdded %>% group_by(ISO3) %>% summarise(AgValueAdded = median(AgValueAdded, na.rm = T))
+  recentAgValueAdded <- dplyr::inner_join(x = country_codes, y = AgValueAdded, by = c("iso3c" = "ISO3"))
   recentAgValueAdded <- recentAgValueAdded %>% dplyr::select(country.name.en, iso3c, AgValueAdded)
   recentAgValueAdded <- recentAgValueAdded[complete.cases(recentAgValueAdded),]; rownames(recentAgValueAdded) <- 1:nrow(recentAgValueAdded)
   rm(AgValueAdded)
@@ -468,14 +522,27 @@ if(!file.exists("economic_dimension.csv")){
   employment <- employment %>% filter(Year >= 2000 & Country != "Serbia and Montenegro")
   employment$Country <- as.character(employment$Country)
   employment$Country[which(employment$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-  employment$Country[which(employment$Country == "China, Macao SAR")] <- "Macao"
-  employment$Country[which(employment$Country == "China, mainland")] <- "China"
+  employment$Country[which(employment$Country == "Brunei Darussalam")] <- "Brunei"
   employment$Country[which(employment$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  employment$Country[which(employment$Country == "Czech Republic")] <- "Czechia"
   employment$Country[which(employment$Country == "Ethiopia PDR")] <- "Ethiopia"
-  employment$Country[which(employment$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  employment$Country[which(employment$Country == "China, Macao SAR")] <- "Macau"
+  employment$Country[which(employment$Country == "China, mainland")] <- "China"
+  employment$Country[which(employment$Country == "Falkland Islands (Malvinas)")] <- "Falkland Islands"
+  employment$Country[which(employment$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  employment$Country[which(employment$Country == "Occupied Palestinian Territory")] <- "Palestinian Territories"
   employment$Country[which(employment$Country == "Réunion")] <- "Reunion"
+  employment$Country[which(employment$Country == "Republic of Korea")] <- "South Korea"
+  employment$Country[which(employment$Country == "Republic of Moldova")] <- "Moldova"
+  employment$Country[which(employment$Country == "Russian Federation")] <- "Russia"
+  employment$Country[which(employment$Country == "Saint Lucia")] <- "St. Lucia"
   employment$Country[which(employment$Country == "Sudan (former)")] <- "Sudan"
+  employment$Country[which(employment$Country == "Syrian Arab Republic")] <- "Syria"
+  employment$Country[which(employment$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  employment$Country[which(employment$Country == "United Republic of Tanzania")] <- "Tanzania"
+  employment$Country[which(employment$Country == "United States of America")] <- "United States"
   employment$Country[which(employment$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  employment$Country[which(employment$Country == "Viet Nam")] <- "Vietnam"
   employment <- employment[which(employment %>% select(Country, Year) %>% duplicated() == FALSE),]
   
   TimeUnderemployment <- employment %>% select(Country, Year, Time.underemployment) %>% spread(., key = Year, value = Time.underemployment)
@@ -526,8 +593,9 @@ if(!file.exists("economic_dimension.csv")){
 tableplot(economicDim[,-1], nBins = nrow(economicDim))
 
 # Correlation
-M <- cor(economicDim[,-1], use = "complete.obs", method = "spearman")
-corrplot(M, method = "square")
+economicDim[,-1] %>%
+  cor(use = "complete.obs", method = "spearman") %>%
+  corrplot(method = "square")
 
 # PCA
 FactoMineR::PCA(X = economicDim[complete.cases(economicDim),-1])
@@ -547,44 +615,13 @@ if(!file.exists("social_dimension.csv")){
   ## Recent year selected with more information: 2016, 184 countries
   
   FemaleLaborForce <- read_csv(file = "./Input_data_final/Social/Labor_force_female.csv", col_names = T, skip = 4)
-  FemaleLaborForce$`Country Code` <- NULL
   FemaleLaborForce$`Indicator Name` <- NULL
   FemaleLaborForce$`Indicator Code` <- NULL
-  names(FemaleLaborForce)[1] <- "Country"
+  names(FemaleLaborForce)[1:2] <- c("Country", "iso3c")
   
   apply(X = FemaleLaborForce, MARGIN = 2, FUN = function(x){sum(!is.na(x))})
   
-  FemaleLaborForce <- FemaleLaborForce %>% gather(Year, Female.labor.force, 2:ncol(FemaleLaborForce))
-  FemaleLaborForce$Country <- FemaleLaborForce$Country %>% as.character
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Bahamas, The")] <- "Bahamas"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Cote d'Ivoire")] <- "Ivory Coast"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Congo, Rep.")] <- "Congo"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Egypt, Arab Rep.")] <- "Egypt"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Gambia, The")] <- "Gambia"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Hong Kong SAR, China")] <- "Hong Kong"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Korea, Rep.")] <- "Republic of Korea"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Lucia")] <- "Saint Lucia"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Macao SAR, China")] <- "Macao"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Moldova")] <- "Republic of Moldova"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
-  FemaleLaborForce$Country[grep(pattern = "Korea, Dem. People", x = FemaleLaborForce$Country)] <- "Democratic People's Republic of Korea"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "West Bank and Gaza")] <- "Palestine"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Slovak Republic")] <- "Slovakia"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Tanzania")] <- "United Republic of Tanzania"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "United States")] <- "United States of America"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Venezuela, RB")] <- "Venezuela"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Vietnam")] <- "Viet Nam"
-  FemaleLaborForce$Country[which(FemaleLaborForce$Country == "Yemen, Rep.")] <- "Yemen"
+  FemaleLaborForce <- FemaleLaborForce %>% gather(Year, Female.labor.force, 3:ncol(FemaleLaborForce))
   
   # FemaleLaborForce %>% ggplot(aes(x = Year, y = Female.labor.force, group = Country)) +
   #   geom_line(alpha = .5) + theme_bw()
@@ -592,7 +629,7 @@ if(!file.exists("social_dimension.csv")){
   yearsList <- FemaleLaborForce$Year %>% unique %>% sort
   FemaleLaborForceList <- lapply(1:length(yearsList), function(i){
     df <- FemaleLaborForce %>% filter(Year == yearsList[i])
-    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    df <- dplyr::inner_join(x = country_codes, y = df, by = "iso3c")
     return(df)
   })
   lapply(FemaleLaborForceList, dim)
@@ -614,15 +651,16 @@ if(!file.exists("social_dimension.csv")){
   FairTrade <- FairTrade %>% dplyr::select(Country, data)
   names(FairTrade)[2] <- "Fairtrade.org"
   FairTrade$Country <- as.character(FairTrade$Country)
-  FairTrade$Country[which(FairTrade$Country == "Cape Verde")] <- "Cabo Verde"
-  FairTrade$Country[which(FairTrade$Country == "Federated States of Micronesia")] <- "Micronesia (Federated States of)"
-  FairTrade$Country[which(FairTrade$Country == "Iran")] <- "Iran (Islamic Republic of)"
-  FairTrade$Country[which(FairTrade$Country == "Laos")] <- "Lao People's Democratic Republic"
-  FairTrade$Country[which(FairTrade$Country == "Republic of the Congo")] <- "Congo"
+  FairTrade$Country[which(FairTrade$Country == "Czech Republic")] <- "Czechia"
+  FairTrade$Country[which(FairTrade$Country == "Federated States of Micronesia")] <- "Micronesia"
+  FairTrade$Country[which(FairTrade$Country == "Guinea Bissau")] <- "Guinea-Bissau"
+  FairTrade$Country[which(FairTrade$Country == "Palestine")] <- "Palestinian Territories"
   FairTrade$Country[which(FairTrade$Country == "São Tomé and Principe")] <- "Sao Tome and Principe"
-  FairTrade$Country[which(FairTrade$Country == "South Korea")] <- "Republic of Korea"
-  FairTrade$Country[which(FairTrade$Country == "Taiwan")] <- "Taiwan, Province of China"
-  FairTrade$Country[which(FairTrade$Country == "Vietnam")] <- "Viet Nam"
+  FairTrade$Country[which(FairTrade$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  FairTrade$Country[which(FairTrade$Country == "Saint Lucia")] <- "St. Lucia"
+  FairTrade$Country[which(FairTrade$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  FairTrade$Country[which(FairTrade$Country == "United Republic of Tanzania")] <- "Tanzania"
+  FairTrade$Country[which(FairTrade$Country == "United States of America")] <- "United States"
   
   FairTrade <- dplyr::inner_join(x = country_codes, y = FairTrade, by = c("country.name.en" = "Country"))
   FairTrade <- FairTrade %>% dplyr::select(country.name.en, iso3c, Fairtrade.org)
@@ -640,47 +678,16 @@ if(!file.exists("social_dimension.csv")){
   AgEmployment <- AgEmployment[1:217,]
   AgEmployment$`Series Name` <- NULL
   AgEmployment$`Series Code` <- NULL
-  AgEmployment$`Country Code` <- NULL
   AgEmployment$`1990` <- NULL
-  names(AgEmployment)[1] <- "Country"
+  names(AgEmployment)[1:2] <- c("Country", "iso3c")
   
   apply(X = AgEmployment, MARGIN = 2, FUN = function(x){sum(!is.na(x))})
   which.max(apply(X = AgEmployment, MARGIN = 2, FUN = function(x){sum(!is.na(x))})[-(1:2)])
   
   AgEmployment$Agr.employment <- rowMeans(x = AgEmployment[,which(colnames(AgEmployment)=="2008"):ncol(AgEmployment)], na.rm = T)
-  AgEmployment <- AgEmployment %>% select(Country, Agr.employment)
-  AgEmployment$Country <- AgEmployment$Country %>% as.character
-  AgEmployment$Country[which(AgEmployment$Country == "Bahamas, The")] <- "Bahamas"
-  AgEmployment$Country[which(AgEmployment$Country == "Cote d'Ivoire")] <- "Ivory Coast"
-  AgEmployment$Country[which(AgEmployment$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
-  AgEmployment$Country[which(AgEmployment$Country == "Congo, Rep.")] <- "Congo"
-  AgEmployment$Country[which(AgEmployment$Country == "Egypt, Arab Rep.")] <- "Egypt"
-  AgEmployment$Country[which(AgEmployment$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
-  AgEmployment$Country[which(AgEmployment$Country == "Gambia, The")] <- "Gambia"
-  AgEmployment$Country[which(AgEmployment$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  AgEmployment$Country[which(AgEmployment$Country == "Hong Kong SAR, China")] <- "Hong Kong"
-  AgEmployment$Country[which(AgEmployment$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
-  AgEmployment$Country[which(AgEmployment$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-  AgEmployment$Country[which(AgEmployment$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-  AgEmployment$Country[which(AgEmployment$Country == "Korea, Rep.")] <- "Republic of Korea"
-  AgEmployment$Country[which(AgEmployment$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
-  AgEmployment$Country[which(AgEmployment$Country == "St. Lucia")] <- "Saint Lucia"
-  AgEmployment$Country[which(AgEmployment$Country == "Macao SAR, China")] <- "Macao"
-  AgEmployment$Country[which(AgEmployment$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
-  AgEmployment$Country[which(AgEmployment$Country == "Moldova")] <- "Republic of Moldova"
-  AgEmployment$Country[which(AgEmployment$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
-  AgEmployment$Country[which(AgEmployment$Country == "Korea, Dem. People's Rep.")] <- "Democratic People's Republic of Korea"
-  AgEmployment$Country[which(AgEmployment$Country == "West Bank and Gaza")] <- "Palestine"
-  AgEmployment$Country[which(AgEmployment$Country == "Slovak Republic")] <- "Slovakia"
-  AgEmployment$Country[which(AgEmployment$Country == "Tanzania")] <- "United Republic of Tanzania"
-  AgEmployment$Country[which(AgEmployment$Country == "United States")] <- "United States of America"
-  AgEmployment$Country[which(AgEmployment$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-  AgEmployment$Country[which(AgEmployment$Country == "Venezuela, RB")] <- "Venezuela"
-  AgEmployment$Country[which(AgEmployment$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
-  AgEmployment$Country[which(AgEmployment$Country == "Vietnam")] <- "Viet Nam"
-  AgEmployment$Country[which(AgEmployment$Country == "Yemen, Rep.")] <- "Yemen"
+  AgEmployment <- AgEmployment %>% select(iso3c, Agr.employment)
   
-  AgEmployment <- dplyr::inner_join(x = country_codes, y = AgEmployment, by = c("country.name.en" = "Country"))
+  AgEmployment <- dplyr::inner_join(x = country_codes, y = AgEmployment, by = "iso3c")
   AgEmployment <- AgEmployment %>% dplyr::select(country.name.en, iso3c, Agr.employment)
   AgEmployment <- AgEmployment[complete.cases(AgEmployment),]; rownames(AgEmployment) <- 1:nrow(AgEmployment)
   
@@ -705,8 +712,9 @@ if(!file.exists("social_dimension.csv")){
 tableplot(socialDim[,-1], nBins = nrow(socialDim))
 
 # Correlation
-M <- cor(socialDim[,-1], use = "complete.obs", method = "spearman")
-corrplot(M, method = "square"); rm(M)
+socialDim[,-1] %>%
+  cor(use = "complete.obs", method = "spearman") %>%
+  corrplot(method = "square")
 
 # PCA
 FactoMineR::PCA(X = socialDim[complete.cases(socialDim),-1])
@@ -745,18 +753,9 @@ if(!file.exists("food_nutrition_dimension.csv")){
   gfsi <- data.frame(Country = gfsi$Country, apply(X = gfsi[,-1], MARGIN = 2, FUN = as.numeric))
   names(gfsi) <- nmList; rm(nmList)
   gfsi$Country <- as.character(gfsi$Country)
-  gfsi$Country[which(gfsi$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-  gfsi$Country[which(gfsi$Country == "Congo (Dem. Rep.)")] <- "Congo"
-  gfsi$Country[grep(pattern = "^Cote", x = gfsi$Country)] <- "Ivory Coast"
-  gfsi$Country[which(gfsi$Country == "Czechia")] <- "Czech Republic"
-  gfsi$Country[which(gfsi$Country == "Laos")] <- "Lao People's Democratic Republic"
-  gfsi$Country[which(gfsi$Country == "Russia")] <- "Russian Federation"
-  gfsi$Country[which(gfsi$Country == "South Korea")] <- "Republic of Korea"
-  gfsi$Country[which(gfsi$Country == "Syria")] <- "Syrian Arab Republic"
-  gfsi$Country[which(gfsi$Country == "Tanzania")] <- "United Republic of Tanzania"
-  gfsi$Country[which(gfsi$Country == "United States")] <- "United States of America"
-  gfsi$Country[which(gfsi$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-  gfsi$Country[which(gfsi$Country == "Vietnam")] <- "Viet Nam"
+  gfsi$Country[which(gfsi$Country == "Cote d’Ivoire")] <- "Ivory Coast"
+  gfsi$Country[which(gfsi$Country == "Congo (Dem. Rep.)")] <- "Democratic Republic of the Congo"
+  gfsi$Country[which(gfsi$Country == "Czech Republic")] <- "Czechia"
   
   AverageFoodSupply <- gfsi[,c(1, 8)]
   names(AverageFoodSupply)[2] <- "Food.available"
@@ -785,11 +784,13 @@ if(!file.exists("food_nutrition_dimension.csv")){
   ## Years: 2000
   ## Countries with data: 247
   
-  city_access <- read.table("./Input_data_final/Food_Nutrition/countries_access.txt", header = T, sep = ",")
+  city_access <- read.table("./Input_data_final/Food_Nutrition/countries_access_2015_v1.txt", header = T, sep = ",")
   names(city_access)[ncol(city_access)] <- "City.access"
   
-  city_access <- dplyr::inner_join(x = country_codes, y = city_access, by = c("iso3c" = "ISO3"))
+  city_access <- dplyr::inner_join(x = country_codes, y = city_access %>% dplyr::select(ISO3, City.access), by = c("iso3c" = "ISO3"))
   city_access <- city_access %>% dplyr::select(country.name.en, iso3c, City.access)
+  city_access$City.access[which(city_access$City.access == -9999)] <- NA
+  city_access <- city_access %>% tidyr::drop_na()
   
   
   ## 4. Access to improved water resource
@@ -810,17 +811,34 @@ if(!file.exists("food_nutrition_dimension.csv")){
   improved_water$Access.improved.water <- rowMeans(improved_water[,which(names(improved_water)=="2005"):which(names(improved_water)=="2014")], na.rm = T)
   improved_water$Country <- as.character(improved_water$Country)
   improved_water$Country[which(improved_water$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  improved_water$Country[which(improved_water$Country == "Brunei Darussalam")] <- "Brunei"
   improved_water$Country[which(improved_water$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-  improved_water$Country[which(improved_water$Country == "Czechia")] <- "Czech Republic"
-  improved_water$Country[which(improved_water$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  improved_water$Country[which(improved_water$Country == "Holy See")] <- "Holy See (Vatican City State)"
-  improved_water$Country[which(improved_water$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  improved_water$Country[which(improved_water$Country == "Cabo Verde")] <- "Cape Verde"
+  improved_water$Country[which(improved_water$Country == "Congo")] <- "Republic of the Congo"
+  improved_water$Country[which(improved_water$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  improved_water$Country[which(improved_water$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  improved_water$Country[which(improved_water$Country == "Lao People's Democratic Republic")] <- "Laos"
+  improved_water$Country[which(improved_water$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  improved_water$Country[which(improved_water$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
+  improved_water$Country[which(improved_water$Country == "Republic of Korea")] <- "South Korea"
   improved_water$Country[which(improved_water$Country == "Réunion")] <- "Reunion"
+  improved_water$Country[which(improved_water$Country == "Republic of Moldova")] <- "Moldova"
+  improved_water$Country[which(improved_water$Country == "Russian Federation")] <- "Russia"
+  improved_water$Country[which(improved_water$Country == "Saint Helena, Ascension and Tristan da Cunha")] <- "St. Helena"
+  improved_water$Country[which(improved_water$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  improved_water$Country[which(improved_water$Country == "Saint Lucia")] <- "St. Lucia"
+  improved_water$Country[which(improved_water$Country == "Saint Pierre and Miquelon")] <- "St. Pierre and Miquelon"
+  improved_water$Country[which(improved_water$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
   improved_water$Country[which(improved_water$Country == "Sudan (former)")] <- "Sudan"
+  improved_water$Country[which(improved_water$Country == "Syrian Arab Republic")] <- "Syria"
+  improved_water$Country[which(improved_water$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  improved_water$Country[which(improved_water$Country == "United Republic of Tanzania")] <- "Tanzania"
+  improved_water$Country[which(improved_water$Country == "United States of America")] <- "United States"
+  improved_water$Country[which(improved_water$Country == "United States Virgin Islands")] <- "U.S. Virgin Islands"
   improved_water$Country[which(improved_water$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  improved_water$Country[which(improved_water$Country == "Viet Nam")] <- "Vietnam"
   improved_water$Country[which(improved_water$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
-  improved_water$Country[which(improved_water$Country == "West Bank and Gaza Strip")] <- "Palestine"
-  improved_water <- improved_water %>% filter(Country != "Serbia and Montenegro")
+  improved_water$Country[which(improved_water$Country == "West Bank and Gaza Strip")] <- "Palestinian Territories"
   
   improved_water <- dplyr::inner_join(x = country_codes, y = improved_water, by = c("country.name.en" = "Country"))
   improved_water <- improved_water %>% dplyr::select(country.name.en, iso3c, Access.improved.water)
@@ -844,37 +862,6 @@ if(!file.exists("food_nutrition_dimension.csv")){
   access_electricity <- access_electricity %>% select(ISO3, Country, Year, Value)
   names(access_electricity)[4] <- "Access.electricity"
   
-  access_electricity$Country <- as.character(access_electricity$Country)
-  access_electricity$Country[which(access_electricity$Country == "Bahamas, The")] <- "Bahamas"
-  access_electricity$Country[which(access_electricity$Country == "Cote d'Ivoire")] <- "Ivory Coast"
-  access_electricity$Country[which(access_electricity$Country == "Congo, Dem. Rep.")] <- "Democratic Republic of the Congo"
-  access_electricity$Country[which(access_electricity$Country == "Congo, Rep.")] <- "Congo"
-  access_electricity$Country[which(access_electricity$Country == "Egypt, Arab Rep.")] <- "Egypt"
-  access_electricity$Country[which(access_electricity$Country == "Micronesia, Fed. Sts.")] <- "Micronesia (Federated States of)"
-  access_electricity$Country[which(access_electricity$Country == "Gambia, The")] <- "Gambia"
-  access_electricity$Country[which(access_electricity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  access_electricity$Country[which(access_electricity$Country == "Hong Kong SAR, China")] <- "Hong Kong"
-  access_electricity$Country[which(access_electricity$Country == "Iran, Islamic Rep.")] <- "Iran (Islamic Republic of)"
-  access_electricity$Country[which(access_electricity$Country == "Kyrgyz Republic")] <- "Kyrgyzstan"
-  access_electricity$Country[which(access_electricity$Country == "St. Kitts and Nevis")] <- "Saint Kitts and Nevis"
-  access_electricity$Country[which(access_electricity$Country == "Korea, Rep.")] <- "Republic of Korea"
-  access_electricity$Country[which(access_electricity$Country == "Lao PDR")] <- "Lao People's Democratic Republic"
-  access_electricity$Country[which(access_electricity$Country == "St. Lucia")] <- "Saint Lucia"
-  access_electricity$Country[which(access_electricity$Country == "Macao SAR, China")] <- "Macao"
-  access_electricity$Country[which(access_electricity$Country == "St. Martin (French part)")] <- "Saint Martin (French part)"
-  access_electricity$Country[which(access_electricity$Country == "Moldova")] <- "Republic of Moldova"
-  access_electricity$Country[which(access_electricity$Country == "Macedonia, FYR")] <- "The former Yugoslav Republic of Macedonia"
-  access_electricity$Country[grep(pattern = "Korea, Dem. People", x = access_electricity$Country)] <- "Democratic People's Republic of Korea"
-  access_electricity$Country[which(access_electricity$Country == "West Bank and Gaza")] <- "Palestine"
-  access_electricity$Country[which(access_electricity$Country == "Slovak Republic")] <- "Slovakia"
-  access_electricity$Country[which(access_electricity$Country == "Tanzania")] <- "United Republic of Tanzania"
-  access_electricity$Country[which(access_electricity$Country == "United States")] <- "United States of America"
-  access_electricity$Country[which(access_electricity$Country == "St. Vincent and the Grenadines")] <- "Saint Vincent and the Grenadines"
-  access_electricity$Country[which(access_electricity$Country == "Venezuela, RB")] <- "Venezuela"
-  access_electricity$Country[which(access_electricity$Country == "Virgin Islands (U.S.)")] <- "United States Virgin Islands"
-  access_electricity$Country[which(access_electricity$Country == "Vietnam")] <- "Viet Nam"
-  access_electricity$Country[which(access_electricity$Country == "Yemen, Rep.")] <- "Yemen"
-  
   # access_electricity %>% ggplot(aes(x = Year, y = Access.electricity, group = Country)) +
   #   geom_line(alpha = .2) + 
   #   theme_bw()
@@ -883,7 +870,7 @@ if(!file.exists("food_nutrition_dimension.csv")){
   yearsList <- yearsList[-((length(yearsList)-1):length(yearsList))]
   access_electricityList <- lapply(1:length(yearsList), function(i){
     df <- access_electricity %>% filter(Year == yearsList[i])
-    df <- dplyr::inner_join(x = country_codes, y = df, by = c("country.name.en" = "Country"))
+    df <- dplyr::inner_join(x = country_codes, y = df, by = c("iso3c" = "ISO3"))
     return(df)
   })
   lapply(access_electricityList, dim)
@@ -911,20 +898,29 @@ if(!file.exists("food_nutrition_dimension.csv")){
   price_volatility$Price.volatility.index <- rowMeans(price_volatility[,which(names(price_volatility)=="2013"):which(names(price_volatility)=="2017")], na.rm = T)
   
   price_volatility$Country <- as.character(price_volatility$Country)
-  price_volatility$Country[which(price_volatility$Country == "Sint Maarten (Dutch Part)")] <- "Sint Maarten (Dutch part)"
-  price_volatility$Country[which(price_volatility$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
-  price_volatility$Country[grep(pattern = "Cura", x = price_volatility$Country)] <- "Curacao"
-  price_volatility$Country[which(price_volatility$Country == "China, mainland")] <- "China"
-  price_volatility$Country[which(price_volatility$Country == "China, Hong Kong SAR")] <- "Hong Kong"
-  price_volatility$Country[which(price_volatility$Country == "China, Macao SAR")] <- "Macao"
-  price_volatility$Country[which(price_volatility$Country == "Czechia")] <- "Czech Republic"
-  price_volatility$Country[grep(pattern = "land Islands", x = price_volatility$Country)] <- "Aland Islands"
   price_volatility$Country[which(price_volatility$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  price_volatility$Country[which(price_volatility$Country == "Brunei Darussalam")] <- "Brunei"
+  price_volatility$Country[which(price_volatility$Country == "Cabo Verde")] <- "Cape Verde"
+  price_volatility$Country[which(price_volatility$Country == "China, Hong Kong SAR")] <- "Hong Kong"
+  price_volatility$Country[which(price_volatility$Country == "China, Macao SAR")] <- "Macau"
+  price_volatility$Country[which(price_volatility$Country == "China, mainland")] <- "China"
+  price_volatility$Country[which(price_volatility$Country == "Congo")] <- "Republic of the Congo"
+  price_volatility$Country[which(price_volatility$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  price_volatility$Country[which(price_volatility$Country == "Lao People's Democratic Republic")] <- "Laos"
+  price_volatility$Country[which(price_volatility$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
+  price_volatility$Country[which(price_volatility$Country == "Occupied Palestinian Territory")] <- "Palestinian Territories"
+  price_volatility$Country[which(price_volatility$Country == "Republic of Korea")] <- "South Korea"
+  price_volatility$Country[which(price_volatility$Country == "Republic of Moldova")] <- "Moldova"
+  price_volatility$Country[which(price_volatility$Country == "Russian Federation")] <- "Russia"
+  price_volatility$Country[which(price_volatility$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  price_volatility$Country[which(price_volatility$Country == "Saint Lucia")] <- "St. Lucia"
+  price_volatility$Country[which(price_volatility$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  price_volatility$Country[which(price_volatility$Country == "Syrian Arab Republic")] <- "Syria"
+  price_volatility$Country[which(price_volatility$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  price_volatility$Country[which(price_volatility$Country == "United Republic of Tanzania")] <- "Tanzania"
+  price_volatility$Country[which(price_volatility$Country == "United States of America")] <- "United States"
   price_volatility$Country[which(price_volatility$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
-  price_volatility$Country[grep(pattern = "union", x = price_volatility$Country)] <- "Reunion"
-  price_volatility$Country[grep(pattern = "d'Ivoire", x = price_volatility$Country)] <- "Ivory Coast"
-  price_volatility$Country[which(price_volatility$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  price_volatility$Country[which(price_volatility$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  price_volatility$Country[which(price_volatility$Country == "Viet Nam")] <- "Vietnam"
   
   price_volatility <- dplyr::inner_join(x = country_codes, y = price_volatility, by = c("country.name.en" = "Country"))
   price_volatility <- price_volatility %>% dplyr::select(country.name.en, iso3c, Price.volatility.index)
@@ -943,16 +939,35 @@ if(!file.exists("food_nutrition_dimension.csv")){
   names(fsvar)[3] <- "Food.supply.variability"
   fsvar$Country <- as.character(fsvar$Country)
   fsvar$Country[which(fsvar$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  fsvar$Country[which(fsvar$Country == "Brunei Darussalam")] <- "Brunei"
   fsvar$Country[which(fsvar$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-  fsvar$Country[which(fsvar$Country == "Czechia")] <- "Czech Republic"
-  fsvar$Country[which(fsvar$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  fsvar$Country[which(fsvar$Country == "Holy See")] <- "Holy See (Vatican City State)"
-  fsvar$Country[which(fsvar$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  fsvar$Country[which(fsvar$Country == "Cabo Verde")] <- "Cape Verde"
+  fsvar$Country[which(fsvar$Country == "Congo")] <- "Republic of the Congo"
+  fsvar$Country[which(fsvar$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  fsvar$Country[which(fsvar$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  fsvar$Country[which(fsvar$Country == "Lao People's Democratic Republic")] <- "Laos"
+  fsvar$Country[which(fsvar$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  fsvar$Country[which(fsvar$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
+  fsvar$Country[which(fsvar$Country == "Republic of Korea")] <- "South Korea"
   fsvar$Country[which(fsvar$Country == "Réunion")] <- "Reunion"
+  fsvar$Country[which(fsvar$Country == "Republic of Moldova")] <- "Moldova"
+  fsvar$Country[which(fsvar$Country == "Russian Federation")] <- "Russia"
+  fsvar$Country[which(fsvar$Country == "Saint Helena, Ascension and Tristan da Cunha")] <- "St. Helena"
+  fsvar$Country[which(fsvar$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  fsvar$Country[which(fsvar$Country == "Saint Lucia")] <- "St. Lucia"
+  fsvar$Country[which(fsvar$Country == "Saint Pierre and Miquelon")] <- "St. Pierre and Miquelon"
+  fsvar$Country[which(fsvar$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
   fsvar$Country[which(fsvar$Country == "Sudan (former)")] <- "Sudan"
+  fsvar$Country[which(fsvar$Country == "Syrian Arab Republic")] <- "Syria"
+  fsvar$Country[which(fsvar$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  fsvar$Country[which(fsvar$Country == "United Republic of Tanzania")] <- "Tanzania"
+  fsvar$Country[which(fsvar$Country == "United States of America")] <- "United States"
+  fsvar$Country[which(fsvar$Country == "United States Virgin Islands")] <- "U.S. Virgin Islands"
   fsvar$Country[which(fsvar$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  fsvar$Country[which(fsvar$Country == "Viet Nam")] <- "Vietnam"
   fsvar$Country[which(fsvar$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
-  fsvar$Country[which(fsvar$Country == "West Bank and Gaza Strip")] <- "Palestine"
+  fsvar$Country[which(fsvar$Country == "West Bank and Gaza Strip")] <- "Palestinian Territories"
+  
   fsvar <- fsvar %>% filter(Country != "Serbia and Montenegro" & Year >= 2000)
   fsvar <- fsvar[!(fsvar$Country == "Sudan" & is.na(fsvar$Food.supply.variability)),]
   fsvar <- fsvar %>% filter(Year <= 2011)
@@ -985,8 +1000,25 @@ if(!file.exists("food_nutrition_dimension.csv")){
   foodBorne_illness <- read_csv(file = "./Input_data_final/Food_Nutrition/Foodborne_illness.csv", col_names = T)
   foodBorne_illness$Region <- NULL
   foodBorne_illness$Country <- as.character(foodBorne_illness$Country)
-  foodBorne_illness$Country[which(foodBorne_illness$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  foodBorne_illness$Country[which(foodBorne_illness$Country == "The Former Yugoslav Republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Brunei Darussalam")] <- "Brunei"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Cabo Verde")] <- "Cape Verde"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Congo")] <- "Republic of the Congo"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Czech Republic")] <- "Czechia"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Lao People's Democratic Republic")] <- "Laos"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Republic of Korea")] <- "South Korea"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Republic of Moldova")] <- "Moldova"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Russian Federation")] <- "Russia"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Saint Lucia")] <- "St. Lucia"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Syrian Arab Republic")] <- "Syria"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "The Former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "United Republic of Tanzania")] <- "Tanzania"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "United States of America")] <- "United States"
+  foodBorne_illness$Country[which(foodBorne_illness$Country == "Viet Nam")] <- "Vietnam"
   
   foodBorne_illness <- dplyr::inner_join(x = country_codes, y = foodBorne_illness, by = c("country.name.en" = "Country"))
   foodBorne_illness <- foodBorne_illness %>% dplyr::select(country.name.en, iso3c, Foodborne.illness)
@@ -1003,13 +1035,7 @@ if(!file.exists("food_nutrition_dimension.csv")){
   food_loss$Country <- as.character(food_loss$Country)
   food_loss$Country[which(food_loss$Country == "Congo (Dem. Rep.)")] <- "Democratic Republic of the Congo"
   food_loss$Country[grep(pattern = "Ivoire", x = food_loss$Country)] <- "Ivory Coast"
-  food_loss$Country[which(food_loss$Country == "Laos")] <- "Lao People's Democratic Republic"
-  food_loss$Country[which(food_loss$Country == "Russia")] <- "Russian Federation"
-  food_loss$Country[which(food_loss$Country == "South Korea")] <- "Republic of Korea"
-  food_loss$Country[which(food_loss$Country == "Syria")] <- "Syrian Arab Republic"
-  food_loss$Country[which(food_loss$Country == "Tanzania")] <- "United Republic of Tanzania"
-  food_loss$Country[which(food_loss$Country == "United States")] <- "United States of America"
-  food_loss$Country[which(food_loss$Country == "Vietnam")] <- "Viet Nam"
+  food_loss$Country[which(food_loss$Country == "Czech Republic")] <- "Czechia"
   
   food_loss <- dplyr::inner_join(x = country_codes, y = food_loss, by = c("country.name.en" = "Country"))
   food_loss <- food_loss %>% dplyr::select(country.name.en, iso3c, Food.loss)
@@ -1026,17 +1052,36 @@ if(!file.exists("food_nutrition_dimension.csv")){
   diet_div <- diet_div %>% select(Country, Year, Value)
   names(diet_div)[3] <- "Diet.diversification"
   diet_div$Country <- as.character(diet_div$Country)
-  diet_div$Country[which(diet_div$Country == "Côte d'Ivoire")] <- "Ivory Coast"
   diet_div$Country[which(diet_div$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
-  diet_div$Country[which(diet_div$Country == "Czechia")] <- "Czech Republic"
-  diet_div$Country[which(diet_div$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  diet_div$Country[which(diet_div$Country == "Holy See")] <- "Holy See (Vatican City State)"
-  diet_div$Country[which(diet_div$Country == "Netherlands Antilles (former)")] <- "Netherlands Antilles"
+  diet_div$Country[which(diet_div$Country == "Brunei Darussalam")] <- "Brunei"
+  diet_div$Country[which(diet_div$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  diet_div$Country[which(diet_div$Country == "Cabo Verde")] <- "Cape Verde"
+  diet_div$Country[which(diet_div$Country == "Congo")] <- "Republic of the Congo"
+  diet_div$Country[which(diet_div$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  diet_div$Country[which(diet_div$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  diet_div$Country[which(diet_div$Country == "Lao People's Democratic Republic")] <- "Laos"
+  diet_div$Country[which(diet_div$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  diet_div$Country[which(diet_div$Country == "Netherlands Antilles (former)")] <- "Caribbean Netherlands"
+  diet_div$Country[which(diet_div$Country == "Republic of Korea")] <- "South Korea"
   diet_div$Country[which(diet_div$Country == "Réunion")] <- "Reunion"
+  diet_div$Country[which(diet_div$Country == "Republic of Moldova")] <- "Moldova"
+  diet_div$Country[which(diet_div$Country == "Russian Federation")] <- "Russia"
+  diet_div$Country[which(diet_div$Country == "Saint Helena, Ascension and Tristan da Cunha")] <- "St. Helena"
+  diet_div$Country[which(diet_div$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  diet_div$Country[which(diet_div$Country == "Saint Lucia")] <- "St. Lucia"
+  diet_div$Country[which(diet_div$Country == "Saint Pierre and Miquelon")] <- "St. Pierre and Miquelon"
+  diet_div$Country[which(diet_div$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
   diet_div$Country[which(diet_div$Country == "Sudan (former)")] <- "Sudan"
+  diet_div$Country[which(diet_div$Country == "Syrian Arab Republic")] <- "Syria"
+  diet_div$Country[which(diet_div$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  diet_div$Country[which(diet_div$Country == "United Republic of Tanzania")] <- "Tanzania"
+  diet_div$Country[which(diet_div$Country == "United States of America")] <- "United States"
+  diet_div$Country[which(diet_div$Country == "United States Virgin Islands")] <- "U.S. Virgin Islands"
   diet_div$Country[which(diet_div$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  diet_div$Country[which(diet_div$Country == "Viet Nam")] <- "Vietnam"
   diet_div$Country[which(diet_div$Country == "Wallis and Futuna Islands")] <- "Wallis and Futuna"
-  diet_div$Country[which(diet_div$Country == "West Bank and Gaza Strip")] <- "Palestine"
+  diet_div$Country[which(diet_div$Country == "West Bank and Gaza Strip")] <- "Palestinian Territories"
+  
   diet_div <- diet_div %>% filter(Country != "Serbia and Montenegro" & Year >= 2000)
   diet_div$Year <- as.character(diet_div$Year)
   diet_div$Year[which(diet_div$Year == "2000-2002")] <- "2001"
@@ -1096,14 +1141,32 @@ if(!file.exists("food_nutrition_dimension.csv")){
   crop_diversity <- crop_diversity %>% select(Country, Crop.diversity)
   crop_diversity$Country <- crop_diversity$Country %>% as.character
   crop_diversity$Country[which(crop_diversity$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  crop_diversity$Country[which(crop_diversity$Country == "Brunei Darussalam")] <- "Brunei"
+  crop_diversity$Country[which(crop_diversity$Country == "Côte d'Ivoire")] <- "Ivory Coast"
+  crop_diversity$Country[which(crop_diversity$Country == "Cabo Verde")] <- "Cape Verde"
   crop_diversity$Country[which(crop_diversity$Country == "China, Hong Kong SAR")] <- "Hong Kong"
-  crop_diversity$Country[which(crop_diversity$Country == "China, Macao SAR")] <- "Macao"
+  crop_diversity$Country[which(crop_diversity$Country == "China, Macao SAR")] <- "Macau"
   crop_diversity$Country[which(crop_diversity$Country == "China, mainland")] <- "China"
-  crop_diversity$Country[which(crop_diversity$Country == "China, Taiwan Province of")] <- "Taiwan, Province of China"
-  crop_diversity$Country[which(crop_diversity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  crop_diversity$Country[which(crop_diversity$Country == "Occupied Palestinian Territory")] <- "Palestine"
+  crop_diversity$Country[which(crop_diversity$Country == "China, Taiwan Province of")] <- "Taiwan"
+  crop_diversity$Country[which(crop_diversity$Country == "Congo")] <- "Republic of the Congo"
+  crop_diversity$Country[which(crop_diversity$Country == "Czech Republic")] <- "Czechia"
+  crop_diversity$Country[which(crop_diversity$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  crop_diversity$Country[which(crop_diversity$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  crop_diversity$Country[which(crop_diversity$Country == "Lao People's Democratic Republic")] <- "Laos"
+  crop_diversity$Country[which(crop_diversity$Country == "Occupied Palestinian Territory")] <- "Palestinian Territories"
+  crop_diversity$Country[which(crop_diversity$Country == "Republic of Korea")] <- "South Korea"
+  crop_diversity$Country[which(crop_diversity$Country == "Republic of Moldova")] <- "Moldova"
+  crop_diversity$Country[which(crop_diversity$Country == "Russian Federation")] <- "Russia"
+  crop_diversity$Country[which(crop_diversity$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  crop_diversity$Country[which(crop_diversity$Country == "Saint Lucia")] <- "St. Lucia"
+  crop_diversity$Country[which(crop_diversity$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
   crop_diversity$Country[which(crop_diversity$Country == "Sudan (former)")] <- "Sudan"
+  crop_diversity$Country[which(crop_diversity$Country == "Syrian Arab Republic")] <- "Syria"
+  crop_diversity$Country[which(crop_diversity$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  crop_diversity$Country[which(crop_diversity$Country == "United Republic of Tanzania")] <- "Tanzania"
+  crop_diversity$Country[which(crop_diversity$Country == "United States of America")] <- "United States"
   crop_diversity$Country[which(crop_diversity$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  crop_diversity$Country[which(crop_diversity$Country == "Viet Nam")] <- "Vietnam"
   
   crop_diversity <- dplyr::inner_join(x = country_codes, y = crop_diversity, by = c("country.name.en" = "Country"))
   crop_diversity <- crop_diversity %>% dplyr::select(country.name.en, iso3c, Crop.diversity)
@@ -1122,12 +1185,25 @@ if(!file.exists("food_nutrition_dimension.csv")){
   stunting <- stunting %>% select(Country, Year, Stunting)
   stunting$Country <- as.character(stunting$Country)
   stunting$Country[which(stunting$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  stunting$Country[which(stunting$Country == "Brunei Darussalam")] <- "Brunei"
   stunting$Country[which(stunting$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-  stunting$Country[which(stunting$Country == "Czechia")] <- "Czech Republic"
-  stunting$Country[which(stunting$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-  stunting$Country[which(stunting$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+  stunting$Country[which(stunting$Country == "Cabo Verde")] <- "Cape Verde"
+  stunting$Country[which(stunting$Country == "Congo")] <- "Republic of the Congo"
+  stunting$Country[which(stunting$Country == "Czech Republic")] <- "Czechia"
+  stunting$Country[which(stunting$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  stunting$Country[which(stunting$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  stunting$Country[which(stunting$Country == "Lao People's Democratic Republic")] <- "Laos"
+  stunting$Country[which(stunting$Country == "Republic of Korea")] <- "South Korea"
+  stunting$Country[which(stunting$Country == "Republic of Moldova")] <- "Moldova"
+  stunting$Country[which(stunting$Country == "Saint Lucia")] <- "St. Lucia"
+  stunting$Country[which(stunting$Country == "Syrian Arab Republic")] <- "Syria"
+  stunting$Country[which(stunting$Country == "The former Yugoslav republic of Macedonia")] <- "Macedonia"
   stunting$Country[which(stunting$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+  stunting$Country[which(stunting$Country == "United Republic of Tanzania")] <- "Tanzania"
+  stunting$Country[which(stunting$Country == "United States of America")] <- "United States"
   stunting$Country[which(stunting$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  stunting$Country[which(stunting$Country == "Viet Nam")] <- "Vietnam"
+  
   stunting <- stunting %>% filter(Year >= 2000)
   stunting$Year <- as.numeric(as.character(stunting$Year))
   
@@ -1166,13 +1242,29 @@ if(!file.exists("food_nutrition_dimension.csv")){
   obesity$Sex <- NULL
   colnames(obesity)[3] <- "Obesity"
   obesity$Country[which(obesity$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+  obesity$Country[which(obesity$Country == "Brunei Darussalam")] <- "Brunei"
   obesity$Country[which(obesity$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-  obesity$Country[which(obesity$Country == "Czechia")] <- "Czech Republic"
-  obesity$Country[which(obesity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+  obesity$Country[which(obesity$Country == "Cabo Verde")] <- "Cape Verde"
+  obesity$Country[which(obesity$Country == "Congo")] <- "Republic of the Congo"
+  obesity$Country[which(obesity$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  obesity$Country[which(obesity$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  obesity$Country[which(obesity$Country == "Lao People's Democratic Republic")] <- "Laos"
+  obesity$Country[which(obesity$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  obesity$Country[which(obesity$Country == "Republic of Korea")] <- "South Korea"
+  obesity$Country[which(obesity$Country == "Republic of Moldova")] <- "Moldova"
+  obesity$Country[which(obesity$Country == "Russian Federation")] <- "Russia"
+  obesity$Country[which(obesity$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  obesity$Country[which(obesity$Country == "Saint Lucia")] <- "St. Lucia"
+  obesity$Country[which(obesity$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
   obesity$Country[which(obesity$Country == "Sudan (former)")] <- "Sudan"
-  obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+  obesity$Country[which(obesity$Country == "Syrian Arab Republic")] <- "Syria"
+  obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "Macedonia"
   obesity$Country[which(obesity$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+  obesity$Country[which(obesity$Country == "United Republic of Tanzania")] <- "Tanzania"
+  obesity$Country[which(obesity$Country == "United States of America")] <- "United States"
   obesity$Country[which(obesity$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+  obesity$Country[which(obesity$Country == "Viet Nam")] <- "Vietnam"
+  
   obesity <- obesity %>% filter(Year >= 2000)
   obesity <- obesity[!(obesity$Country == "Sudan" & is.na(obesity$Obesity)),]
   
@@ -1208,6 +1300,28 @@ if(!file.exists("food_nutrition_dimension.csv")){
   # nigth_blindness <- nigth_blindness %>% dplyr::select(country.name.en, iso3c, Proportion.pop.night.blindness)
    
   serum_retinol <- read.csv("./Input_data_final/Food_Nutrition/VitaminA_deficiency/serum_retinol_deficiency.csv")
+  serum_retinol$Country <- serum_retinol$Country %>% as.character
+  serum_retinol$Country[which(serum_retinol$Country == "Brunei Darussalam")] <- "Brunei"
+  serum_retinol$Country[which(serum_retinol$Country == "Cabo Verde")] <- "Cape Verde"
+  serum_retinol$Country[which(serum_retinol$Country == "Congo")] <- "Republic of the Congo"
+  serum_retinol$Country[which(serum_retinol$Country == "Czech Republic")] <- "Czechia"
+  serum_retinol$Country[which(serum_retinol$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+  serum_retinol$Country[which(serum_retinol$Country == "Guinea Bissau")] <- "Guinea-Bissau"
+  serum_retinol$Country[which(serum_retinol$Country == "Iran (Islamic Republic of)")] <- "Iran"
+  serum_retinol$Country[which(serum_retinol$Country == "Lao People's Democratic Republic")] <- "Laos"
+  serum_retinol$Country[which(serum_retinol$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+  serum_retinol$Country[which(serum_retinol$Country == "Republic of Korea")] <- "South Korea"
+  serum_retinol$Country[which(serum_retinol$Country == "Republic of Moldova")] <- "Moldova"
+  serum_retinol$Country[which(serum_retinol$Country == "Russian Federation")] <- "Russia"
+  serum_retinol$Country[which(serum_retinol$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+  serum_retinol$Country[which(serum_retinol$Country == "Saint Lucia")] <- "St. Lucia"
+  serum_retinol$Country[which(serum_retinol$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
+  serum_retinol$Country[which(serum_retinol$Country == "Syrian Arab Republic")] <- "Syria"
+  serum_retinol$Country[which(serum_retinol$Country == "The former Yugoslav Republic of Macedonia")] <- "Macedonia"
+  serum_retinol$Country[which(serum_retinol$Country == "United Republic of Tanzania")] <- "Tanzania"
+  serum_retinol$Country[which(serum_retinol$Country == "United States of America")] <- "United States"
+  serum_retinol$Country[which(serum_retinol$Country == "Viet Nam")] <- "Vietnam"
+  
   serum_retinol <- dplyr::inner_join(x = country_codes, y = serum_retinol, by = c("country.name.en" = "Country"))
   serum_retinol <- serum_retinol %>% dplyr::select(country.name.en, iso3c, Serum.retinol.deficiency)
   apply(X = serum_retinol, MARGIN = 2, FUN = function(x){sum(!is.na(x))})
@@ -1250,8 +1364,9 @@ suppressMessages(library(corrplot))
 tableplot(food_nutritionDim[,-1], nBins = nrow(food_nutritionDim))
 
 # Correlation
-M <- cor(food_nutritionDim[,-1], use = "complete.obs", method = "spearman")
-corrplot(M, method = "square"); rm(M)
+food_nutritionDim[,-1] %>%
+  cor(use = "complete.obs", method = "spearman") %>%
+  corrplot(method = "square")
 
 # PCA
 FactoMineR::PCA(X = food_nutritionDim[complete.cases(food_nutritionDim),-1])

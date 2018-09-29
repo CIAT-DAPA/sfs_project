@@ -11,10 +11,10 @@ wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_Sy
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
 # Load packages
-library(pacman)
-pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
-               missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-               EnvStats, compiler, caretEnsemble)
+suppressMessages(library(pacman))
+suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
+                                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
+                                EnvStats, compiler, caretEnsemble))
 
 ## ========================================================================== ##
 ## Define countries to work with
