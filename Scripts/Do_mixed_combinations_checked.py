@@ -6,7 +6,7 @@ for x in a:
 	 	 for i in r:
 	 	 	 t.append(i+[y])
 	 r = t
-f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt", "w")
+f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt_checked.txt", "w")
 z = str(r)
 f.write(z)
 f.close()

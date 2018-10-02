@@ -21,17 +21,7 @@ suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doPa
 ## ========================================================================== ##
 
 # Country code translation
-country_codes <- countrycode::codelist %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
-country_codes$country.name.en <- country_codes$country.name.en %>% as.character
-country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Gambia (Islamic Republic of the)")] <- "Gambia"
-country_codes$country.name.en[which(country_codes$country.name.en == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, U.S.")] <- "United States Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela, Bolivarian Republic of")] <- "Venezuela"
-country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
-country_codes$country.name.en[which(country_codes$country.name.en == "Bolivia (Plurinational State of)")] <- "Bolivia"
-country_codes$fao[which(country_codes == "Reunion")] <- 182
+country_codes <- read.csv("../SFS_indicators/country_codes_update_28_09_18.csv")
 
 ## ========================================================================== ##
 ## DEMAND-CONSUMER
@@ -196,7 +186,6 @@ if(!file.exists("./demand_consumer.csv")){
   demand_consumer <- dplyr::left_join(x = demand_consumer, y = empl_services, by = c("country.name.en", "iso3c"))
   demand_consumer <- dplyr::left_join(x = demand_consumer, y = empl_agriculture, by = c("country.name.en", "iso3c"))
   
-  demand_consumer <- demand_consumer[-which(is.na(demand_consumer$iso3c)),]
   demand_consumer <- demand_consumer[-which(apply(X = demand_consumer[,3:ncol(demand_consumer)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 8),]
   rownames(demand_consumer) <- demand_consumer$country.name.en
   demand_consumer$country.name.en <- NULL
@@ -438,7 +427,6 @@ if(!file.exists("./production_supply.csv")){
   fertil_consump %>% complete.cases %>% sum
   
   
-  
   production_supply <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = temp, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = prec, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = sd_temp, by = c("country.name.en", "iso3c"))
@@ -450,7 +438,6 @@ if(!file.exists("./production_supply.csv")){
   production_supply <- dplyr::left_join(x = production_supply, y = chg_yield_fert, by = c("country.name.en", "iso3c"))
   production_supply <- dplyr::left_join(x = production_supply, y = fertil_consump, by = c("country.name.en", "iso3c"))
   
-  production_supply <- production_supply[-which(is.na(production_supply$iso3c)),]
   production_supply <- production_supply[-which(apply(X = production_supply[,3:ncol(production_supply)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 10),]
   rownames(production_supply) <- production_supply$country.name.en
   production_supply$country.name.en <- NULL
@@ -545,6 +532,16 @@ if(!file.exists("./trade_distribution.csv")){
   colnames(serv_imp)[1] <- "iso3c"
   colnames(serv_imp)[-1] <- gsub("X", "Y", colnames(serv_imp)[-1])
   
+  mrch_exp <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/merchandise_exports.csv")
+  mrch_exp$Country.Name <- mrch_exp$Indicator.Name <- mrch_exp$Indicator.Code <- NULL
+  colnames(mrch_exp)[1] <- "iso3c"
+  colnames(mrch_exp)[-1] <- gsub("X", "Y", colnames(mrch_exp)[-1])
+  
+  mrch_imp <- read.csv("./drivers_CB/Databases_modified/Trade_Distribution/merchandise_imports.csv")
+  mrch_imp$Country.Name <- mrch_imp$Indicator.Name <- mrch_imp$Indicator.Code <- NULL
+  colnames(mrch_imp)[1] <- "iso3c"
+  colnames(mrch_imp)[-1] <- gsub("X", "Y", colnames(mrch_imp)[-1])
+  
   serv_trd <- data.frame(iso3c = serv_exp$iso3c,
                          ifelse(is.na(as.matrix(serv_exp[,-1])),
                                 ifelse(is.na(as.matrix(serv_imp[,-1])),
@@ -555,7 +552,27 @@ if(!file.exists("./trade_distribution.csv")){
                                        as.matrix(serv_exp[,-1]) + as.matrix(serv_imp[,-1])))
                          )
   rm(serv_exp, serv_imp)
-  serv_trd <- serv_trd %>% dplyr::select(iso3c, Y1970:Y2017)
+  mrch_trd <- data.frame(iso3c = mrch_exp$iso3c,
+                         ifelse(is.na(as.matrix(mrch_exp[,-1])),
+                                ifelse(is.na(as.matrix(mrch_imp[,-1])),
+                                       NA,
+                                       as.matrix(mrch_imp[,-1])),
+                                ifelse(is.na(as.matrix(mrch_imp[,-1])),
+                                       as.matrix(mrch_exp[,-1]),
+                                       as.matrix(mrch_exp[,-1]) + as.matrix(mrch_imp[,-1])))
+  )
+  rm(mrch_exp, mrch_imp)
+  srmc_trd <- data.frame(iso3c = serv_trd$iso3c,
+                         ifelse(is.na(as.matrix(serv_trd[,-1])),
+                                ifelse(is.na(as.matrix(mrch_trd[,-1])),
+                                       NA,
+                                       as.matrix(mrch_trd[,-1])),
+                                ifelse(is.na(as.matrix(mrch_trd[,-1])),
+                                       as.matrix(serv_trd[,-1]),
+                                       as.matrix(serv_trd[,-1]) + as.matrix(mrch_trd[,-1])))
+  )
+  rm(serv_trd, mrch_trd)
+  srmc_trd <- srmc_trd %>% dplyr::select(iso3c, Y1970:Y2017)
   
   population <- read.csv("./drivers_CB/Databases_modified/Demand_Consumer/Final/population_total_annual_CB.csv")
   population$Country.Name <- population$Series.Name <- population$Series.Code <- NULL
@@ -563,26 +580,25 @@ if(!file.exists("./trade_distribution.csv")){
   colnames(population)[-1] <- gsub("X", "Y", colnames(population)[-1])
   population <- population %>% dplyr::select(iso3c, Y1970:Y2017)
   
-  base <- serv_trd %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
-  recent <- serv_trd %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
-  SERV <- data.frame(iso3c = serv_trd$iso3c, base = base, recent = recent)
+  base <- srmc_trd %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
+  recent <- srmc_trd %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
+  SERV <- data.frame(iso3c = srmc_trd$iso3c, base = base, recent = recent)
   base <- population %>% dplyr::select(Y2004:Y2006) %>% rowMeans(., na.rm = T)
   recent <- population %>% dplyr::select(Y2014:Y2016) %>% rowMeans(., na.rm = T)
   POP <- data.frame(iso3c = population$iso3c, base = base, recent = recent)
   ALL <- dplyr::inner_join(x = SERV, y = POP, by = "iso3c"); rm(base, recent, SERV, POP)
   base <- ALL$base.x/ALL$base.y
   recent <- ALL$recent.x/ALL$recent.y
-  serv_trd <- data.frame(iso3c = ALL$iso3c, chg_serv_trd = (recent - base)); rm(recent, base)
+  srmc_trd <- data.frame(iso3c = ALL$iso3c, chg_serv_trd = (recent - base)); rm(recent, base)
   
-  serv_trd <- dplyr::left_join(x = country_codes %>% select(iso3c, country.name.en), y = serv_trd, by = "iso3c")
-  serv_trd %>% complete.cases %>% sum
+  srmc_trd <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c, country.name.en), y = srmc_trd, by = "iso3c")
+  srmc_trd %>% complete.cases %>% sum
   
   
   trade_distribution <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = food_export, by = c("country.name.en", "iso3c"))
   trade_distribution <- dplyr::left_join(x = trade_distribution, y = foreign_invest, by = c("country.name.en", "iso3c"))
-  trade_distribution <- dplyr::left_join(x = trade_distribution, y = serv_trd, by = c("country.name.en", "iso3c"))
+  trade_distribution <- dplyr::left_join(x = trade_distribution, y = srmc_trd, by = c("country.name.en", "iso3c"))
   
-  trade_distribution <- trade_distribution[-which(is.na(trade_distribution$iso3c)),]
   trade_distribution <- trade_distribution[-which(apply(X = trade_distribution[,3:ncol(trade_distribution)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 3),]
   rownames(trade_distribution) <- trade_distribution$country.name.en
   trade_distribution$country.name.en <- NULL
@@ -606,19 +622,26 @@ if(!file.exists("./trade_distribution.csv")){
 ## ALL DRIVERS
 ## ========================================================================== ##
 
-if(file.exists("./demand_consumer.csv")){demand_consumer <- read.csv("./demand_consumer.csv", row.names = 1)}
-if(file.exists("./production_supply.csv")){production_supply <- read.csv("./production_supply.csv", row.names = 1)}
-if(file.exists("./trade_distribution.csv")){trade_distribution <- read.csv("./trade_distribution.csv", row.names = 1)}
-
-drivers <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = demand_consumer, by = "iso3c")
-drivers <- dplyr::left_join(x = drivers, y = production_supply, by = "iso3c")
-drivers <- dplyr::left_join(x = drivers, y = trade_distribution, by = "iso3c")
-drivers <- drivers[-which(is.na(drivers$iso3c)),]
-drivers <- drivers[-which(apply(X = drivers[,2:ncol(drivers)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 19),]
-
-drivers <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = drivers, by = "iso3c")
-rownames(drivers) <- drivers$country.name.en; drivers$country.name.en <- NULL
-rm(demand_consumer, production_supply, trade_distribution)
+if(!file.exists("./sfs_raw_drivers.csv")){
+  
+  if(file.exists("./demand_consumer.csv")){demand_consumer <- read.csv("./demand_consumer.csv", row.names = 1)}
+  if(file.exists("./production_supply.csv")){production_supply <- read.csv("./production_supply.csv", row.names = 1)}
+  if(file.exists("./trade_distribution.csv")){trade_distribution <- read.csv("./trade_distribution.csv", row.names = 1)}
+  
+  drivers <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = demand_consumer, by = "iso3c")
+  drivers <- dplyr::left_join(x = drivers, y = production_supply, by = "iso3c")
+  drivers <- dplyr::left_join(x = drivers, y = trade_distribution, by = "iso3c")
+  drivers <- drivers[-which(apply(X = drivers[,2:ncol(drivers)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 21),]
+  
+  drivers <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = drivers, by = "iso3c")
+  rownames(drivers) <- drivers$country.name.en; drivers$country.name.en <- NULL
+  rm(demand_consumer, production_supply, trade_distribution)
+  
+  write.csv(drivers, "./sfs_raw_drivers.csv", row.names = T)
+  
+} else {
+  drivers <- read.csv("./sfs_raw_drivers.csv", row.names = 1)
+}
 
 drivers %>% complete.cases %>% sum
 drivers[,-1] %>%
@@ -627,3 +650,160 @@ drivers[,-1] %>%
 drivers[,-1] %>%
   FactoMineR::PCA(scale.unit = T, graph = T) # %>%
   # FactoMineR::HCPC(res = ., nb.clust = -1) %>%
+
+## =================================================================================== ##
+## Calculating correlations
+## =================================================================================== ##
+
+sfs_index <- read.csv("../SFS_indicators/sfs_index_calculated.csv", row.names = 1)
+drivers_index <- dplyr::left_join(x = drivers, y = sfs_index %>% dplyr::select(iso3c, SFS_index), by = c("iso3c"))
+png(height = 1200, width = 1200, pointsize = 25, file = "../SFS_indicators/_graphs/correlation_matrix_sfs_index_drivers.png")
+drivers_index %>%
+  dplyr::select(ch_diet_health_attn:chg_serv_trd, SFS_index) %>%
+  cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
+drivers_index %>%
+  dplyr::select(ch_diet_health_attn:chg_serv_trd, SFS_index) %>%
+  cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
+                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
+dev.off()
+
+for(i in 2:22){
+  # print(cor.test(x = drivers_index[,i], y = drivers_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
+  tsv <- drivers_index %>%
+    dplyr::select(names(drivers_index)[i], SFS_index) %>%
+    tidyr::drop_na() %>%
+    ggplot(aes(x = .[,1], y = SFS_index)) +
+    geom_point() +
+    geom_smooth(se = F) +
+    xlab(names(drivers_index)[i]) +
+    ylab("Sustainability aggregated score") +
+    theme(legend.title = element_blank()) +
+    theme_bw() +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15),
+          legend.title = element_blank(),
+          legend.text  = element_text(size = 15))
+  ggsave(filename = paste0("../SFS_indicators/_graphs/_relations_drivers_vs_SFS_index/relation_SFS_index_vs_", names(drivers_index)[i], ".png"),
+         plot = tsv,
+         device = "png",
+         units = "in",
+         width = 8,
+         height = 8)
+}
+
+## =================================================================================== ##
+## Interactive version
+## =================================================================================== ##
+
+drivers_index <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = drivers_index, by = "iso3c")
+
+d <- plotly::highlight_key(drivers_index)
+g1 <- ggplot(data = d, aes(x = chg_sd_prec, y = SFS_index)) +
+  geom_point() +
+  # stat_smooth(color = 'red', method = 'loess', span = .9, se = FALSE) +
+  ylim(0, 1)
+g2 <- ggplot(data = d, aes(x = chg_mobile, y = SFS_index)) +
+  geom_point() +
+  ylim(0, 1)
+g <- g1 %>%
+  subplot(g2) %>%
+  layout(title = "Click and drag to select points",
+         dragmode = 'lasso') %>%
+  highlight("plotly_selected")
+suppressMessages(build <- plotly_build(g))
+build$x$data[[1]]$text <- paste0('Change over time in agricultural area: ', as.character(round(drivers_index$chg_sd_prec, 2)), '<br>', 
+                                 'SFS score: ', as.character(round(drivers_index$SFS_index, 2)), '<br>',
+                                 'Country: ', as.character(drivers_index$country.name.en))
+build$x$data[[2]]$text <- paste0('Change over time in mobile cellular subscriptions: ', as.character(round(drivers_index$chg_mobile, 2)), '<br>', 
+                                 'SFS score: ', as.character(round(drivers_index$SFS_index, 2)), '<br>',
+                                 'Country: ', as.character(drivers_index$country.name.en))
+suppressMessages(build)
+
+## =================================================================================== ##
+## Outlier detection 
+## =================================================================================== ##
+
+kmeans.result <- kmeans(drivers_index %>% dplyr::select(chg_sd_prec, SFS_index) %>% tidyr::drop_na(), centers = 3)
+# cluster centers
+kmeans.result$centers
+# calculate distances between objects and cluster centers
+centers <- kmeans.result$centers[kmeans.result$cluster,]
+distances <- sqrt(rowSums((drivers_index %>% dplyr::select(chg_sd_prec, SFS_index) %>% tidyr::drop_na() - centers)^2))
+# pick top 5 largest distances
+outliers <- order(distances, decreasing = T)[1:5]
+# who are outliers
+print(outliers)
+
+# calculate mean distances by cluster:
+m <- tapply(distances, kmeans.result$cluster,mean)
+
+# divide each distance by the mean for its cluster:
+d <- distances/(m[kmeans.result$cluster])
+
+d[order(d, decreasing=TRUE)][1:5]
+
+tst <- drivers_index %>% dplyr::select(chg_sd_prec, SFS_index) %>% tidyr::drop_na()
+plot(tst, pch = 20, cex = 2)
+points(tst[outliers,], pch = 20, col = 2, cex = 2)
+
+## =================================================================================== ##
+## Models
+## =================================================================================== ##
+
+pacman::p_load(DALEX, caret)
+
+set.seed(123)
+db <- drivers_index
+rownames(db) <- db$country.name.en
+db$country.name.en <- db$iso3c <- NULL
+regr_rf <- train(SFS_index ~ ., data = db %>% tidyr::drop_na(), method = "rf", ntree = 500)
+regr_lm <- train(SFS_index ~ ., data = db %>% tidyr::drop_na(), method = "lm")
+regr_gbm <- train(SFS_index ~ ., data = db %>% tidyr::drop_na(), method = "gbm")
+regr_nn <- train(SFS_index ~ ., data = db %>% tidyr::drop_na(),
+                 method = "nnet",
+                 linout = TRUE,
+                 preProcess = c('center', 'scale'),
+                 maxit = 500,
+                 tuneGrid = expand.grid(size = 2, decay = 0),
+                 trControl = trainControl(method = "none", seeds = 1))
+
+db_tst <- db %>% tidyr::drop_na()
+explainer_regr_rf <- DALEX::explain(regr_rf, label = "rf", 
+                                    data = db_tst, y = db_tst$SFS_index)
+explainer_regr_lm <- DALEX::explain(regr_lm, label = "lm", 
+                                    data = db_tst, y = db_tst$SFS_index)
+explainer_regr_nn <- DALEX::explain(regr_nn, label = "nn", 
+                                    data = db_tst, y = db_tst$SFS_index)
+mp_regr_rf <- model_performance(explainer_regr_rf)
+mp_regr_lm <- model_performance(explainer_regr_lm)
+mp_regr_nn <- model_performance(explainer_regr_nn)
+
+plot(mp_regr_rf, mp_regr_lm, mp_regr_nn)
+plot(mp_regr_rf, mp_regr_lm, mp_regr_nn, geom = "boxplot")
+
+vi_regr_rf <- variable_importance(explainer_regr_rf, loss_function = loss_root_mean_square)
+vi_regr_lm <- variable_importance(explainer_regr_lm, loss_function = loss_root_mean_square)
+vi_regr_nn <- variable_importance(explainer_regr_nn, loss_function = loss_root_mean_square)
+plot(vi_regr_rf, vi_regr_lm, vi_regr_nn)
+
+pdp_regr_rf  <- variable_response(explainer_regr_rf, variable =  "chg_hist_temp", type = "pdp")
+pdp_regr_lm  <- variable_response(explainer_regr_lm, variable =  "chg_hist_temp", type = "pdp")
+pdp_regr_nn  <- variable_response(explainer_regr_nn, variable =  "chg_hist_temp", type = "pdp")
+
+plot(pdp_regr_rf, pdp_regr_lm, pdp_regr_nn)
+
+profile_rf_neig  <- ceteris_paribus(explainer_regr_rf,  
+                                    observations = db_tst, 
+                                    y = db_tst$SFS_index)
+
+profile_lm_neig  <- ceteris_paribus(explainer_regr_lm,  
+                                    observations = db_tst, 
+                                    y = db_tst$SFS_index)
+
+plot(profile_rf_neig, 
+     selected_variables = "chg_serv_trd", size_residuals = 2,
+     color_residuals = "red", show_residuals = TRUE, show_observations = FALSE)
+
+plot(profile_lm_neig, 
+     selected_variables = "chg_serv_trd", size_residuals = 2,
+     color_residuals = "red", show_residuals = TRUE, show_observations = FALSE)

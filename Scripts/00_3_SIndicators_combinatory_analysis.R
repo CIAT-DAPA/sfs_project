@@ -276,7 +276,7 @@ if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indic
       cat('\t \t \t t.append(i+[y])', fill = T)
       cat('\t r = t', fill = T)
       # cat('f = open("C://Users/haachicanoy/Documents/testfile.txt", "w")', fill = T)
-      cat('f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt", "w")', fill = T)
+      cat('f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt_checked.txt", "w")', fill = T)
       cat('z = str(r)', fill = T)
       cat('f.write(z)', fill = T)
       cat('f.close()', fill = T)
@@ -284,7 +284,7 @@ if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indic
       shell(code)# system2(paste0('python ', code));# shell.exec(code)
       
     }
-    createCode(code = 'D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/Do_mixed_combinations.py')
+    createCode(code = 'D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/Do_mixed_combinations_checked.py')
   }
   
   if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt")){
