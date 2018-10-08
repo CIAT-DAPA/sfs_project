@@ -536,11 +536,14 @@ if(type == "static"){
   world2 <- dplyr::left_join(x = world, y = ref_vals, by = "ISO3")
   
   tsv <- tm_shape(world2) +
-    tm_polygons("SFS_index", n = 20, palette = brewer.pal(n = 100, name = "RdYlBu")) + # "RdBu"
+    tm_polygons("SFS_index",
+                n = 20,
+                palette = brewer.pal(n = 20, name = "RdYlBu"),
+                breaks = seq(0, .95, .05)) + # "RdBu", breaks = seq(0.01, 1, .01)
     tm_borders("gray20", lwd = .5) +
     tm_grid(projection = "longlat") +
     tm_layout(inner.margins = c(0, .02, .02, .02))
-  tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_v1.png", width = 16, height = 8, units = "in")
+  tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_v2.png", width = 16, height = 8, units = "in")
   tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_164countries.png", width = 16, height = 8, units = "in")
   tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_17countries.png", width = 16, height = 8, units = "in")
 } else {

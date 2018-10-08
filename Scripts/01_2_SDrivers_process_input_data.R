@@ -14,7 +14,7 @@ setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 suppressMessages(library(pacman))
 suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                                 missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-                                EnvStats, compiler, caretEnsemble))
+                                EnvStats, compiler, caretEnsemble, plotly))
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -698,7 +698,7 @@ for(i in 2:22){
 drivers_index <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = drivers_index, by = "iso3c")
 
 d <- plotly::highlight_key(drivers_index)
-g1 <- ggplot(data = d, aes(x = chg_sd_prec, y = SFS_index)) +
+g1 <- ggplot(data = d, aes(x = ch_diet_health_attn, y = SFS_index)) +
   geom_point() +
   # stat_smooth(color = 'red', method = 'loess', span = .9, se = FALSE) +
   ylim(0, 1)
@@ -711,7 +711,7 @@ g <- g1 %>%
          dragmode = 'lasso') %>%
   highlight("plotly_selected")
 suppressMessages(build <- plotly_build(g))
-build$x$data[[1]]$text <- paste0('Change over time in agricultural area: ', as.character(round(drivers_index$chg_sd_prec, 2)), '<br>', 
+build$x$data[[1]]$text <- paste0('Change over time in diet and health attention: ', as.character(round(drivers_index$ch_diet_health_attn, 2)), '<br>', 
                                  'SFS score: ', as.character(round(drivers_index$SFS_index, 2)), '<br>',
                                  'Country: ', as.character(drivers_index$country.name.en))
 build$x$data[[2]]$text <- paste0('Change over time in mobile cellular subscriptions: ', as.character(round(drivers_index$chg_mobile, 2)), '<br>', 
@@ -722,6 +722,85 @@ suppressMessages(build)
 ## =================================================================================== ##
 ## Outlier detection 
 ## =================================================================================== ##
+
+otlr_dtc <- lapply(X = 2:22, FUN = function(i){
+  
+  ## Correlation
+  cor1 <- broom::tidy(cor.test(x = drivers_index[,i], y = drivers_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
+  
+  ## Outliers detection
+  # Getting country codes
+  sb_tbl <- drivers_index %>%
+    dplyr::select(iso3c, names(drivers_index)[i], SFS_index) %>%
+    tidyr::drop_na()
+  countryNames <- sb_tbl$iso3c
+  
+  # Try different outliers detection methods
+  O3s <- sb_tbl[,-1] %>%
+    OutliersO3::O3prep(method = c("HDo", "PCS", "BAC", "adjOut", "DDC", "MCD"), tols = .1, boxplotLimits = 6)
+  O3s1 <- OutliersO3::O3plotM(O3s, caseNames = countryNames)
+  otlr <- O3s1$outsTable
+  if(length(grep(pattern = "0", x = otlr$Combination)) > 0){
+    otlr <- otlr[-grep(pattern = "0", x = otlr$Combination),]
+  }
+  sb_tbl_upt <- sb_tbl[-unique(as.numeric(otlr$Case)),]
+  
+  cor2 <- broom::tidy(cor.test(x = sb_tbl_upt[,2], y = sb_tbl_upt[,3], method = "spearman", use = "pairwise.complete.obs"))
+  
+  gcor <- rbind(cor1, cor2); rm(cor1, cor2)
+  gcor$driver <- names(drivers_index)[i]
+  gcor$rmvOtlr <- c(0, length(unique(as.numeric(otlr$Case))))
+  
+  tsv <- sb_tbl_upt %>%
+    ggplot(aes(x = .[,2], y = .[,3])) +
+    geom_point() +
+    geom_smooth(se = F) +
+    xlab(names(drivers_index)[i]) +
+    ylab("Sustainability aggregated score") +
+    theme(legend.title = element_blank()) +
+    theme_bw() +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15),
+          legend.title = element_blank(),
+          legend.text  = element_text(size = 15))
+  ggsave(filename = paste0("../SFS_indicators/_graphs/_relations_drivers_vs_SFS_index/relation_SFS_index_vs_", names(drivers_index)[i], "_removing_outliers.png"),
+         plot = tsv,
+         device = "png",
+         units = "in",
+         width = 8,
+         height = 8)
+  
+  return(gcor)
+  
+})
+otlr_dtc <- do.call(rbind, otlr_dtc)
+
+suppressMessages(library(OutliersO3))
+
+countryNames <- drivers_index %>%
+  dplyr::select(iso3c, ch_diet_health_attn, SFS_index) %>%
+  tidyr::drop_na() %>%
+  .$iso3c
+
+O3s <- drivers_index %>%
+  dplyr::select(ch_diet_health_attn, SFS_index) %>%
+  tidyr::drop_na() %>%
+  OutliersO3::O3prep(method = "HDo", tols = .05, boxplotLimits = 6)
+O3s1 <- OutliersO3::O3plotT(O3s, caseNames = countryNames)
+O3s1$gO3
+O3s1$gpcp
+
+O3s <- drivers_index %>%
+  dplyr::select(ch_diet_health_attn, SFS_index) %>%
+  tidyr::drop_na() %>%
+  OutliersO3::O3prep(method = c("HDo", "PCS", "BAC", "adjOut", "DDC", "MCD"), tols = .05, boxplotLimits = 6)
+O3s1 <- OutliersO3::O3plotM(O3s, caseNames = countryNames)
+O3s1$gO3
+O3s1$gpcp
+cx <- data.frame(outlier_method=names(O3s1$nOut), number_of_outliers=O3s1$nOut)
+knitr::kable(cx, row.names=FALSE)
+
+O3s1$outsTable
 
 kmeans.result <- kmeans(drivers_index %>% dplyr::select(chg_sd_prec, SFS_index) %>% tidyr::drop_na(), centers = 3)
 # cluster centers
