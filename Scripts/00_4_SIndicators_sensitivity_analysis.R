@@ -605,7 +605,7 @@ all_data_index %>%
 dev.off()
 
 for(i in 2:28){
-  # print(cor.test(x = all_data_index[,i], y = all_data_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
+  broom::tidy(cor.test(x = all_data_index[,i], y = all_data_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
   tsv <- all_data_index %>%
     ggplot(aes(x = all_data_index[,i], y = SFS_index)) +
     geom_point() +
