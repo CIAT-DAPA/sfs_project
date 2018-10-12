@@ -554,6 +554,17 @@ if(!file.exists("economic_dimension.csv")){
   TimeUnderemployment <- TimeUnderemployment %>% dplyr::select(country.name.en, iso3c, Time.underemployment)
   TimeUnderemployment <- TimeUnderemployment[complete.cases(TimeUnderemployment),]; rownames(TimeUnderemployment) <- 1:nrow(TimeUnderemployment)
   
+  # 3. GINI index for agricultural land
+  # Measure: Economic distribution
+  # Source: https://www.grain.org/article/entries/4929-hungry-for-land-small-farmers-feed-the-world-with-less-than-a-quarter-of-all-farmland
+  # Units: GINI index units
+  # Years: 2014
+  # Countries with data: 86
+  
+  gini_agr_land_dist <- read.csv(file = "./Input_data_final/Economic/GINI_agr_land_distribution.csv")
+  gini_agr_land_dist <- dplyr::inner_join(x = country_codes, y = gini_agr_land_dist, by = "iso3c")
+  gini_agr_land_dist <- gini_agr_land_dist %>% dplyr::select(country.name.en, iso3c, GINI.agr.land.distribution)
+  gini_agr_land_dist <- gini_agr_land_dist[complete.cases(gini_agr_land_dist),]; rownames(gini_agr_land_dist) <- 1:nrow(gini_agr_land_dist)
   
   ## 3. Wage employment distribution in agriculture
   ## Measure: Economic distribution
@@ -563,19 +574,19 @@ if(!file.exists("economic_dimension.csv")){
   ## Countries with data: depends on the year
   ## Average produces more information: 2005-2014, 131 countries
   
-  WageEmployment <- employment %>% select(Country, Year, Wage.employment) %>% spread(., key = Year, value = Wage.employment)
-  apply(X = WageEmployment, MARGIN = 2, FUN = function(x){sum(!is.na(x))})
-  WageEmployment$Wage.employment <- rowMeans(x = WageEmployment[,which(colnames(WageEmployment)=="2005"):ncol(WageEmployment)], na.rm = T)
-  WageEmployment <- WageEmployment %>% select(Country, Wage.employment)
-  
-  WageEmployment <- dplyr::inner_join(x = country_codes, y = WageEmployment, by = c("country.name.en" = "Country"))
-  WageEmployment <- WageEmployment %>% dplyr::select(country.name.en, iso3c, Wage.employment)
-  WageEmployment <- WageEmployment[complete.cases(WageEmployment),]; rownames(WageEmployment) <- 1:nrow(WageEmployment)
+  # WageEmployment <- employment %>% select(Country, Year, Wage.employment) %>% spread(., key = Year, value = Wage.employment)
+  # apply(X = WageEmployment, MARGIN = 2, FUN = function(x){sum(!is.na(x))})
+  # WageEmployment$Wage.employment <- rowMeans(x = WageEmployment[,which(colnames(WageEmployment)=="2005"):ncol(WageEmployment)], na.rm = T)
+  # WageEmployment <- WageEmployment %>% select(Country, Wage.employment)
+  # 
+  # WageEmployment <- dplyr::inner_join(x = country_codes, y = WageEmployment, by = c("country.name.en" = "Country"))
+  # WageEmployment <- WageEmployment %>% dplyr::select(country.name.en, iso3c, Wage.employment)
+  # WageEmployment <- WageEmployment[complete.cases(WageEmployment),]; rownames(WageEmployment) <- 1:nrow(WageEmployment)
   
   
   economicDim <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = recentAgValueAdded, by = c("country.name.en", "iso3c"))
   economicDim <- dplyr::left_join(x = economicDim, y = TimeUnderemployment, by = c("country.name.en", "iso3c"))
-  economicDim <- dplyr::left_join(x = economicDim, y = WageEmployment, by = c("country.name.en", "iso3c"))
+  economicDim <- dplyr::left_join(x = economicDim, y = gini_agr_land_dist, by = c("country.name.en", "iso3c"))
   
   economicDim <- economicDim[-which(apply(X = economicDim[,3:ncol(economicDim)], MARGIN = 1, FUN = function(x) sum(is.na(x))) == 3),]
   rownames(economicDim) <- economicDim$country.name.en
@@ -583,10 +594,10 @@ if(!file.exists("economic_dimension.csv")){
   
   write.csv(x = economicDim, file = "economic_dimension.csv", row.names = T)
   
-  rm(AgValueAdded, AgValueAddedList, employment, recentAgValueAdded, WageEmployment, TimeUnderemployment, yearsList)
+  rm(AgValueAdded, AgValueAddedList, employment, recentAgValueAdded, gini_agr_land_dist, TimeUnderemployment, yearsList)
   
 } else {
-  economicDim <- read.csv("economic_dimension.csv")
+  economicDim <- read.csv("economic_dimension.csv", row.names = 1)
 }
 
 # Distributions and missing values representation

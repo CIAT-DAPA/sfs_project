@@ -22,17 +22,7 @@ suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doPa
 
 # Country code translation
 # country_codes <- countrycode_data %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
-country_codes <- countrycode::codelist %>% dplyr::select(country.name.en, iso3c, iso3n, iso2c, fao, wb)
-country_codes$country.name.en <- country_codes$country.name.en %>% as.character
-country_codes$country.name.en[which(country_codes$country.name.en == "Côte D'Ivoire")] <- "Ivory Coast"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, British")] <- "British Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Gambia (Islamic Republic of the)")] <- "Gambia"
-country_codes$country.name.en[which(country_codes$country.name.en == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
-country_codes$country.name.en[which(country_codes$country.name.en == "Virgin Islands, U.S.")] <- "United States Virgin Islands"
-country_codes$country.name.en[which(country_codes$country.name.en == "Venezuela, Bolivarian Republic of")] <- "Venezuela"
-country_codes$country.name.en[which(country_codes$country.name.en == "Palestine, State of")] <- "Palestine"
-country_codes$country.name.en[which(country_codes$country.name.en == "Bolivia (Plurinational State of)")] <- "Bolivia"
-country_codes$fao[which(country_codes == "Reunion")] <- 182
+country_codes <- read.csv("./country_codes_update_28_09_18.csv")
 
 
 ## ========================================================================== ##
@@ -46,12 +36,24 @@ names(stunting)[4] <- "Stunting"
 stunting <- stunting %>% select(Country, Year, Stunting)
 stunting$Country <- as.character(stunting$Country)
 stunting$Country[which(stunting$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+stunting$Country[which(stunting$Country == "Brunei Darussalam")] <- "Brunei"
 stunting$Country[which(stunting$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-stunting$Country[which(stunting$Country == "Czechia")] <- "Czech Republic"
-stunting$Country[which(stunting$Country == "Guinea-Bissau")] <- "Guinea Bissau"
-stunting$Country[which(stunting$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+stunting$Country[which(stunting$Country == "Cabo Verde")] <- "Cape Verde"
+stunting$Country[which(stunting$Country == "Congo")] <- "Republic of the Congo"
+stunting$Country[which(stunting$Country == "Czech Republic")] <- "Czechia"
+stunting$Country[which(stunting$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+stunting$Country[which(stunting$Country == "Iran (Islamic Republic of)")] <- "Iran"
+stunting$Country[which(stunting$Country == "Lao People's Democratic Republic")] <- "Laos"
+stunting$Country[which(stunting$Country == "Republic of Korea")] <- "South Korea"
+stunting$Country[which(stunting$Country == "Republic of Moldova")] <- "Moldova"
+stunting$Country[which(stunting$Country == "Saint Lucia")] <- "St. Lucia"
+stunting$Country[which(stunting$Country == "Syrian Arab Republic")] <- "Syria"
+stunting$Country[which(stunting$Country == "The former Yugoslav republic of Macedonia")] <- "Macedonia"
 stunting$Country[which(stunting$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+stunting$Country[which(stunting$Country == "United Republic of Tanzania")] <- "Tanzania"
+stunting$Country[which(stunting$Country == "United States of America")] <- "United States"
 stunting$Country[which(stunting$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+stunting$Country[which(stunting$Country == "Viet Nam")] <- "Vietnam"
 stunting <- stunting %>% filter(Year >= 2000)
 stunting$Year <- as.numeric(as.character(stunting$Year))
 
@@ -101,13 +103,28 @@ obesity$Year <- as.numeric(as.character(obesity$Year))
 obesity$Sex <- NULL
 colnames(obesity)[3] <- "Obesity"
 obesity$Country[which(obesity$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+obesity$Country[which(obesity$Country == "Brunei Darussalam")] <- "Brunei"
 obesity$Country[which(obesity$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-obesity$Country[which(obesity$Country == "Czechia")] <- "Czech Republic"
-obesity$Country[which(obesity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+obesity$Country[which(obesity$Country == "Cabo Verde")] <- "Cape Verde"
+obesity$Country[which(obesity$Country == "Congo")] <- "Republic of the Congo"
+obesity$Country[which(obesity$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+obesity$Country[which(obesity$Country == "Iran (Islamic Republic of)")] <- "Iran"
+obesity$Country[which(obesity$Country == "Lao People's Democratic Republic")] <- "Laos"
+obesity$Country[which(obesity$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+obesity$Country[which(obesity$Country == "Republic of Korea")] <- "South Korea"
+obesity$Country[which(obesity$Country == "Republic of Moldova")] <- "Moldova"
+obesity$Country[which(obesity$Country == "Russian Federation")] <- "Russia"
+obesity$Country[which(obesity$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+obesity$Country[which(obesity$Country == "Saint Lucia")] <- "St. Lucia"
+obesity$Country[which(obesity$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
 obesity$Country[which(obesity$Country == "Sudan (former)")] <- "Sudan"
-obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+obesity$Country[which(obesity$Country == "Syrian Arab Republic")] <- "Syria"
+obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "Macedonia"
 obesity$Country[which(obesity$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+obesity$Country[which(obesity$Country == "United Republic of Tanzania")] <- "Tanzania"
+obesity$Country[which(obesity$Country == "United States of America")] <- "United States"
 obesity$Country[which(obesity$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+obesity$Country[which(obesity$Country == "Viet Nam")] <- "Vietnam"
 obesity <- obesity %>% filter(Year >= 2000)
 obesity <- obesity[!(obesity$Country == "Sudan" & is.na(obesity$Obesity)),]
 
@@ -144,17 +161,30 @@ obesity$Year <- as.numeric(as.character(obesity$Year))
 obesity$Sex <- NULL
 colnames(obesity)[3] <- "Obesity"
 obesity$Country[which(obesity$Country == "Bolivia (Plurinational State of)")] <- "Bolivia"
+obesity$Country[which(obesity$Country == "Brunei Darussalam")] <- "Brunei"
 obesity$Country[which(obesity$Country == "Côte d'Ivoire")] <- "Ivory Coast"
-obesity$Country[which(obesity$Country == "Czechia")] <- "Czech Republic"
-obesity$Country[which(obesity$Country == "Guinea-Bissau")] <- "Guinea Bissau"
+obesity$Country[which(obesity$Country == "Cabo Verde")] <- "Cape Verde"
+obesity$Country[which(obesity$Country == "Congo")] <- "Republic of the Congo"
+obesity$Country[which(obesity$Country == "Democratic People's Republic of Korea")] <- "North Korea"
+obesity$Country[which(obesity$Country == "Iran (Islamic Republic of)")] <- "Iran"
+obesity$Country[which(obesity$Country == "Lao People's Democratic Republic")] <- "Laos"
+obesity$Country[which(obesity$Country == "Micronesia (Federated States of)")] <- "Micronesia"
+obesity$Country[which(obesity$Country == "Republic of Korea")] <- "South Korea"
+obesity$Country[which(obesity$Country == "Republic of Moldova")] <- "Moldova"
+obesity$Country[which(obesity$Country == "Russian Federation")] <- "Russia"
+obesity$Country[which(obesity$Country == "Saint Kitts and Nevis")] <- "St. Kitts and Nevis"
+obesity$Country[which(obesity$Country == "Saint Lucia")] <- "St. Lucia"
+obesity$Country[which(obesity$Country == "Saint Vincent and the Grenadines")] <- "St. Vincent and Grenadines"
 obesity$Country[which(obesity$Country == "Sudan (former)")] <- "Sudan"
-obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "The former Yugoslav Republic of Macedonia"
+obesity$Country[which(obesity$Country == "Syrian Arab Republic")] <- "Syria"
+obesity$Country[which(obesity$Country == "The former Yugoslav republic of Macedonia")] <- "Macedonia"
 obesity$Country[which(obesity$Country == "United Kingdom of Great Britain and Northern Ireland")] <- "United Kingdom"
+obesity$Country[which(obesity$Country == "United Republic of Tanzania")] <- "Tanzania"
+obesity$Country[which(obesity$Country == "United States of America")] <- "United States"
 obesity$Country[which(obesity$Country == "Venezuela (Bolivarian Republic of)")] <- "Venezuela"
+obesity$Country[which(obesity$Country == "Viet Nam")] <- "Vietnam"
 obesity <- obesity %>% filter(Year >= 2000)
 obesity <- obesity[!(obesity$Country == "Sudan" & is.na(obesity$Obesity)),]
-
-# obesity %>% ggplot(aes(x = Year, y = Obesity, group = Country)) + geom_line(alpha = .2) + theme_bw()
 
 yearsList <- obesity$Year %>% unique %>% sort
 obesityList <- lapply(1:length(yearsList), function(i){

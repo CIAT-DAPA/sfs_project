@@ -196,34 +196,185 @@ build$x$data[[2]]$text <- paste0('Economic: ', as.character(round(sfs_index$Envi
 suppressMessages(build)
 
 
+# ------------------------------------------------------------------------------- #
+# SFS all indicators and sub-indexes analysis
+# ------------------------------------------------------------------------------- #
 
+ttst <- read.csv("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sfs_prcs_indicators_plus_indexes.csv", row.names = 1)
+suppressMessages(library(DALEX))
+suppressMessages(library(e1071))
+suppressMessages(library(ceterisParibus))
+suppressMessages(library(gbm))
+suppressMessages(library(xgboost))
+ttst2 <- ttst %>% dplyr::select(iso3c:Serum.retinol.deficiency, SFS_index)
+# Run models
+sfs_lm <- lm(SFS_index ~ ., data = ttst2[,-1])
+sfs_rf <- randomForest(SFS_index ~ ., data = ttst2[,-1])
+sfs_sv <- svm(SFS_index ~ ., data = ttst2[,-1])
+sfs_gbm <- gbm(SFS_index ~ ., data = ttst2[,-1], n.trees = 500)
+# Explainers
+expl_lm <- DALEX::explain(sfs_lm, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index)
+expl_rf <- DALEX::explain(sfs_rf, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index)
+expl_sv <- DALEX::explain(sfs_sv, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index)
+expl_gbm <- DALEX::explain(sfs_gbm, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index, predict_function = function(model, x) predict(model, x, n.trees = 500))
+# Model performance
+mp_lm <- DALEX::model_performance(expl_lm)
+mp_rf <- DALEX::model_performance(expl_rf)
+mp_sv <- DALEX::model_performance(expl_sv)
+mp_gbm <- DALEX::model_performance(expl_gbm)
+plot(mp_lm, mp_rf, mp_sv, mp_gbm)
+plot(mp_lm, mp_rf, mp_sv, mp_gbm, geom = "boxplot")
+# Feature importance
+vi_lm <- DALEX::variable_importance(expl_lm, loss_function = loss_root_mean_square, type = "difference")
+vi_rf <- DALEX::variable_importance(expl_rf, loss_function = loss_root_mean_square, type = "difference")
+vi_sv <- DALEX::variable_importance(expl_sv, loss_function = loss_root_mean_square, type = "difference")
+vi_gbm <- DALEX::variable_importance(expl_gbm, loss_function = loss_root_mean_square, type = "difference")
+plot(vi_lm, vi_rf, vi_sv, vi_gbm)
+vi_gnr <- rbind(vi_lm, vi_rf, vi_sv, vi_gbm)
+vi_gnr %>% ggplot(aes(x = reorder(variable, -dropout_loss), y = dropout_loss, group = label, fill = label)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  coord_flip()
 
+# Single variable response
+sv_lm  <- single_variable(expl_lm, variable =  "Obesity", type = "pdp")
+sv_rf  <- single_variable(expl_rf, variable =  "Obesity", type = "pdp")
+sv_sv  <- single_variable(expl_sv, variable =  "Obesity", type = "pdp")
+sv_gbm  <- single_variable(expl_gbm, variable =  "Obesity", type = "pdp")
+plot(sv_lm, sv_rf, sv_sv, sv_gbm)
 
-library(tidyverse)
-library(sf)
-library(rworldmap)
+ggplot(mp_rf, aes(observed, diff)) + geom_point() + 
+  xlab("Observed") + ylab("Predicted - Observed") + 
+  ggtitle("Diagnostic plot for the individual model") + theme_mi2()
 
-sfs_index <- read.csv("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sfs_index_normalized_indicators.csv")
-data("countriesCoarse")
+## Ceteris Paribus plots using neighbours
+# my_obs <- ttst[which(ttst$iso3c == "JOR"),-1]
+# neighbours <- select_neighbours(ttst[,-1], observation = my_obs, n = 10)
+# head(neighbours)
+# profile_rf_neig  <- ceteris_paribus(expl_rf,
+#                                     observations = neighbours, 
+#                                     y = neighbours$SFS_index)
+# plot(profile_rf_neig, 
+#      selected_variables = "Obesity", size_residuals = 2,
+#      color_residuals = "red", show_residuals = TRUE, show_observations = FALSE)
 
-# ----------------------------- #
-# Creating map
-# ----------------------------- #
+profile_model <- ceteris_paribus(expl_lm, observations = ttst[,-1], y = ttst$SFS_index)
+plot(profile_model, selected_variables = "Obesity", size_residuals = 2, color_residuals = "red", show_residuals = T, show_observations = T) +
+  ceteris_paribus_layer(profile_model, size = 3, alpha = 1, color = "blue",
+                        aggregate_profiles = median, show_observations = FALSE,
+                        selected_variables = "Obesity")
 
-countriesCoarse <- merge(countriesCoarse, sfs_index, by.x = "ISO3", by.y = "iso3c")
+# ------------------------------------------------------------------------------- #
+# SFS index controled by GDP analysis
+# ------------------------------------------------------------------------------- #
 
-pal <- colorNumeric('Reds', NULL)
+ttst <- read.csv("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sfs_prcs_indicators_plus_indexes.csv", row.names = 1)
+suppressMessages(library(DALEX))
+suppressMessages(library(e1071))
+suppressMessages(library(ceterisParibus))
+suppressMessages(library(gbm))
+suppressMessages(library(randomForest))
+suppressMessages(library(xgboost))
 
-map <- leaflet(countriesCoarse) %>%
-  addProviderTiles('CartoDB.Positron') %>%
-  clearShapes() %>%
-  addPolygons(stroke = FALSE, smoothFactor = 0, 
-              fillColor = ~pal(SFS_index), fillOpacity = 0.7, 
-              layerId = ~ISO3) %>%
-  addLegend(position = 'bottomright', pal = pal, 
-            values = countriesCoarse$SFS_index, title = 'Score')
-map
+gdp <- read.csv("D:/gdp_data/gdp_per_capita.csv")
+gdp <- gdp %>% select(Country.Code, X2014)
+names(gdp) <- c("iso3c", "GDP")
 
-# ----------------------------- #
-# Creating map
-# ----------------------------- #
+nms <- rownames(ttst)
+
+ttst <- left_join(x = ttst, y = gdp, by = "iso3c")
+rownames(ttst) <- nms
+
+ttst2 <- ttst %>% dplyr::select(iso3c:Serum.retinol.deficiency, GDP, SFS_index)
+# Run models
+sfs_lm <- lm(SFS_index ~ ., data = ttst2[,-1])
+sfs_rf <- randomForest(SFS_index ~ ., data = ttst2[,-1])
+sfs_sv <- svm(SFS_index ~ ., data = ttst2[,-1])
+sfs_gbm <- gbm(SFS_index ~ ., data = ttst2[,-1], n.trees = 500)
+# Explainers
+expl_lm <- DALEX::explain(sfs_lm, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index)
+expl_rf <- DALEX::explain(sfs_rf, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index)
+expl_sv <- DALEX::explain(sfs_sv, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index)
+expl_gbm <- DALEX::explain(sfs_gbm, data = ttst2[,2:(ncol(ttst2)-1)], y = ttst2$SFS_index, predict_function = function(model, x) predict(model, x, n.trees = 500))
+# Model performance
+mp_lm <- DALEX::model_performance(expl_lm)
+mp_rf <- DALEX::model_performance(expl_rf)
+mp_sv <- DALEX::model_performance(expl_sv)
+mp_gbm <- DALEX::model_performance(expl_gbm)
+plot(mp_lm, mp_rf, mp_sv, mp_gbm)
+plot(mp_lm, mp_rf, mp_sv, mp_gbm, geom = "boxplot")
+# Feature importance
+vi_lm <- DALEX::variable_importance(expl_lm, loss_function = loss_root_mean_square, type = "difference")
+vi_rf <- DALEX::variable_importance(expl_rf, loss_function = loss_root_mean_square, type = "difference")
+vi_sv <- DALEX::variable_importance(expl_sv, loss_function = loss_root_mean_square, type = "difference")
+vi_gbm <- DALEX::variable_importance(expl_gbm, loss_function = loss_root_mean_square, type = "difference")
+plot(vi_lm, vi_rf, vi_sv, vi_gbm)
+vi_gnr <- rbind(vi_lm, vi_rf, vi_sv, vi_gbm)
+vi_gnr %>% ggplot(aes(x = reorder(variable, -dropout_loss), y = dropout_loss, group = label, fill = label)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  coord_flip()
+
+# ------------------------------------------------------------------------------- #
+# Food and nutrition analysis
+# ------------------------------------------------------------------------------- #
+
+fnn <- ttst %>% select(iso3c, Food.available:Serum.retinol.deficiency, Food_nutrition)
+
+# Run models
+fnn_lm <- lm(Food_nutrition ~ ., data = fnn[,-1])
+fnn_rf <- randomForest(Food_nutrition ~ ., data = fnn[,-1])
+fnn_sv <- svm(Food_nutrition ~ ., data = fnn[,-1])
+fnn_gbm <- gbm(Food_nutrition ~ ., data = fnn[,-1], n.trees = 500)
+# Explainers
+fnn_expl_lm <- DALEX::explain(fnn_lm, data = fnn[,2:(ncol(fnn)-1)], y = fnn$Food_nutrition)
+fnn_expl_rf <- DALEX::explain(fnn_rf, data = fnn[,2:(ncol(fnn)-1)], y = fnn$Food_nutrition)
+fnn_expl_sv <- DALEX::explain(fnn_sv, data = fnn[,2:(ncol(fnn)-1)], y = fnn$Food_nutrition)
+fnn_expl_gbm <- DALEX::explain(fnn_gbm, data = fnn[,2:(ncol(fnn)-1)], y = fnn$Food_nutrition, predict_function = function(model, x) predict(model, x, n.trees = 500))
+# Model performance
+fnn_mp_lm <- DALEX::model_performance(fnn_expl_lm)
+fnn_mp_rf <- DALEX::model_performance(fnn_expl_rf)
+fnn_mp_sv <- DALEX::model_performance(fnn_expl_sv)
+fnn_mp_gbm <- DALEX::model_performance(fnn_expl_gbm)
+plot(fnn_mp_lm, fnn_mp_rf, fnn_mp_sv, fnn_mp_gbm)
+plot(fnn_mp_lm, fnn_mp_rf, fnn_mp_sv, fnn_mp_gbm, geom = "boxplot")
+# Feature importance
+fnn_vi_lm <- DALEX::variable_importance(fnn_expl_lm, loss_function = loss_root_mean_square, type = "difference")
+fnn_vi_rf <- DALEX::variable_importance(fnn_expl_rf, loss_function = loss_root_mean_square, type = "difference")
+fnn_vi_sv <- DALEX::variable_importance(fnn_expl_sv, loss_function = loss_root_mean_square, type = "difference")
+fnn_vi_gbm <- DALEX::variable_importance(fnn_expl_gbm, loss_function = loss_root_mean_square, type = "difference")
+plot(fnn_vi_lm, fnn_vi_rf, fnn_vi_sv, fnn_vi_gbm)
+fnn_vi_gnr <- rbind(fnn_vi_lm, fnn_vi_rf, fnn_vi_sv, fnn_vi_gbm)
+fnn_vi_gnr %>% ggplot(aes(x = reorder(variable, -dropout_loss), y = dropout_loss, group = label, fill = label)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  coord_flip()
+
+# Single variable response
+fnn_sv_lm <- single_variable(fnn_expl_lm, variable = "Obesity", type = "pdp")
+fnn_sv_rf <- single_variable(fnn_expl_rf, variable = "Obesity", type = "pdp")
+fnn_sv_sv <- single_variable(fnn_expl_sv, variable = "Obesity", type = "pdp")
+fnn_sv_gbm <- single_variable(fnn_expl_gbm, variable = "Obesity", type = "pdp")
+plot(fnn_sv_lm, fnn_sv_rf, fnn_sv_sv, fnn_sv_gbm)
+
+ggplot(mp_rf, aes(observed, diff)) + geom_point() + 
+  xlab("Observed") + ylab("Predicted - Observed") + 
+  ggtitle("Diagnostic plot for the random forest model") + theme_mi2()
+
+my_obs <- fnn[which(fnn$iso3c == "COL"),-1]
+neighbours <- select_neighbours(fnn[,-1], observation = my_obs, n = 10)
+head(neighbours)
+
+profile_rf_neig <- ceteris_paribus(expl_rf,
+                                    observations = neighbours, 
+                                    y = neighbours$Food_nutrition)
+plot(profile_rf_neig,
+     selected_variables = "Obesity", size_residuals = 2,
+     color_residuals = "red", show_residuals = T, show_observations = T)
+
+profile_rf_glbl <- ceteris_paribus(expl_rf,
+                                   observations = fnn[,-1], 
+                                   y = fnn$Food_nutrition)
+plot(profile_rf_glbl,
+     selected_variables = "Obesity", size_residuals = 2,
+     color_residuals = "red", show_residuals = T, show_observations = T) +
+  ceteris_paribus_layer(profile_rf_glbl, size = 3, alpha = 1, color = "blue",
+                        aggregate_profiles = median, show_observations = FALSE,
+                        selected_variables = "Obesity")

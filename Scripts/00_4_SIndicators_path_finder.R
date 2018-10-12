@@ -1,5 +1,6 @@
-
-data = all_data; combList = dfs2$Indicators[[761]]
+# Path finder function
+# H. Achicanoy
+# CIAT, 2018
 
 path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id = nInd){
   
@@ -103,7 +104,6 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
     cat('\t \t for i in r:', fill = T)
     cat('\t \t \t t.append(i+[y])', fill = T)
     cat('\t r = t', fill = T)
-    # cat('f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/best_combination.txt", "w")', fill = T)
     cat('f = open("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Best_combinations/best_combination.txt", "w")', fill = T)
     cat('z = str(r)', fill = T)
     cat('f.write(z)', fill = T)
@@ -144,40 +144,3 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
   return(cat("Done.\n"))
   
 }
-finalCombinations <- path_finder(data = all_data, combList = dfs2$Indicators[[761]])
-
-stringdist::stringdist(a = finalCombinations$Indicators[6][[1]] %>% paste(collapse = "_"),
-                       b = finalCombinations$Indicators[9][[1]] %>% paste(collapse = "_"))
-
-finalCombinations$matches <- lapply(1:nrow(finalCombinations), function(i){
-  sum(dfs2$Indicators[[1]] %in% finalCombinations$Indicators[[i]])
-}) %>% unlist
-
-dim(finalCombinations)
-dim(finalCombinations %>% dplyr::filter(matches == 4))
-
-finalCombinations <- finalCombinations %>% dplyr::filter(matches == 4)
-finalCombinations %>% dplyr::group_by(nIndicators)
-
-nInd <- finalCombinations$nIndicators %>% unique %>% sort
-for(i in 2:length(nInd)){
-  
-  sub_df1 <- finalCombinations %>% dplyr::filter(nIndicators == nInd[i-1])
-  sub_df2 <- finalCombinations %>% dplyr::filter(nIndicators == nInd[i])
-  
-  lapply(1:nrow(sub_df2), function(i){
-    sum(sub_df1$Indicators[[1]] %in% sub_df2$Indicators[[i]])
-  }) %>% unlist
-  
-}
-
-
-
-finalCombinations %>% dplyr::filter(matches == 4) %>% ggplot(aes(x = nIndicators, y = nCountries)) + geom_point() +
-  xlab("Number of indicators") +
-  ylab("Countries with complete data") +
-  scale_x_continuous(breaks = 4:20) +
-  theme_bw()
-
-finalCombinations %>% dplyr::filter(nIndicators == 5 & nCountries < 110 & matches == 4)
-

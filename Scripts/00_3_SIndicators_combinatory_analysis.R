@@ -276,7 +276,7 @@ if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indic
       cat('\t \t \t t.append(i+[y])', fill = T)
       cat('\t r = t', fill = T)
       # cat('f = open("C://Users/haachicanoy/Documents/testfile.txt", "w")', fill = T)
-      cat('f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt_checked.txt", "w")', fill = T)
+      cat('f = open("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt_checked2.txt", "w")', fill = T)
       cat('z = str(r)', fill = T)
       cat('f.write(z)', fill = T)
       cat('f.close()', fill = T)
@@ -288,9 +288,9 @@ if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indic
   }
   
   if(!file.exists("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt")){
-    file.copy(from = "D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt.txt",
+    file.copy(from = "D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/auxTxt_checked2.txt",
               to = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Results/modelling_results/auxTxt.txt",
-              overwrite = F)
+              overwrite = T)
   }
   
   # Post-process indicators names

@@ -119,6 +119,7 @@ ggsave(filename = "./_graphs/all_possible_combinations.png", plot = tsv, device 
 ## ========================================================================== ##
 ## Find all possible combinations backwards
 ## ========================================================================== ##
+# source("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/00_4_SIndicators_path_finder.R")
 # nInd <- dfs$nIndicators[dfs$maxCombinations == "Yes"]
 # textFile2
 # paths <- lapply(X = 1:length(nInd), function(i){
@@ -326,7 +327,7 @@ ggsave(filename = "./_graphs/stability_backwards_20indicators.png", plot = tsv, 
 ## Instability plot: external variability without backwards process
 ## =================================================================================== ##
 
-calc_sfs_index <- function(combList = textFile2_uptd[[17]], correct_skew = "none", data = all_data, fnt_type = "geometric"){
+calc_sfs_index <- function(combList = textFile2[[17]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic"){
   
   # Measure skewness and apply scale transformations
   skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
@@ -417,6 +418,10 @@ calc_sfs_index <- function(combList = textFile2_uptd[[17]], correct_skew = "none
   return(ref_vals)
   
 }
+
+write.csv(cbind(data[,c(1, mtch)], ref_vals), "./sfs_prcs_indicators_plus_indexes.csv", row.names = T)
+
+ttst <- cbind(data[,c(1, mtch)], ref_vals)
 
 edge_path <- lapply(1:length(textFile2), function(i){
   tbl <- calc_sfs_index(combList = textFile2[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
@@ -593,7 +598,14 @@ if(type == "static"){
 ## Calculating correlations
 ## =================================================================================== ##
 
-all_data_index <- dplyr::left_join(x = all_data, y = ref_vals, by = c("iso3c" = "ISO3"))
+if(!file.exists("./sfs_raw_indicators_plus_index.csv")){
+  all_data_index <- dplyr::left_join(x = all_data, y = ref_vals, by = c("iso3c" = "ISO3"))
+  rownames(all_data_index) <- rownames(all_data)
+  write.csv(all_data_index, "./sfs_raw_indicators_plus_index.csv", row.names = T)
+} else {
+  all_data_index <- read.csv("./sfs_raw_indicators_plus_index.csv", row.names = 1)
+}
+
 png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix.png")
 all_data_index %>%
   dplyr::select(Emissions.agriculture.total:Serum.retinol.deficiency, SFS_index) %>%
@@ -625,6 +637,33 @@ for(i in 2:28){
          width = 8,
          height = 8)
 }
+
+all_data_index$country.name.en <- rownames(all_data_index)
+library(plotly)
+
+d <- plotly::highlight_key(all_data_index)
+g1 <- ggplot(data = d, aes(x = Female.labor.force, y = SFS_index)) +
+  geom_point() +
+  xlab("Labor force participation rate, female") +
+  ylab("SFS aggregated index")
+g2 <- ggplot(data = d, aes(x = Wage.employment, y = Agr.employment)) +
+  geom_point() +
+  xlab("Wage employment distribution in agriculture") +
+  ylab("Employment in agriculture")
+g <- g1 %>%
+  subplot(g2) %>%
+  layout(title = "Click and drag to select points",
+         dragmode = 'lasso') %>%
+  highlight("plotly_selected")
+suppressMessages(build <- plotly_build(g))
+build$x$data[[1]]$text <- paste0('Female labor force: ', as.character(round(all_data_index$Female.labor.force, 2)), '<br>', 
+                                 'SFS score: ', as.character(round(all_data_index$SFS_index, 2)), '<br>',
+                                 'Country: ', as.character(all_data_index$country.name.en))
+build$x$data[[2]]$text <- paste0('Wage.employment: ', as.character(round(all_data_index$Wage.employment, 2)), '<br>', 
+                                 'Agr.employment: ', as.character(round(all_data_index$Agr.employment, 2)), '<br>',
+                                 'Country: ', as.character(all_data_index$country.name.en))
+suppressMessages(build)
+
 
 ## =================================================================================== ##
 ## Plotting ranking boxplots per country
