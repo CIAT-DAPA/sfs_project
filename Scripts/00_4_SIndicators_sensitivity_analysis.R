@@ -10,11 +10,19 @@ OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
 wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
 setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
 
-# Load packages
+# Load packages and functions
 suppressMessages(library(pacman))
 suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                                 missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-                                EnvStats, compiler, caretEnsemble, tabplot, moments))
+                                EnvStats, compiler, caretEnsemble, tabplot, moments, RCurl))
+
+source_https <- function(u, unlink.tmp.certs = FALSE) {
+  require(RCurl)
+  if(!file.exists("cacert.pem")) download.file(url="http://curl.haxx.se/ca/cacert.pem", destfile = "cacert.pem")
+  script <- getURL(u, followlocation = TRUE, cainfo = "cacert.pem")
+  if(unlink.tmp.certs) unlink("cacert.pem")
+  eval(parse(text = script), envir= .GlobalEnv)
+}
 
 ## ========================================================================== ##
 ## Define countries to work with
@@ -119,9 +127,8 @@ ggsave(filename = "./_graphs/all_possible_combinations.png", plot = tsv, device 
 ## ========================================================================== ##
 ## Find all possible combinations backwards
 ## ========================================================================== ##
-# source("D:/ToBackup/repositories/cc-repo/sfs_project/Scripts/00_4_SIndicators_path_finder.R")
-# nInd <- dfs$nIndicators[dfs$maxCombinations == "Yes"]
-# textFile2
+# source_https(u = "https://raw.githubusercontent.com/CIAT-DAPA/sfs_project/master/Scripts/00_4_SIndicators_path_finder.R")
+# nInd <- unlist(lapply(1:length(textFile2), function(i) length(textFile2[[i]])))
 # paths <- lapply(X = 1:length(nInd), function(i){
 #   cat("Processing combination:", nInd[i], "...\n")
 #   path_finder(data = all_data, combList = textFile2[i][[1]], id = nInd[i])
@@ -131,7 +138,7 @@ ggsave(filename = "./_graphs/all_possible_combinations.png", plot = tsv, device 
 ## Sensitivity analysis: standarizing the dataset as first step
 ## =================================================================================== ##
 skew_methods <- c("none", "log", "box_cox")
-calculateIndices2 <- function(data = all_data, correct_skew = "none", combList = textFile2[[17]], theory = "true", fnt_type = "geometric"){
+calculateIndices2 <- function(data = all_data, correct_skew = "none", combList = textFile2[[17]], theory = "true", fnt_type = "arithmetic"){
   
   # Measure skewness and apply scale transformations
   skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
@@ -302,7 +309,7 @@ calculateIndices2 <- function(data = all_data, correct_skew = "none", combList =
 #   return(all_combinations2)
 # })
 # saveRDS(sensitivity_results, "./sensitivity_analysis_skewness_fltr.rds")
-sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_skewness_fltr.rds")
+sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_skewness_fltr2.rds")
 
 ## =================================================================================== ##
 ## Stability plot: internal variability after backwards process
