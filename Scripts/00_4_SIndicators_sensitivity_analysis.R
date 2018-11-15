@@ -426,9 +426,8 @@ calc_sfs_index <- function(combList = textFile2[[17]], correct_skew = "box_cox",
   
 }
 
-write.csv(cbind(data[,c(1, mtch)], ref_vals), "./sfs_prcs_indicators_plus_indexes.csv", row.names = T)
-
-ttst <- cbind(data[,c(1, mtch)], ref_vals)
+# write.csv(cbind(data[,c(1, mtch)], ref_vals), "./sfs_prcs_indicators_plus_indexes.csv", row.names = T)
+# ttst <- cbind(data[,c(1, mtch)], ref_vals)
 
 edge_path <- lapply(1:length(textFile2), function(i){
   tbl <- calc_sfs_index(combList = textFile2[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
@@ -555,9 +554,9 @@ if(type == "static"){
     tm_borders("gray20", lwd = .5) +
     tm_grid(projection = "longlat") +
     tm_layout(inner.margins = c(0, .02, .02, .02))
-  tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_v2.png", width = 16, height = 8, units = "in")
+  tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_v3.png", width = 16, height = 8, units = "in")
   tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_164countries.png", width = 16, height = 8, units = "in")
-  tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_17countries.png", width = 16, height = 8, units = "in")
+  tmap_save(tm = tsv, filename = "_graphs/sfs_index_map_16countries.png", width = 16, height = 8, units = "in")
 } else {
   if(type == "interactive"){
     ## Interactive
@@ -613,7 +612,20 @@ if(!file.exists("./sfs_raw_indicators_plus_index.csv")){
   all_data_index <- read.csv("./sfs_raw_indicators_plus_index.csv", row.names = 1)
 }
 
-png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix.png")
+if(!file.exists("./sfs_raw_indicators_plus_index_gdp.csv")){
+  
+  gdp_data <- read.csv("./Input_data_final/gdp_per_capita.csv")
+  gdp_data <- gdp_data %>% select(Country.Code, X2016)
+  names(gdp_data) <- c("iso3c", "GDP")
+  
+  all_data_index_gdp <- dplyr::left_join(x = all_data_index, y = gdp_data, by = "iso3c")
+  rownames(all_data_index_gdp) <- rownames(all_data_index)
+  write.csv(all_data_index_gdp, "./sfs_raw_indicators_plus_index_gdp.csv", row.names = T)
+} else {
+  all_data_index_gdp <- read.csv("./sfs_raw_indicators_plus_index_gdp.csv", row.names = 1)
+}
+
+png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_indicators_index2.png")
 all_data_index %>%
   dplyr::select(Emissions.agriculture.total:Serum.retinol.deficiency, SFS_index) %>%
   cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
@@ -623,8 +635,9 @@ all_data_index %>%
                                                                        diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
 dev.off()
 
-for(i in 2:28){
-  broom::tidy(cor.test(x = all_data_index[,i], y = all_data_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
+corList <- lapply(X = 2:28, FUN = function(i){
+  
+  corObj <- broom::tidy(cor.test(x = all_data_index[,i], y = all_data_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
   tsv <- all_data_index %>%
     ggplot(aes(x = all_data_index[,i], y = SFS_index)) +
     geom_point() +
@@ -637,13 +650,129 @@ for(i in 2:28){
           axis.text  = element_text(size = 15),
           legend.title = element_blank(),
           legend.text  = element_text(size = 15))
-  ggsave(filename = paste0("./_graphs/relation_SFS_index_vs_", names(all_data_index)[i], ".png"),
+  ggsave(filename = paste0("./_graphs/_relations_indicators_vs_SFS_index_updtd/relation_SFS_index_vs_", names(all_data_index)[i], ".png"),
          plot = tsv,
          device = "png",
          units = "in",
          width = 8,
          height = 8)
+  return(corObj)
+  
+})
+corList <- do.call(rbind, corList)
+
+suppressMessages(pacman::p_load(DALEX, e1071, ceterisParibus, gbm, randomForest, xgboost))
+
+calc_ind_relevance <- function(df = all_data_index_gdp %>% dplyr::select(SFS_index, Obesity, GDP) %>% tidyr::drop_na()){
+  
+  # Models
+  sfs_lm_full <- lm(SFS_index ~ ., data = df)
+  sfs_lm_jind <- lm(SFS_index ~ .-GDP, data = df)
+  sfs_rf_full <- randomForest(SFS_index ~ ., data = df)
+  sfs_rf_jind <- randomForest(SFS_index ~ .-GDP, data = df)
+  sfs_sv_full <- svm(SFS_index ~ ., data = df)
+  sfs_sv_jind <- svm(SFS_index ~ .-GDP, data = df)
+  sfs_gb_full <- gbm(SFS_index ~ ., data = df, n.trees = 500)
+  sfs_gb_jind <- gbm(SFS_index ~ .-GDP, data = df, n.trees = 500)
+  
+  # Explainers
+  expl_list <- lapply(X = 1:nrow(df), FUN = function(i){
+    expl_lm <- list(DALEX::explain(sfs_lm_full, data = df[-i,-1], y = df$SFS_index[-i]),
+                    DALEX::explain(sfs_lm_jind, data = df[-i,-1], y = df$SFS_index[-i]))
+    expl_rf <- list(DALEX::explain(sfs_rf_full, data = df[-i,-1], y = df$SFS_index[-i]),
+                    DALEX::explain(sfs_rf_jind, data = df[-i,-1], y = df$SFS_index[-i]))
+    expl_sv <- list(DALEX::explain(sfs_sv_full, data = df[-i,-1], y = df$SFS_index[-i]),
+                    DALEX::explain(sfs_sv_jind, data = df[-i,-1], y = df$SFS_index[-i]))
+    expl_gb_f <- DALEX::explain(sfs_gb_full, data = df[-i,-1], y = df$SFS_index[-i], predict_function = function(model, x) predict(model, x, n.trees = 500))
+    expl_gb_j <- DALEX::explain(sfs_gb_jind, data = df[-i,-1], y = df$SFS_index[-i], predict_function = function(model, x) predict(model, x, n.trees = 500))
+    explainers <- list(expl_lm, expl_rf, expl_sv, expl_gb_f, expl_gb_j)
+    return(explainers)
+  })
+  
+  # Model performance
+  prfm_list <- lapply(X = 1:length(expl_list), FUN = function(i){
+    mp_lm <- list(DALEX::model_performance(expl_list[[i]][[1]][[1]]),
+                  DALEX::model_performance(expl_list[[i]][[1]][[2]]))
+    mp_rf <- list(DALEX::model_performance(expl_list[[i]][[2]][[1]]),
+                  DALEX::model_performance(expl_list[[i]][[2]][[2]]))
+    mp_sv <- list(DALEX::model_performance(expl_list[[i]][[3]][[1]]),
+                  DALEX::model_performance(expl_list[[i]][[3]][[2]]))
+    mp_gb <- list(DALEX::model_performance(expl_list[[i]][[4]]),
+                  DALEX::model_performance(expl_list[[i]][[5]]))
+    performances <- list(mp_lm, mp_rf, mp_sv, mp_gb)
+    return(performances)
+  })
+  
+  # Feature importance
+  vimp_list <- lapply(X = 1:length(prfm_list), FUN = function(i){
+    vi_lm <- list(DALEX::variable_importance(expl_list[[i]][[1]][[1]], loss_function = loss_root_mean_square, type = "difference"),
+                  DALEX::variable_importance(expl_list[[i]][[1]][[2]], loss_function = loss_root_mean_square, type = "difference"))
+    vi_rf <- list(DALEX::variable_importance(expl_list[[i]][[2]][[1]], loss_function = loss_root_mean_square, type = "difference"),
+                  DALEX::variable_importance(expl_list[[i]][[2]][[2]], loss_function = loss_root_mean_square, type = "difference"))
+    vi_sv <- list(DALEX::variable_importance(expl_list[[i]][[3]][[1]], loss_function = loss_root_mean_square, type = "difference"),
+                  DALEX::variable_importance(expl_list[[i]][[3]][[2]], loss_function = loss_root_mean_square, type = "difference"))
+    vi_gb <- list(DALEX::variable_importance(expl_list[[i]][[4]], loss_function = loss_root_mean_square, type = "difference"),
+                  DALEX::variable_importance(expl_list[[i]][[5]], loss_function = loss_root_mean_square, type = "difference"))
+    importances <- list(vi_lm, vi_rf, vi_sv, vi_gb)
+    return(importances)
+  })
+  
+  for(i in 1:length(vimp_list)){
+    for(j in 1:4){
+      vimp_list[[i]][[j]][[1]]$method <- "Full"
+      vimp_list[[i]][[j]][[2]]$method <- "No GDP"
+      vimp_list[[i]][[j]][[1]]$jackniffe <- i
+      vimp_list[[i]][[j]][[2]]$jackniffe <- i
+    }
+  }
+  
+  vimp_mat <- do.call(rbind, vimp_list %>% purrr::flatten() %>% purrr::flatten())
+  vimp_mat %>% ggplot(aes(x = label, y = dropout_loss, fill = variable)) +
+    geom_boxplot()
+  
+  wilcox.test(x = vimp_mat$dropout_loss[vimp_mat$variable == "City.access" & vimp_mat$label == "svm" & vimp_mat$method == "No GDP"],
+              y = vimp_mat$dropout_loss[vimp_mat$variable == "City.access" & vimp_mat$label == "svm" & vimp_mat$method == "Full"],
+              alternative = "two.sided")
+  
 }
+
+
+lapply(X = 2:28, function(i){
+  
+  df <- all_data_index_gdp %>% dplyr::select(SFS_index, colnames(all_data_index_gdp)[i]) %>% tidyr::drop_na()
+  fcor <- broom::tidy(cor.test(x = df[,2], y = df$SFS_index, method = "spearman"))
+  fcor$alternative <- NULL
+  fcor$method <- "Full correlation"
+  df <- all_data_index_gdp %>% dplyr::select(SFS_index, GDP, colnames(all_data_index_gdp)[i]) %>% tidyr::drop_na()
+  parcor <- ppcor::pcor.test(x = df[,3], y = df$SFS_index, z = df$GDP, method = "spearman")
+  parcor$n <- parcor$gp <- NULL
+  colnames(parcor)[ncol(parcor)] <- "method"
+  parcor$method <- "Partial correlation"
+  semcor <- ppcor::spcor.test(x = df[,3], y = df$SFS_index, z = df$GDP, method = "spearman")
+  semcor$n <- semcor$gp <- NULL
+  colnames(semcor)[ncol(semcor)] <- "method"
+  semcor$method <- "Semi-partial correlation"
+  results <- rbind(fcor, parcor, semcor)
+  return(results)
+  
+})
+
+i = 28
+r_xy <- cor(df$Serum.retinol.deficiency, df$SFS_index, method = "spearman")
+r_xz <- cor(df$Serum.retinol.deficiency, df$GDP, method = "spearman")
+r_yz <- cor(df$SFS_index, df$GDP, method = "spearman")
+
+(r_xy - (r_xz*r_yz))/(sqrt(1 - r_xz^2)*sqrt(1 - r_yz^2))
+
+y_resid <- resid(lm(SFS_index ~ GDP, data = df))
+x_resid <- resid(lm(Serum.retinol.deficiency ~ GDP, data = df))
+
+cor(x_resid, y_resid, method = "spearman")
+
+
+broom::tidy(summary(lm(SFS_index ~ Obesity, data = all_data_index2)))
+cor.test(all_data_index2$Obesity, all_data_index2$SFS_index, method = "pearson", use = "pairwise.complete.obs")
+cor.test(all_data_index$Obesity, all_data_index$SFS_index, method = "pearson", use = "pairwise.complete.obs")
 
 all_data_index$country.name.en <- rownames(all_data_index)
 library(plotly)

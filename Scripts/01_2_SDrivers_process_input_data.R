@@ -655,7 +655,7 @@ drivers[,-1] %>%
 ## Calculating correlations
 ## =================================================================================== ##
 
-sfs_index <- read.csv("../SFS_indicators/sfs_index_calculated.csv", row.names = 1)
+sfs_index <- read.csv("../SFS_indicators/sfs_processed_indicators_plus_indexes.csv", row.names = 1)
 drivers_index <- dplyr::left_join(x = drivers, y = sfs_index %>% dplyr::select(iso3c, SFS_index), by = c("iso3c"))
 png(height = 1200, width = 1200, pointsize = 25, file = "../SFS_indicators/_graphs/correlation_matrix_sfs_index_drivers.png")
 drivers_index %>%
@@ -666,6 +666,27 @@ drivers_index %>%
   cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
                                                                        diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
 dev.off()
+
+tsv <- drivers_index %>%
+  dplyr::select(chg_pop_growth, SFS_index) %>%
+  tidyr::drop_na() %>%
+  ggplot(aes(x = .[,1], y = SFS_index)) +
+  geom_point() +
+  geom_smooth(method = lm, se = F) +
+  xlab("Change in population growth (annual %)") +
+  ylab("Sustainability aggregated score") +
+  theme(legend.title = element_blank()) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 20),
+        axis.text  = element_text(size = 15),
+        legend.title = element_blank(),
+        legend.text  = element_text(size = 15))
+ggsave(filename = paste0("../SFS_indicators/_graphs/_relations_drivers_vs_SFS_index/relation_SFS_index_vs_chg_pop_growth_updtd.png"),
+       plot = tsv,
+       device = "png",
+       units = "in",
+       width = 8,
+       height = 8)
 
 for(i in 2:22){
   # print(cor.test(x = drivers_index[,i], y = drivers_index$SFS_index, method = "spearman", use = "pairwise.complete.obs"))
