@@ -429,9 +429,7 @@ if(!file.exists("environmental_dimension.csv")){
   environmentDim <- read.csv("environmental_dimension.csv", row.names = 1)
 }
 
-suppressMessages(library(tabplot))
-suppressMessages(library(GGally))
-suppressMessages(library(corrplot))
+suppressMessages(pacman::p_load(tabplot, GGally, corrplot))
 
 # Distributions and missing values representation
 tableplot(environmentDim[,-1], nBins = nrow(environmentDim))
@@ -611,7 +609,6 @@ economicDim[,-1] %>%
 # PCA
 FactoMineR::PCA(X = economicDim[complete.cases(economicDim),-1])
 
-
 ## ========================================================================== ##
 ## SOCIAL
 ## ========================================================================== ##
@@ -729,7 +726,6 @@ socialDim[,-1] %>%
 
 # PCA
 FactoMineR::PCA(X = socialDim[complete.cases(socialDim),-1])
-
 
 ## ========================================================================== ##
 ## FOOD AND NUTRITION
@@ -1366,10 +1362,6 @@ if(!file.exists("food_nutrition_dimension.csv")){
 } else {
   food_nutritionDim <- read.csv("food_nutrition_dimension.csv", row.names = 1)
 }
-
-suppressMessages(library(tabplot))
-suppressMessages(library(GGally))
-suppressMessages(library(corrplot))
 
 # Distributions and missing values representation
 tableplot(food_nutritionDim[,-1], nBins = nrow(food_nutritionDim))
