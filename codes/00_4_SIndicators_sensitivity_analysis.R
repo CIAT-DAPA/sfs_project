@@ -1,138 +1,263 @@
 # Sensitivity analysis: SFS project
 # Implemented by: H. Achicanoy & P. Alvarez
-# CIAT, 2018
+# CIAT, 2019
 
 # R options
-g <- gc(reset = T); rm(list = ls()); options(warn = -1); options(scipen = 999)
+g <- gc(reset = T); rm(list = ls()); options(scipen = 999, warn = -1)
 
-OSys <- Sys.info()[1]
-OSysPath <- switch(OSys, "Linux" = "/mnt", "Windows" = "//dapadfs")
-wk_dir   <- switch(OSys, "Linux" = "/mnt/workspace_cluster_9/Sustainable_Food_System/SFS_indicators", "Windows" = "//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators")
-setwd(wk_dir); rm(wk_dir, OSysPath, OSys)
-
-# Load packages and functions
+# Load packages
 suppressMessages(library(pacman))
 suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                                 missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-                                EnvStats, compiler, caretEnsemble, tabplot, moments, RCurl))
+                                EnvStats, compiler, caretEnsemble))
 
-source_https <- function(u, unlink.tmp.certs = FALSE) {
-  require(RCurl)
-  if(!file.exists("cacert.pem")) download.file(url="http://curl.haxx.se/ca/cacert.pem", destfile = "cacert.pem")
-  script <- getURL(u, followlocation = TRUE, cainfo = "cacert.pem")
-  if(unlink.tmp.certs) unlink("cacert.pem")
-  eval(parse(text = script), envir= .GlobalEnv)
+# Define data directory
+data_path <- "D:/ToBackup/sustainable_food_systems/sfs_repo/data"
+# data_path <- "//dapadfs.cgiarad.org/workspace_cluster_9/Sustainable_Food_System/data"
+
+# Load scale adjusted data
+all_data <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted.csv"), row.names = 1)
+
+# Load edge's frontier
+frontier_df <- readRDS(paste0(data_path,"/outputs/edge_frontier/all_maximum_combinations_tibble.RDS"))
+frontier_df_fltrd <- frontier_df %>% dplyr::filter(max == 1)
+frontier_df_fltrd <- frontier_df_fltrd %>% dplyr::arrange(nIndicators); rm(frontier_df)
+
+# Plot: All possible combinations
+if(!file.exists(paste0(data_path,"/outputs/edge_frontier/all_possible_combinations.png"))){
+  # All possible combinations
+  frontier_df %>%
+    ggplot(aes(x = nIndicators, y = nCountries)) + geom_point(size = 4) +
+    theme_bw() +
+    scale_x_continuous(breaks = 4:27) +
+    scale_y_continuous(breaks = seq(0, 170, 25), limits = c(0, 170)) +
+    xlab("Number of indicators") +
+    ylab("Number of countries with complete data") +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15)) +
+    ggsave(filename = paste0(data_path,"/outputs/edge_frontier/all_possible_combinations.png"), units = "in", width = 8, height = 8)
+}
+# Plot: Edge's frontier
+if(!file.exists(paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators.png"))){
+  frontier_df_fltrd %>%
+    ggplot(aes(x = nIndicators, y = nCountries)) + geom_point(size = 4) +
+    theme_bw() +
+    scale_x_continuous(breaks = 4:27) +
+    scale_y_continuous(breaks = seq(0, 170, 25), limits = c(0, 170)) +
+    xlab("Number of indicators") +
+    ylab("Number of countries with complete data") +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15)) +
+    ggsave(filename = paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators.png"), units = "in", width = 8, height = 8)
 }
 
-## ========================================================================== ##
-## Define countries to work with
-## ========================================================================== ##
-
-# Country code translation
-country_codes <- read.csv("./country_codes_update_28_09_18.csv")
-
-## ========================================================================== ##
-## Load SFS indicators data
-## ========================================================================== ##
-
-all_data <- read.csv("sfs_raw_indicators.csv", row.names = 1)
-
-## ========================================================================== ##
-## Correlations
-## ========================================================================== ##
-
-# Raw data (just transforming pH indicator)
-png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix.png")
-all_data[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
-all_data[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
-                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
-dev.off()
-
-# Transformed data (after transforming pH indicator and applyin Box-Cox transform for skewed indicators)
-skew <- apply(X = all_data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
-all_data_transformed <- all_data
-for(i in 2:length(skew)){
-  if(skew[i] > 2 | skew[i] < -2){
-    all_data_transformed[,i][which(all_data_transformed[,i] == 0)] <- 0.01
-    optPar   <- EnvStats::boxcox(x = all_data_transformed[,i], optimize = T)
-    all_data_transformed[,i] <- EnvStats::boxcoxTransform(x = all_data_transformed[,i], lambda = optPar$lambda)
-  } else { all_data_transformed[,i] <- all_data_transformed[,i] }
+# Calculate SFS index
+calc_sfs_index <- function(combList = textFile2[[17]], data = all_data, fnt_type = "arithmetic"){
+  
+  # Updating dimension indexes
+  signs <- c(NA,
+             -1, -1, -1, +1, -1, +1, +1, -1,
+             +1, -1, -1,
+             +1, +1, +1,
+             +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, -1, -1, -1)
+  envPos <- 2:9; ecoPos <- 10:12; socPos <- 13:15; fntPos <- 16:28
+  mtch <- match(combList, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Step 1. Normalization function for all indicators
+  normalization <- function(x){
+    y <- (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
+    return(y)
+  }
+  
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
+  
+  # Updating data set
+  data <- data[which(complete.cases(data[, mtch])),]
+  
+  # HDI approach
+  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
+    
+    rNames <- data$iso3c
+    
+    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
+    for(m in mtch){
+      if(theory == "true"){
+        if(signs[m] < 0){
+          data[,m] <- 1 - data[,m]
+          data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
+        }
+      }
+    }; rm(m)
+    
+    # Step 3. Calculate an index for each dimension
+    # Environmental: geometric mean
+    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
+    # Economic: arithmetic mean
+    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
+    # Social: geometric mean
+    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
+    # Food and nutrition: For testing
+    if(fnt_type == "geometric"){
+      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
+    } else {
+      if(fnt_type == "arithmetic"){
+        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
+      }
+    }
+    
+    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
+    
+    # Step 4. Calculate a final composite index
+    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
+    rownames(indices) <- rNames
+    
+    return(indices)
+  }
+  ref_vals <- HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = fnt_type)
+  return(ref_vals)
+  
 }
-png(height = 1200, width = 1200, pointsize = 25, file = "./_graphs/correlation_matrix_trns_data.png")
-all_data_transformed[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(type = "upper", method = "square", tl.pos = "lt")
-all_data_transformed[,-1] %>% cor(use = "pairwise.complete.obs", method = "spearman") %>% corrplot(add = T, type = "lower", method = "number",
-                                                                                       diag = FALSE, tl.pos = "n", cl.pos = "n", number.cex = 0.5, number.digits = 2)
-dev.off()
-rm(all_data_transformed, optPar, i, skew)
 
-## ========================================================================== ##
-## Combinatory analysis
-## ========================================================================== ##
-# Post-process indicators names
-textFile <- readLines("./Results/modelling_results/auxTxt.txt")
-textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
-textFile <- lapply(textFile, function(x){
+# Optimize category assignation of categorical data
+
+# Adjust Fairtrade categories
+## Frequency-based assignment
+if(!file.exists(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_frequency.csv"))){
+  indices <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
+    df1 <- all_data[,c('iso3c', frontier_df_fltrd$indicators_list[i][[1]])]
+    df1$Country <- rownames(df1)
+    df1 <- df1 %>% dplyr::select(iso3c, Country)
+    df2 <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic")
+    df2$iso3c <- rownames(df2); rownames(df2) <- 1:nrow(df2)
+    df2 <- df2 %>% dplyr::select(iso3c, SFS_index)
+    df3 <- dplyr::inner_join(x = df1, y = df2, by = 'iso3c'); rm(df1, df2)
+    return(df3)
+  })
+  country_codes <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
+  country_codes <- country_codes %>% dplyr::select(iso3c, country.name.en)
+  colnames(country_codes)[2] <- "Country"
+  indices[[1]] <- dplyr::left_join(x = country_codes, y = indices[[1]], by = c("iso3c", "Country"))
+  indices_df <- Reduce(function(x, y) merge(x, y, by = c("iso3c", "Country"), all.x = T), indices)
+  colnames(indices_df)[3:ncol(indices_df)] <- paste0("SFS_index_", nInd)
+  indices_df$ToRemove <- apply(indices_df[3:ncol(indices_df)], 1, function(x) sum(is.na(x)))
+  indices_df <- indices_df[which(indices_df$ToRemove != 32),]
+  write.csv(indices_df, paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_frequency.csv"), row.names = F)
+}
+## Binary-based assignment
+if(!file.exists(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_binary.csv"))){
+  all_data <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted_fairtrade_binary.csv"))
+  indices <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
+    df1 <- all_data[,c('iso3c', frontier_df_fltrd$indicators_list[i][[1]])]
+    df1$Country <- rownames(df1)
+    df1 <- df1 %>% dplyr::select(iso3c, Country)
+    df2 <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic")
+    df2$iso3c <- rownames(df2); rownames(df2) <- 1:nrow(df2)
+    df2 <- df2 %>% dplyr::select(iso3c, SFS_index)
+    df3 <- dplyr::inner_join(x = df1, y = df2, by = 'iso3c'); rm(df1, df2)
+    return(df3)
+  })
+  country_codes <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
+  country_codes <- country_codes %>% dplyr::select(iso3c, country.name.en)
+  colnames(country_codes)[2] <- "Country"
+  indices[[1]] <- dplyr::left_join(x = country_codes, y = indices[[1]], by = c("iso3c", "Country"))
+  indices_df <- Reduce(function(x, y) merge(x, y, by = c("iso3c", "Country"), all.x = T), indices)
+  colnames(indices_df)[3:ncol(indices_df)] <- paste0("SFS_index_", nInd)
+  indices_df$ToRemove <- apply(indices_df[3:ncol(indices_df)], 1, function(x) sum(is.na(x)))
+  indices_df <- indices_df[which(indices_df$ToRemove != 32),]
+  write.csv(indices_df, paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_binary.csv"), row.names = F)
+}
+## Optimal scaling-based assignment
+if(!file.exists(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_optiscale.csv"))){
+  ft <- readxl::read_excel(paste0(data_path,"/inputs_raw/sfs_social_raw_indicators.xlsx"), sheet = "fair_trade")
+  indices_df <- read.csv(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_frequency.csv"))
+  indices_df2 <- dplyr::left_join(x = indices_df, y = ft, by = "Country")
+  # Optimal scaling for Fairtrade categories
+  cols_id <- frontier_df_fltrd$indicators_list %>% purrr::map(function(x){!("Fairtrade.ctg" %in% x)}) %>% unlist %>% which() %>% + 2
+  opt_scl <- cols_id %>% purrr::map(function(i){optiscale::opscale(x.qual = indices_df2$Category, x.quant = indices_df2[,i], level = 1, process = 1)})
+  opt_scl <- opt_scl %>% purrr::map(function(x){data.frame(Categories = x$qual, Quantification = x$os)})
+  opt_scl <- do.call(base::cbind, opt_scl)
+  opt_scl <- opt_scl[,-grep("Categories",colnames(opt_scl))[-1]]
+  opt_scl$Median <- apply(opt_scl[,-1], 1, median, na.rm = T)
+  opt_scl$iso3c <- indices_df2$iso3c
+  opt_scl <- opt_scl[,c("iso3c","Median")]
+  all_data$Fairtrade.ctg <- NA
+  all_data$Fairtrade.ctg[match(opt_scl$iso3c, all_data$iso3c)] <- opt_scl$Median
+  write.csv(x = all_data, file = paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted_final.csv"), row.names = T)
   
-  txt_str <- x
-  txt_str <- gsub(pattern = "_", replacement = ", ", x = txt_str)
-  txt_str <- gsub(pattern = "'", replacement = "", x = txt_str)
-  txt_str <- gsub(pattern = "\\]\\]", replacement = "", x = txt_str)
-  txt_str <- gsub(pattern = "\\[\\[", replacement = "", x = txt_str)
-  txt_str <- unlist(strsplit(x = txt_str, split = ", "))
-  return(txt_str)
+  # Re-calculate indices
+  indices <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
+    df1 <- all_data[,c('iso3c', frontier_df_fltrd$indicators_list[i][[1]])]
+    df1$Country <- rownames(df1)
+    df1 <- df1 %>% dplyr::select(iso3c, Country)
+    df2 <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]],
+                          data     = all_data,
+                          fnt_type = "arithmetic")
+    df2$iso3c <- rownames(df2); rownames(df2) <- 1:nrow(df2)
+    df2 <- df2 %>% dplyr::select(iso3c, SFS_index)
+    df3 <- dplyr::inner_join(x = df1, y = df2, by = 'iso3c'); rm(df1, df2)
+    return(df3)
+  })
+  country_codes <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
+  country_codes <- country_codes %>% dplyr::select(iso3c, country.name.en)
+  colnames(country_codes)[2] <- "Country"
+  indices[[1]] <- dplyr::left_join(x = country_codes, y = indices[[1]], by = c("iso3c", "Country"))
+  indices_df <- Reduce(function(x, y) merge(x, y, by = c("iso3c", "Country"), all.x = T), indices)
+  colnames(indices_df)[3:ncol(indices_df)] <- paste0("SFS_index_", nInd)
+  indices_df$ToRemove <- apply(indices_df[3:ncol(indices_df)], 1, function(x) sum(is.na(x)))
+  indices_df <- indices_df[which(indices_df$ToRemove != 32),]
   
-})
+  write.csv(indices_df, paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_optiscale.csv"), row.names = F)
+}
 
-## ========================================================================== ##
-## Selecting the maximum combination values
-## ========================================================================== ##
-dfs <- tibble::tibble(nCountries = purrr::map(.x = 1:length(textFile), .f = function(i){all_data %>% dplyr::select(textFile[[i]]) %>% tidyr::drop_na() %>% nrow}) %>% unlist,
-                      nIndicators = purrr::map(.x = textFile, .f = length) %>% unlist,
-                      Combination = textFile)
-nInd <- dfs$nIndicators %>% unique %>% sort
-combID <- rep(NA, length(nInd))
-for(i in 1:length(nInd)){
-  df <- dfs %>% dplyr::filter(nIndicators == nInd[i])
-  df <- df[which.max(df$nCountries),]
-  combID[i] <- df$Combination
-}; rm(i, df, nInd)
-textFile2 <- combID; rm(combID)
+comparison <- T
+if(comparison){
+  db1 <- readxl::read_excel(paste0(data_path,"/outputs/edge_frontier/edge_frontier_fairtrade_categories_comparison.xlsx"), sheet = 1)
+  db2 <- readxl::read_excel(paste0(data_path,"/outputs/edge_frontier/edge_frontier_fairtrade_categories_comparison.xlsx"), sheet = 2)
+  db3 <- readxl::read_excel(paste0(data_path,"/outputs/edge_frontier/edge_frontier_fairtrade_categories_comparison.xlsx"), sheet = 3)
+  
+  db1 <- db1 %>% tidyr::gather(Combination, SFS_index, -c(iso3c:Country))
+  db1$SFS_index <- db1$SFS_index %>% as.numeric()
+  db1$Method    <- "Frecuency"
+  
+  db2 <- db2 %>% tidyr::gather(Combination, SFS_index, -c(iso3c:Country))
+  db2$SFS_index <- db2$SFS_index %>% as.numeric()
+  db2$Method    <- "Binary"
+  
+  db3 <- db3 %>% tidyr::gather(Combination, SFS_index, -c(iso3c:Country))
+  db3$SFS_index <- db3$SFS_index %>% as.numeric()
+  db3$Method    <- "Optimal_scaling"
+  
+  db <- rbind(db1, db2, db3); rm(db1, db2, db3)
+  
+  db %>%
+    dplyr::filter(Combination == "SFS_index_22") %>%
+    ggplot2::ggplot(aes(x = reorder(Country, SFS_index), y = SFS_index, colour = Method)) +
+    ggplot2::geom_point() +
+    ggplot2::theme_bw() +
+    ggplot2::xlab("") +
+    ggplot2::ylab("Country food system sustainability scores") +
+    ggplot2::theme(axis.text.x = element_text(hjust = 0.95, vjust = 0.2, angle = 90))
+  
+}
 
-# Edge of maximum number of countries: 24 possibilities
-tsv <- dfs %>%
-  dplyr::group_by(nIndicators) %>%
-  dplyr::summarise(MaxCount = max(nCountries)) %>%
-  ggplot(aes(x = nIndicators, y = MaxCount)) + geom_point(size = 4) +
-  theme_bw() +
-  scale_x_continuous(breaks = 4:27) +
-  scale_y_continuous(breaks = seq(0, 170, 25), limits = c(0, 170)) +
-  xlab("Number of indicators") +
-  ylab("Number of countries with complete data") +
-  theme(axis.title = element_text(size = 20),
-        axis.text  = element_text(size = 15))
-ggsave(filename = "./_graphs/countries_vs_indicators.png", plot = tsv, device = "png", units = "in", width = 8, height = 8)
-
-# All possible combinations
-tsv <- dfs %>%
-  ggplot(aes(x = nIndicators, y = nCountries)) + geom_point(size = 4) +
-  theme_bw() +
-  scale_x_continuous(breaks = 4:27) +
-  scale_y_continuous(breaks = seq(0, 170, 25), limits = c(0, 170)) +
-  xlab("Number of indicators") +
-  ylab("Number of countries with complete data") +
-  theme(axis.title = element_text(size = 20),
-        axis.text  = element_text(size = 15))
-ggsave(filename = "./_graphs/all_possible_combinations.png", plot = tsv, device = "png", units = "in", width = 8, height = 8)
-
-## ========================================================================== ##
-## Find all possible combinations backwards
-## ========================================================================== ##
-# source_https(u = "https://raw.githubusercontent.com/CIAT-DAPA/sfs_project/master/Scripts/00_4_SIndicators_path_finder.R")
-# nInd <- unlist(lapply(1:length(textFile2), function(i) length(textFile2[[i]])))
-# paths <- lapply(X = 1:length(nInd), function(i){
-#   cat("Processing combination:", nInd[i], "...\n")
-#   path_finder(data = all_data, combList = textFile2[i][[1]], id = nInd[i])
-# })
+all_data  <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted_final.csv"), row.names = 1)
+sfs_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]],
+                            data     = all_data,
+                            fnt_type = "arithmetic")
+countries <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
+sfs_index$iso3c <- rownames(sfs_index)
+rownames(sfs_index) <- 1:nrow(sfs_index)
+sfs_index <- dplyr::left_join(x = sfs_index, y = countries %>% dplyr::select(iso3c, country.name.en), by = "iso3c")
+sfs_index <- sfs_index %>% dplyr::select(iso3c, country.name.en, Environment, Economic, Social, Food_nutrition, SFS_index)
+rownames(sfs_index) <- sfs_index$country.name.en; sfs_index$country.name.en <- NULL
+write.csv(sfs_index, paste0(data_path,"/outputs/sfs_final_index.csv"), row.names = T)
 
 ## =================================================================================== ##
 ## Sensitivity analysis: standarizing the dataset as first step

@@ -95,6 +95,9 @@ plot(gtrends(geo = "DE", keyword = "gesunde ernährung", hl = "de", low_search_v
 plot(gtrends(geo = "MY", keyword = "diet sihat", hl = "id", low_search_volume = T))
 plot(gtrends(geo = "VN", keyword = "Khẩu phần ăn lành mạnh", hl = "vi", low_search_volume = T))
 
+ru_test <- get_gtrends(code = "RU", key = "Здоровая диета", language = "ru")
+View(ru_test)
+
 # Calculating annual time series
 test <- get_gtrends(code = "US", key = "healthy diet", language = "en")
 test$Year <- lubridate::year(test$date)

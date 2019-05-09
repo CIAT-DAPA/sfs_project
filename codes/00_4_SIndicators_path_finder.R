@@ -1,14 +1,36 @@
-# Path finder function
-# H. Achicanoy
-# CIAT, 2018
+# Path finder function: calculate all backwards possible combinations
+# Implemented by: H. Achicanoy & P. Alvarez
+# CIAT, 2019
 
-path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id = nInd){
+# R options
+stop("This code needs to be run just once!"); g <- gc(reset = T); rm(list = ls()); options(scipen = 999, warn = -1)
+
+# Load packages
+suppressMessages(library(pacman))
+suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
+                                missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
+                                EnvStats, compiler, caretEnsemble))
+
+# Define data directory
+data_path <- "D:/ToBackup/sustainable_food_systems/sfs_repo/data"
+# data_path <- "//dapadfs.cgiarad.org/workspace_cluster_9/Sustainable_Food_System/data"
+
+# Load scale adjusted data
+all_data <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted.csv"), row.names = 1)
+
+# Load edge's frontier
+frontier_df <- readRDS(paste0(data_path,"/outputs/edge_frontier/all_maximum_combinations_tibble.RDS"))
+frontier_df_fltrd <- frontier_df %>% dplyr::filter(max == 1)
+frontier_df_fltrd <- frontier_df_fltrd %>% dplyr::arrange(nIndicators); rm(frontier_df)
+
+# Function to calculate all backwards possible combinations
+path_finder <- function(df = all_data, combList = dfs2$Indicators[[761]], id = nInd){
   
   # -------------------------------------------------------------------- #
   # Verify names position
   # -------------------------------------------------------------------- #
-  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
-  mtch <- match(combList, names(data))
+  envPos <- 2:9; ecoPos <- 10:12; socPos <- 13:15; fntPos <- 16:28
+  mtch <- match(combList, names(df))
   envUpt <- base::intersect(envPos, mtch)
   ecoUpt <- base::intersect(ecoPos, mtch)
   socUpt <- base::intersect(socPos, mtch)
@@ -20,7 +42,7 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
   # Environment
   envPos <- envUpt
   envCountries <- lapply(1:length(envPos), function(i){
-    combinations <- combn(x = names(all_data)[envPos], m = i) # Combination of indicators
+    combinations <- combn(x = names(df)[envPos], m = i) # Combination of indicators
     combCounts <- lapply(1:ncol(combinations), function(j){
       lComb <- list(Indicators = combinations[,j])
       return(lComb)
@@ -33,7 +55,7 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
   # Economic
   ecoPos <- ecoUpt
   ecoCountries <- lapply(1:length(ecoPos), function(i){
-    combinations <- combn(x = names(all_data)[ecoPos], m = i) # Combination of indicators
+    combinations <- combn(x = names(df)[ecoPos], m = i) # Combination of indicators
     combCounts <- lapply(1:ncol(combinations), function(j){
       lComb <- list(Indicators = combinations[,j])
       return(lComb)
@@ -46,7 +68,7 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
   # Social
   socPos <- socUpt
   socCountries <- lapply(1:length(socPos), function(i){
-    combinations <- combn(x = names(all_data)[socPos], m = i) # Combination of indicators
+    combinations <- combn(x = names(df)[socPos], m = i) # Combination of indicators
     combCounts <- lapply(1:ncol(combinations), function(j){
       lComb <- list(Indicators = combinations[,j])
       return(lComb)
@@ -59,7 +81,7 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
   # Food and nutrition
   fntPos <- fntUpt
   fntCountries <- lapply(1:length(fntPos), function(i){
-    combinations <- combn(x = names(all_data)[fntPos], m = i) # Combination of indicators
+    combinations <- combn(x = names(df)[fntPos], m = i) # Combination of indicators
     # For each combination of indicators calculate the number of countries with complete data
     combCounts <- lapply(1:ncol(combinations), function(j){
       lComb <- list(Indicators = combinations[,j])
@@ -92,7 +114,7 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
               '[', paste('"', unlist(fnt_mxIndc), '"', sep = '', collapse = ','),']',
               ']')
   
-  # setwd("~")
+  outfile <- paste0(data_path, "/outputs/edge_frontier/bckwd_combinations/bckwd_",id,".txt")
   createCode <- function(code){
     
     sink(code)
@@ -104,7 +126,7 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
     cat('\t \t for i in r:', fill = T)
     cat('\t \t \t t.append(i+[y])', fill = T)
     cat('\t r = t', fill = T)
-    cat('f = open("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Best_combinations/best_combination.txt", "w")', fill = T)
+    cat(paste0('f = open("',outfile,'", "w")'), fill = T)
     cat('z = str(r)', fill = T)
     cat('f.write(z)', fill = T)
     cat('f.close()', fill = T)
@@ -112,11 +134,9 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
     shell(code)
     
   }
-  createCode(code = '//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/Scripts/Do_mixed_combinations.py')
+  createCode(code = gsub("txt","py",outfile))
   
-  file.rename(from = "./Best_combinations/best_combination.txt",
-              to   = paste0("./Best_combinations/best_combination_", id, ".txt"))
-  textFile <- readLines(paste0("./Best_combinations//best_combination_", id, ".txt"))
+  textFile <- readLines(outfile)
   textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
   textFile <- lapply(textFile, function(x){
     
@@ -130,17 +150,66 @@ path_finder <- function(data = all_data, combList = dfs2$Indicators[[761]], id =
     
   })
   
+  grep2 <- Vectorize(grep, "pattern") %>% unlist()
+  
   finalCombinations <- lapply(1:length(textFile), function(i){
+    mtch <- match(textFile[[i]], names(df))
     df <- data.frame(
-      nCountries = sum(complete.cases(all_data[,textFile[[i]]])),
-      nIndicators = length(textFile[[i]])
+      nCountries  = sum(complete.cases(df[,textFile[[i]]])),
+      nIndicators = length(textFile[[i]]),
+      nEnv        = length(base::intersect(envPos, mtch)),
+      nEco        = length(base::intersect(ecoPos, mtch)),
+      nSoc        = length(base::intersect(socPos, mtch)),
+      nFnt        = length(base::intersect(fntPos, mtch))
     )
     return(df)
   })
   finalCombinations <- do.call(rbind, finalCombinations)
-  finalCombinations <- finalCombinations %>% dplyr::mutate(Indicators = textFile)
-  saveRDS(finalCombinations, paste0("./Best_combinations/RDSfiles/bc_", id, ".rds"))
+  if(nrow(finalCombinations) > 100){
+    nzx <- caret::nearZeroVar(finalCombinations)
+    idx <- clhs::clhs(finalCombinations[,-nzx], size = 100, progress = F, iter = 1000)
+    finalCombinations  <- finalCombinations[idx,]
+    textFile_upd <- textFile[idx]
+    finalCombinations <- finalCombinations %>% dplyr::mutate(Indicators = textFile_upd)
+  } else {
+    finalCombinations <- finalCombinations %>% dplyr::mutate(Indicators = textFile)
+  }
+  saveRDS(finalCombinations, paste0(data_path, "/outputs/edge_frontier/bckwd_combinations/bckwd_",id,".RDS"))
   
   return(cat("Done.\n"))
   
 }
+
+nInd <- unlist(lapply(1:length(frontier_df_fltrd$indicators_list), function(i) length(frontier_df_fltrd$indicators_list[[i]])))
+set.seed(1235); nInd <- paste0(nInd,"_",sample(1:100,32,replace = F))
+
+# Parallelization
+clusterExport <- local({
+  gets <- function(n, v) { assign(n, v, envir = .GlobalEnv); NULL }
+  function(cl, list, envir = .GlobalEnv) {
+    ## do this with only one clusterCall--loop on slaves?
+    for (name in list) {
+      clusterCall(cl, gets, name, get(name, envir = envir))
+    }
+  }
+})
+createCluster <- function(noCores, logfile = "/dev/null", export = NULL, lib = NULL) {
+  require(doSNOW)
+  cl <- makeCluster(noCores, type = "SOCK", outfile = logfile)
+  if(!is.null(export)) clusterExport(cl, export)
+  if(!is.null(lib)) {
+    plyr::l_ply(lib, function(dum) { 
+      clusterExport(cl, "dum", envir = environment())
+      clusterEvalQ(cl, library(dum, character.only = TRUE))
+    })
+  }
+  registerDoSNOW(cl)
+  return(cl)
+}
+cl  <- createCluster(16, export = list("path_finder","data_path","all_data","frontier_df_fltrd","nInd"), lib = list("tidyverse","clhs","caret"))
+paths <- parallel::parLapply(cl, 1:length(nInd), function(i){
+  cat("Processing combination:", nInd[i], "...\n")
+  path_finder(df = all_data, combList = frontier_df_fltrd$indicators_list[i][[1]], id = nInd[i])
+})
+parallel::stopCluster(cl)
+rm(data_path, all_data, path_finder, nInd, clusterExport, createCluster, cl)
