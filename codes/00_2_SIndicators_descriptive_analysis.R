@@ -16,7 +16,7 @@ data_path <- "D:/ToBackup/sustainable_food_systems/sfs_repo/data"
 # data_path <- "//dapadfs.cgiarad.org/workspace_cluster_9/Sustainable_Food_System/data"
 
 # Load SFS raw indicators
-all_data <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators.csv"), row.names = 1)
+all_data <- read.csv(paste0(data_path,"/outputs/indicators/sfs_raw_indicators.csv"), row.names = 1)
 
 # Function to calculate descriptive statistics
 descriptive_analysis <- function(df = all_data[,-1],

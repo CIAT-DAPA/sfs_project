@@ -16,10 +16,10 @@ data_path <- "D:/ToBackup/sustainable_food_systems/sfs_repo/data"
 # data_path <- "//dapadfs.cgiarad.org/workspace_cluster_9/Sustainable_Food_System/data"
 
 # Load scale adjusted data
-all_data <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted.csv"), row.names = 1)
+all_data <- read.csv(paste0(data_path,"/outputs/indicators/sfs_raw_indicators_scales_adjusted.csv"), row.names = 1)
 
 # Load edge's frontier
-frontier_df <- readRDS(paste0(data_path,"/outputs/edge_frontier/all_maximum_combinations_tibble.RDS"))
+frontier_df <- readRDS(paste0(data_path,"/outputs/indicators/edge_frontier/all_maximum_combinations_tibble.RDS"))
 frontier_df_fltrd <- frontier_df %>% dplyr::filter(max == 1)
 frontier_df_fltrd <- frontier_df_fltrd %>% dplyr::arrange(nIndicators); rm(frontier_df)
 
@@ -51,6 +51,18 @@ if(!file.exists(paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators
     ggsave(filename = paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators.png"), units = "in", width = 8, height = 8)
 }
 
+db1 <- all_data
+db1$AgValueAdded <- db1$AgValueAdded * 1.1
+db1_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = db1, fnt_type = "arithmetic")
+
+db2 <- all_data
+db2$Diet.diversification <- db2$Diet.diversification * 1.1
+db2_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = db2, fnt_type = "arithmetic")
+
+plot(reference$SFS_index, db1_index$SFS_index)
+plot(reference$SFS_index, db2_index$SFS_index)
+
+
 # Calculate SFS index
 calc_sfs_index <- function(combList = textFile2[[17]], data = all_data, fnt_type = "arithmetic"){
   
@@ -81,20 +93,112 @@ calc_sfs_index <- function(combList = textFile2[[17]], data = all_data, fnt_type
   # Updating data set
   data <- data[which(complete.cases(data[, mtch])),]
   
+  # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
+  for(m in mtch){
+      if(signs[m] < 0){
+        data[,m] <- 1 - data[,m]
+        data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
+      }
+  }; rm(m)
+  
+  # HDI approach
+  HDI_approach <- function(data = data, varInd = mtch, fnt_type = "geometric"){
+    
+    rNames <- data$iso3c
+    
+    # Step 3. Calculate an index for each dimension
+    # Environmental: geometric mean
+    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
+    # Economic: arithmetic mean
+    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
+    # Social: geometric mean
+    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
+    # Food and nutrition: For testing
+    if(fnt_type == "geometric"){
+      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
+    } else {
+      if(fnt_type == "arithmetic"){
+        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
+      }
+    }
+    
+    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
+    
+    # Step 4. Calculate a final composite index
+    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
+    rownames(indices) <- rNames
+    
+    return(indices)
+  }
+  ref_vals <- HDI_approach(data = data, varInd = mtch, fnt_type = fnt_type)
+  return(ref_vals)
+  
+}
+reference <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data, fnt_type = "arithmetic")
+reference$iso3c <- rownames(reference)
+
+# Obtain normalized variables
+normalized_vals  <- function(combList = textFile2[[17]], data = all_data){
+  
+  # Updating dimension indexes
+  signs <- c(NA,
+             -1, -1, -1, +1, -1, +1, +1, -1,
+             +1, -1, -1,
+             +1, +1, +1,
+             +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, -1, -1, -1)
+  envPos <- 2:9; ecoPos <- 10:12; socPos <- 13:15; fntPos <- 16:28
+  mtch <- match(combList, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
+  # Step 1. Normalization function for all indicators
+  normalization <- function(x){
+    y <- (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
+    return(y)
+  }
+  
+  for(j in 2:ncol(data)){
+    data[,j] <- normalization(x = data[,j])
+    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
+  }; rm(j)
+  
+  # Updating data set
+  data <- data[which(complete.cases(data[, mtch])),]
+  
+  # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
+  for(m in mtch){
+    if(signs[m] < 0){
+      data[,m] <- 1 - data[,m]
+      data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
+    }
+  }; rm(m)
+  
+  return(data)
+  
+}
+normalized_df <- normalized_vals(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data)
+# Obtain calculated indices
+index_formula <- function(combList = textFile2[[17]], data =all_data, fnt_type = "arithmetic"){
+  
+  # Updating dimension indexes
+  signs <- c(NA,
+             -1, -1, -1, +1, -1, +1, +1, -1,
+             +1, -1, -1,
+             +1, +1, +1,
+             +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, -1, -1, -1)
+  envPos <- 2:9; ecoPos <- 10:12; socPos <- 13:15; fntPos <- 16:28
+  mtch <- match(combList, names(data))
+  envUpt <- base::intersect(envPos, mtch)
+  ecoUpt <- base::intersect(ecoPos, mtch)
+  socUpt <- base::intersect(socPos, mtch)
+  fntUpt <- base::intersect(fntPos, mtch)
+  
   # HDI approach
   HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
     
     rNames <- data$iso3c
-    
-    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
-    for(m in mtch){
-      if(theory == "true"){
-        if(signs[m] < 0){
-          data[,m] <- 1 - data[,m]
-          data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
-        }
-      }
-    }; rm(m)
     
     # Step 3. Calculate an index for each dimension
     # Environmental: geometric mean
@@ -124,6 +228,186 @@ calc_sfs_index <- function(combList = textFile2[[17]], data = all_data, fnt_type
   return(ref_vals)
   
 }
+
+sens_analysis <- function(data = all_data, combList = frontier_df_fltrd$indicators_list[24][[1]], ...){
+  
+  normalized_df <- normalized_vals(combList = combList, data = data)
+  
+  sens_results <- 2:ncol(normalized_df) %>% purrr::map(function(i){
+    
+    cat(paste0(">>> Performing sensitivity for indicator: ", names(normalized_df)[i], " <<<\n"))
+    
+    # Creating seeds
+    set.seed(1224)
+    seeds <- runif(n = 100, min = 0, max = 10000) %>% round(0)
+    
+    cat(" 1. Evaluating permutations ...\n")
+    
+    permutations <- seeds %>% purrr::map(function(seed){
+      df      <- normalized_df
+      set.seed(seed)
+      df[,i]  <- sample(x = df[,i], size = nrow(df), replace = F)
+      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
+      results$iso3c <- rownames(results)
+      results$ctrl_par <- seed
+      results$perturbation <- "Permutations"
+      return(results)
+    }) %>% dplyr::bind_rows()
+    
+    
+    cat(" 2. Evaluating decreasing factors ...\n")
+    
+    decreasing_factors <- seq(1.5, 5, 0.5) %>% purrr::map(function(p){
+      df <- normalized_df
+      df[,i] <- df[,i]/p
+      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
+      results$iso3c <- rownames(results)
+      results$ctrl_par <- p
+      results$perturbation <- "Decreasing factors"
+      return(results)
+    }) %>% dplyr::bind_rows()
+    
+    cat(" 1. Evaluating white noise ...\n")
+    white_noise <- seeds %>% purrr::map(function(seed){
+      df      <- normalized_df
+      set.seed(seed)
+      df[,i]  <- df[,i] + rnorm(n = nrow(df), mean = 0, sd = 0.2)
+      df[,i][which(df[,i] < 0)] <- 0
+      df[,i][which(df[,i] > 1)] <- 1
+      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
+      results$iso3c <- rownames(results)
+      results$ctrl_par <- seed
+      results$perturbation <- "White noise"
+      return(results)
+    }) %>% dplyr::bind_rows()
+    
+    final_results <- list(permutations, decreasing_factors, white_noise) %>% dplyr::bind_rows()
+    final_results$indicator <- names(normalized_df)[i]
+    return(final_results)
+    
+  }) %>% dplyr::bind_rows()
+  return(sens_results)
+  
+}
+
+sens_analysis <- function(data = all_data, combList = frontier_df_fltrd$indicators_list[24][[1]], ...){
+  
+  normalized_df <- normalized_vals(combList = combList, data = data)
+  
+  sens_results <- 2:ncol(normalized_df) %>% purrr::map(function(i){
+    
+    cat(paste0(">>> Performing sensitivity for indicator: ", names(normalized_df)[i], " <<<\n"))
+    
+    # Creating seeds
+    set.seed(1224)
+    seeds <- runif(n = 100, min = 0, max = 10000) %>% round(0)
+    
+    cat(" 1. Evaluating permutations ...\n")
+    
+    permutations <- seeds %>% purrr::map(function(seed){
+      df      <- normalized_df
+      set.seed(seed)
+      df[,i]  <- sample(x = df[,i], size = nrow(df), replace = F)
+      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
+      results$iso3c <- rownames(results)
+      results$ctrl_par <- seed
+      results$perturbation <- "Permutations"
+      return(results)
+    }) %>% dplyr::bind_rows()
+    
+    
+    cat(" 2. Evaluating decreasing factors ...\n")
+    
+    decreasing_factors <- seq(1.5, 5, 0.5) %>% purrr::map(function(p){
+      df <- normalized_df
+      df[,i] <- df[,i]/p
+      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
+      results$iso3c <- rownames(results)
+      results$ctrl_par <- p
+      results$perturbation <- "Decreasing factors"
+      return(results)
+    }) %>% dplyr::bind_rows()
+    
+    cat(" 1. Evaluating white noise ...\n")
+    white_noise <- seeds %>% purrr::map(function(seed){
+      df      <- normalized_df
+      set.seed(seed)
+      df[,i]  <- df[,i] + rnorm(n = nrow(df), mean = 0, sd = 0.2)
+      df[,i][which(df[,i] < 0)] <- 0
+      df[,i][which(df[,i] > 1)] <- 1
+      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
+      results$iso3c <- rownames(results)
+      results$ctrl_par <- seed
+      results$perturbation <- "White noise"
+      return(results)
+    }) %>% dplyr::bind_rows()
+    
+    final_results <- list(permutations, decreasing_factors, white_noise) %>% dplyr::bind_rows()
+    final_results$indicator <- names(normalized_df)[i]
+    return(final_results)
+    
+  }) %>% dplyr::bind_rows()
+  return(sens_results)
+  
+}
+
+test <- sens_analysis(data = all_data, combList = frontier_df_fltrd$indicators_list[24][[1]])
+
+sd_vals <- normalized_df[,c("iso3c",combList)]
+for(i in 2:ncol(sd_vals)){
+  for(j in 1:nrow(sd_vals)){
+    sd_vals[j,i] <- reference$SFS_index[which(sd_vals$iso3c[j] == reference$iso3c)] - test %>% dplyr::filter(perturbation == "Permutations" & indicator == names(sd_vals)[i] & iso3c == sd_vals$iso3c[j]) %>% .[,"SFS_index"] %>% sd(., na.rm = T)
+  }
+}
+sd_vals[,-1] %>% cor(method = "spearman") %>% corrplot::corrplot()
+sd_vals[,-1] %>% apply(., 2, median) %>% sort()
+
+sd_vals1 <- normalized_df[,c("iso3c",combList)]
+for(i in 2:ncol(sd_vals1)){
+  for(j in 1:nrow(sd_vals1)){
+    sd_vals1[j,i] <- reference$SFS_index[which(sd_vals1$iso3c[j] == reference$iso3c)] - test %>% dplyr::filter(perturbation == "Permutations" & indicator == names(sd_vals1)[i] & iso3c == sd_vals1$iso3c[j]) %>% .[,"SFS_index"] %>% median(., na.rm = T)
+  }
+}
+
+sd_vals1[,-1] %>% cor(method = "spearman") %>% corrplot::corrplot()
+test_pca <- sd_vals1[,-1] %>% FactoMineR::PCA(., scale.unit = F)
+sd_vals1[,-1] %>% apply(., 2, median) %>% sort(decreasing = T)
+fviz_pca_biplot(test_pca, repel = TRUE)
+
+
+
+test %>% ggplot(aes(x = indicator, y = SFS_index)) + geom_boxplot() +
+  facet_wrap(~perturbation)
+
+test_stability <- function(indicator = "Obesity", perturbation = seq(1.5, 5, 0.5), df = normalized_df){
+  
+  sim <- perturbation %>% purrr::map(function(p){
+    df[,indicator] <- df[,indicator]/p
+    index <- calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+    index <- data.frame(iso3c = rownames(index), SFS_index = index$SFS_index)
+    return(index)
+  })
+  
+  sim <- Reduce(function(x,y) merge(x = x, y = y, by = "iso3c"), sim)
+  
+  return(sim)
+  
+}
+test_stability(indicator = "Obesity", perturbation = seq(1.5, 5, 0.5), df = normalized_df)
+test_stability(indicator = "Female.labor.force", perturbation = seq(1.5, 5, 0.5), df = normalized_df)
+
+
+
+df <- calc_sfs_nrml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data)
+df$Obesity <- df$Obesity/2
+calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+
+df <- calc_sfs_nrml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data)
+df$Female.labor.force <- df$Female.labor.force/2
+calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+
+
+calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = calc_sfs_nrml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data), fnt_type = "arithmetic")
 
 # Optimize category assignation of categorical data
 
@@ -247,7 +531,7 @@ if(comparison){
   
 }
 
-all_data  <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted_final.csv"), row.names = 1)
+all_data  <- read.csv(paste0(data_path,"/outputs/indicators/sfs_raw_indicators_scales_adjusted_final.csv"), row.names = 1)
 sfs_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]],
                             data     = all_data,
                             fnt_type = "arithmetic")
@@ -257,7 +541,10 @@ rownames(sfs_index) <- 1:nrow(sfs_index)
 sfs_index <- dplyr::left_join(x = sfs_index, y = countries %>% dplyr::select(iso3c, country.name.en), by = "iso3c")
 sfs_index <- sfs_index %>% dplyr::select(iso3c, country.name.en, Environment, Economic, Social, Food_nutrition, SFS_index)
 rownames(sfs_index) <- sfs_index$country.name.en; sfs_index$country.name.en <- NULL
-write.csv(sfs_index, paste0(data_path,"/outputs/sfs_final_index.csv"), row.names = T)
+write.csv(sfs_index, paste0(data_path,"/outputs/indicators/sfs_final_index.csv"), row.names = T)
+
+all_data1 <- all_data
+all_data1$Obesity <- all_data1$Obesity/2
 
 ## =================================================================================== ##
 ## Sensitivity analysis: standarizing the dataset as first step
