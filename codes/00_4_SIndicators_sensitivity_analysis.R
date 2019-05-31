@@ -51,9 +51,67 @@ if(!file.exists(paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators
     ggsave(filename = paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators.png"), units = "in", width = 8, height = 8)
 }
 
-db1 <- all_data
-db1$AgValueAdded <- db1$AgValueAdded * 1.1
-db1_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = db1, fnt_type = "arithmetic")
+reference <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data, fnt_type = "arithmetic")
+
+# Environment
+df <- all_data
+
+countries <- match(rownames(reference), df$iso3c)
+df$iso3c[rowsID]
+
+combn(x = countries, m = 10)
+
+set.seed(1235)
+rowsID <- sample(countries, 20, replace = F) %>% sort()
+
+df$Emissions.agriculture.total[rowsID] <- df$Emissions.agriculture.total[rowsID] * 1.2
+chg_env_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+
+# Economic
+df <- all_data
+
+df$AgValueAdded[rowsID] <- df$AgValueAdded[rowsID] * 1.2
+chg_eco_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+
+# Social
+df <- all_data
+
+df$Female.labor.force[rowsID] <- df$Female.labor.force[rowsID] * 1.2
+chg_soc_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+
+# Food and nutrition
+df <- all_data
+
+df$Food.loss[rowsID] <- df$Food.loss[rowsID] * 1.2
+chg_fnt_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
+
+
+df_res <- data.frame(reference   = reference$SFS_index,
+                     environment = chg_env_dim$SFS_index,
+                     economic    = chg_eco_dim$SFS_index,
+                     social      = chg_soc_dim$SFS_index,
+                     food_nutr   = chg_fnt_dim$SFS_index)
+rownames(df_res) <- rownames(reference)
+cases <- df_res[which(rownames(df_res) %in% df$iso3c[rowsID]),]
+cases[,2] <- (cases[,2] - cases[,1])/cases[,1]
+cases[,3] <- (cases[,3] - cases[,1])/cases[,1]
+cases[,4] <- (cases[,4] - cases[,1])/cases[,1]
+cases[,5] <- (cases[,5] - cases[,1])/cases[,1]
+cases %>% apply(2, mean)
+
+df_res2 <- df_res
+df_res2[,2] <- (df_res2[,2] - df_res2[,1])/df_res2[,1]
+df_res2[,3] <- (df_res2[,3] - df_res2[,1])/df_res2[,1]
+df_res2[,4] <- (df_res2[,4] - df_res2[,1])/df_res2[,1]
+df_res2[,5] <- (df_res2[,5] - df_res2[,1])/df_res2[,1]
+df_res2$social[df_res2$social < 0] <- 0
+df_res2$economic[df_res2$economic < 0] <- 0
+df_res2 %>% apply(2, mean)
+
+barplot(cases$social, names.arg = rownames(cases))
+
+
+
 
 db2 <- all_data
 db2$Diet.diversification <- db2$Diet.diversification * 1.1
@@ -61,6 +119,7 @@ db2_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]
 
 plot(reference$SFS_index, db1_index$SFS_index)
 plot(reference$SFS_index, db2_index$SFS_index)
+
 
 
 # Calculate SFS index
