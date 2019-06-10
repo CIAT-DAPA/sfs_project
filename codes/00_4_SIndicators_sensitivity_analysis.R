@@ -24,7 +24,7 @@ frontier_df_fltrd <- frontier_df %>% dplyr::filter(max == 1)
 frontier_df_fltrd <- frontier_df_fltrd %>% dplyr::arrange(nIndicators); rm(frontier_df)
 
 # Plot: All possible combinations
-if(!file.exists(paste0(data_path,"/outputs/edge_frontier/all_possible_combinations.png"))){
+if(!file.exists(paste0(data_path,"/outputs/indicators/edge_frontier/all_possible_combinations.pdf"))){
   # All possible combinations
   frontier_df %>%
     ggplot(aes(x = nIndicators, y = nCountries)) + geom_point(size = 4) +
@@ -35,10 +35,10 @@ if(!file.exists(paste0(data_path,"/outputs/edge_frontier/all_possible_combinatio
     ylab("Number of countries with complete data") +
     theme(axis.title = element_text(size = 20),
           axis.text  = element_text(size = 15)) +
-    ggsave(filename = paste0(data_path,"/outputs/edge_frontier/all_possible_combinations.png"), units = "in", width = 8, height = 8)
+    ggsave(filename = paste0(data_path,"/outputs/indicators/edge_frontier/all_possible_combinations.pdf"), units = "in", width = 8, height = 8)
 }
 # Plot: Edge's frontier
-if(!file.exists(paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators.png"))){
+if(!file.exists(paste0(data_path,"/outputs/indicators/edge_frontier/countries_vs_indicators.pdf"))){
   frontier_df_fltrd %>%
     ggplot(aes(x = nIndicators, y = nCountries)) + geom_point(size = 4) +
     theme_bw() +
@@ -48,156 +48,11 @@ if(!file.exists(paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators
     ylab("Number of countries with complete data") +
     theme(axis.title = element_text(size = 20),
           axis.text  = element_text(size = 15)) +
-    ggsave(filename = paste0(data_path,"/outputs/edge_frontier/countries_vs_indicators.png"), units = "in", width = 8, height = 8)
+    ggsave(filename = paste0(data_path,"/outputs/indicators/edge_frontier/countries_vs_indicators.pdf"), units = "in", width = 8, height = 8)
 }
-
-reference <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data, fnt_type = "arithmetic")
-
-# Environment
-df <- all_data
-
-countries <- match(rownames(reference), df$iso3c)
-df$iso3c[rowsID]
-
-combn(x = countries, m = 10)
-
-set.seed(1235)
-rowsID <- sample(countries, 20, replace = F) %>% sort()
-
-df$Emissions.agriculture.total[rowsID] <- df$Emissions.agriculture.total[rowsID] * 1.2
-chg_env_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-
-# Economic
-df <- all_data
-
-df$AgValueAdded[rowsID] <- df$AgValueAdded[rowsID] * 1.2
-chg_eco_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-
-# Social
-df <- all_data
-
-df$Female.labor.force[rowsID] <- df$Female.labor.force[rowsID] * 1.2
-chg_soc_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-
-# Food and nutrition
-df <- all_data
-
-df$Food.loss[rowsID] <- df$Food.loss[rowsID] * 1.2
-chg_fnt_dim <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-
-
-df_res <- data.frame(reference   = reference$SFS_index,
-                     environment = chg_env_dim$SFS_index,
-                     economic    = chg_eco_dim$SFS_index,
-                     social      = chg_soc_dim$SFS_index,
-                     food_nutr   = chg_fnt_dim$SFS_index)
-rownames(df_res) <- rownames(reference)
-cases <- df_res[which(rownames(df_res) %in% df$iso3c[rowsID]),]
-cases[,2] <- (cases[,2] - cases[,1])/cases[,1]
-cases[,3] <- (cases[,3] - cases[,1])/cases[,1]
-cases[,4] <- (cases[,4] - cases[,1])/cases[,1]
-cases[,5] <- (cases[,5] - cases[,1])/cases[,1]
-cases %>% apply(2, mean)
-
-df_res2 <- df_res
-df_res2[,2] <- (df_res2[,2] - df_res2[,1])/df_res2[,1]
-df_res2[,3] <- (df_res2[,3] - df_res2[,1])/df_res2[,1]
-df_res2[,4] <- (df_res2[,4] - df_res2[,1])/df_res2[,1]
-df_res2[,5] <- (df_res2[,5] - df_res2[,1])/df_res2[,1]
-df_res2$social[df_res2$social < 0] <- 0
-df_res2$economic[df_res2$economic < 0] <- 0
-df_res2 %>% apply(2, mean)
-
-barplot(cases$social, names.arg = rownames(cases))
-
-
-
-
-db2 <- all_data
-db2$Diet.diversification <- db2$Diet.diversification * 1.1
-db2_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = db2, fnt_type = "arithmetic")
-
-plot(reference$SFS_index, db1_index$SFS_index)
-plot(reference$SFS_index, db2_index$SFS_index)
-
-
 
 # Calculate SFS index
-calc_sfs_index <- function(combList = textFile2[[17]], data = all_data, fnt_type = "arithmetic"){
-  
-  # Updating dimension indexes
-  signs <- c(NA,
-             -1, -1, -1, +1, -1, +1, +1, -1,
-             +1, -1, -1,
-             +1, +1, +1,
-             +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, -1, -1, -1)
-  envPos <- 2:9; ecoPos <- 10:12; socPos <- 13:15; fntPos <- 16:28
-  mtch <- match(combList, names(data))
-  envUpt <- base::intersect(envPos, mtch)
-  ecoUpt <- base::intersect(ecoPos, mtch)
-  socUpt <- base::intersect(socPos, mtch)
-  fntUpt <- base::intersect(fntPos, mtch)
-  
-  # Step 1. Normalization function for all indicators
-  normalization <- function(x){
-    y <- (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
-    return(y)
-  }
-  
-  for(j in 2:ncol(data)){
-    data[,j] <- normalization(x = data[,j])
-    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-  }; rm(j)
-  
-  # Updating data set
-  data <- data[which(complete.cases(data[, mtch])),]
-  
-  # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
-  for(m in mtch){
-      if(signs[m] < 0){
-        data[,m] <- 1 - data[,m]
-        data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
-      }
-  }; rm(m)
-  
-  # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch, fnt_type = "geometric"){
-    
-    rNames <- data$iso3c
-    
-    # Step 3. Calculate an index for each dimension
-    # Environmental: geometric mean
-    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
-    # Economic: arithmetic mean
-    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
-    # Social: geometric mean
-    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
-    # Food and nutrition: For testing
-    if(fnt_type == "geometric"){
-      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
-    } else {
-      if(fnt_type == "arithmetic"){
-        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
-      }
-    }
-    
-    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
-    
-    # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
-    rownames(indices) <- rNames
-    
-    return(indices)
-  }
-  ref_vals <- HDI_approach(data = data, varInd = mtch, fnt_type = fnt_type)
-  return(ref_vals)
-  
-}
-reference <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data, fnt_type = "arithmetic")
-reference$iso3c <- rownames(reference)
-
-# Obtain normalized variables
-normalized_vals  <- function(combList = textFile2[[17]], data = all_data){
+calc_sfs_index  <- function(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data, fnt_type = "arithmetic"){
   
   # Updating dimension indexes
   signs <- c(NA,
@@ -234,28 +89,8 @@ normalized_vals  <- function(combList = textFile2[[17]], data = all_data){
     }
   }; rm(m)
   
-  return(data)
-  
-}
-normalized_df <- normalized_vals(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data)
-# Obtain calculated indices
-index_formula <- function(combList = textFile2[[17]], data =all_data, fnt_type = "arithmetic"){
-  
-  # Updating dimension indexes
-  signs <- c(NA,
-             -1, -1, -1, +1, -1, +1, +1, -1,
-             +1, -1, -1,
-             +1, +1, +1,
-             +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, -1, -1, -1)
-  envPos <- 2:9; ecoPos <- 10:12; socPos <- 13:15; fntPos <- 16:28
-  mtch <- match(combList, names(data))
-  envUpt <- base::intersect(envPos, mtch)
-  ecoUpt <- base::intersect(ecoPos, mtch)
-  socUpt <- base::intersect(socPos, mtch)
-  fntUpt <- base::intersect(fntPos, mtch)
-  
   # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
+  HDI_approach <- function(data = data, varInd = mtch, fnt_type = "geometric"){
     
     rNames <- data$iso3c
     
@@ -283,332 +118,56 @@ index_formula <- function(combList = textFile2[[17]], data =all_data, fnt_type =
     
     return(indices)
   }
-  ref_vals <- HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = fnt_type)
+  ref_vals <- HDI_approach(data = data, varInd = mtch, fnt_type = fnt_type)
   return(ref_vals)
   
 }
+sfs_index       <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data, fnt_type = "arithmetic")
 
-sens_analysis <- function(data = all_data, combList = frontier_df_fltrd$indicators_list[24][[1]], ...){
-  
-  normalized_df <- normalized_vals(combList = combList, data = data)
-  
-  sens_results <- 2:ncol(normalized_df) %>% purrr::map(function(i){
-    
-    cat(paste0(">>> Performing sensitivity for indicator: ", names(normalized_df)[i], " <<<\n"))
-    
-    # Creating seeds
-    set.seed(1224)
-    seeds <- runif(n = 100, min = 0, max = 10000) %>% round(0)
-    
-    cat(" 1. Evaluating permutations ...\n")
-    
-    permutations <- seeds %>% purrr::map(function(seed){
-      df      <- normalized_df
-      set.seed(seed)
-      df[,i]  <- sample(x = df[,i], size = nrow(df), replace = F)
-      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
-      results$iso3c <- rownames(results)
-      results$ctrl_par <- seed
-      results$perturbation <- "Permutations"
-      return(results)
-    }) %>% dplyr::bind_rows()
-    
-    
-    cat(" 2. Evaluating decreasing factors ...\n")
-    
-    decreasing_factors <- seq(1.5, 5, 0.5) %>% purrr::map(function(p){
-      df <- normalized_df
-      df[,i] <- df[,i]/p
-      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
-      results$iso3c <- rownames(results)
-      results$ctrl_par <- p
-      results$perturbation <- "Decreasing factors"
-      return(results)
-    }) %>% dplyr::bind_rows()
-    
-    cat(" 1. Evaluating white noise ...\n")
-    white_noise <- seeds %>% purrr::map(function(seed){
-      df      <- normalized_df
-      set.seed(seed)
-      df[,i]  <- df[,i] + rnorm(n = nrow(df), mean = 0, sd = 0.2)
-      df[,i][which(df[,i] < 0)] <- 0
-      df[,i][which(df[,i] > 1)] <- 1
-      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
-      results$iso3c <- rownames(results)
-      results$ctrl_par <- seed
-      results$perturbation <- "White noise"
-      return(results)
-    }) %>% dplyr::bind_rows()
-    
-    final_results <- list(permutations, decreasing_factors, white_noise) %>% dplyr::bind_rows()
-    final_results$indicator <- names(normalized_df)[i]
-    return(final_results)
-    
-  }) %>% dplyr::bind_rows()
-  return(sens_results)
-  
-}
-
-sens_analysis <- function(data = all_data, combList = frontier_df_fltrd$indicators_list[24][[1]], ...){
-  
-  normalized_df <- normalized_vals(combList = combList, data = data)
-  
-  sens_results <- 2:ncol(normalized_df) %>% purrr::map(function(i){
-    
-    cat(paste0(">>> Performing sensitivity for indicator: ", names(normalized_df)[i], " <<<\n"))
-    
-    # Creating seeds
-    set.seed(1224)
-    seeds <- runif(n = 100, min = 0, max = 10000) %>% round(0)
-    
-    cat(" 1. Evaluating permutations ...\n")
-    
-    permutations <- seeds %>% purrr::map(function(seed){
-      df      <- normalized_df
-      set.seed(seed)
-      df[,i]  <- sample(x = df[,i], size = nrow(df), replace = F)
-      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
-      results$iso3c <- rownames(results)
-      results$ctrl_par <- seed
-      results$perturbation <- "Permutations"
-      return(results)
-    }) %>% dplyr::bind_rows()
-    
-    
-    cat(" 2. Evaluating decreasing factors ...\n")
-    
-    decreasing_factors <- seq(1.5, 5, 0.5) %>% purrr::map(function(p){
-      df <- normalized_df
-      df[,i] <- df[,i]/p
-      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
-      results$iso3c <- rownames(results)
-      results$ctrl_par <- p
-      results$perturbation <- "Decreasing factors"
-      return(results)
-    }) %>% dplyr::bind_rows()
-    
-    cat(" 1. Evaluating white noise ...\n")
-    white_noise <- seeds %>% purrr::map(function(seed){
-      df      <- normalized_df
-      set.seed(seed)
-      df[,i]  <- df[,i] + rnorm(n = nrow(df), mean = 0, sd = 0.2)
-      df[,i][which(df[,i] < 0)] <- 0
-      df[,i][which(df[,i] > 1)] <- 1
-      results <- index_formula(combList = combList, data = df, fnt_type = "arithmetic")
-      results$iso3c <- rownames(results)
-      results$ctrl_par <- seed
-      results$perturbation <- "White noise"
-      return(results)
-    }) %>% dplyr::bind_rows()
-    
-    final_results <- list(permutations, decreasing_factors, white_noise) %>% dplyr::bind_rows()
-    final_results$indicator <- names(normalized_df)[i]
-    return(final_results)
-    
-  }) %>% dplyr::bind_rows()
-  return(sens_results)
-  
-}
-
-test <- sens_analysis(data = all_data, combList = frontier_df_fltrd$indicators_list[24][[1]])
-
-sd_vals <- normalized_df[,c("iso3c",combList)]
-for(i in 2:ncol(sd_vals)){
-  for(j in 1:nrow(sd_vals)){
-    sd_vals[j,i] <- reference$SFS_index[which(sd_vals$iso3c[j] == reference$iso3c)] - test %>% dplyr::filter(perturbation == "Permutations" & indicator == names(sd_vals)[i] & iso3c == sd_vals$iso3c[j]) %>% .[,"SFS_index"] %>% sd(., na.rm = T)
+# Producing final map
+final_map <- function(df = sfs_index, out_name = "sfs_index_map", format = "png"){
+  out <- paste0(data_path,"/outputs/indicators/publish/",out_name,".",format)
+  if(!file.exists(out)){
+    df$ISO3 <- rownames(df); rownames(df) <- 1:nrow(df)
+    suppressMessages(pacman::p_load(sf, spData, tmap, RColorBrewer))
+    # Load worldwide shapefile with Robinson projection
+    world  <- sf::st_read(paste0(data_path,"/inputs_raw/shapefiles/world_robinson/all_countries_robinson_all.shp"))
+    world2 <- dplyr::left_join(x = world, y = df, by = "ISO3")
+    # Create the final map
+    tsv <- tmap::tm_shape(world2) +
+      tmap::tm_polygons(col     = "SFS_index",
+                        n       = 20,
+                        palette = brewer.pal(n = 20, name = "RdYlBu"),
+                        title   = "SFS index",
+                        breaks  = seq(0, .95, .05)) + # "RdBu", breaks = seq(0.01, 1, .01)
+      tmap::tm_borders("gray20", lwd = .5) +
+      tmap::tm_grid(projection = "longlat") +
+      tmap::tm_layout(inner.margins = c(0, .02, .02, .02))
+    # Save the results
+    tmap::tmap_save(tm = tsv, filename = out, width = 16, height = 8, units = "in")
+    cat(paste0("Final map was produced. You can find it at: ",out))
+  } else {
+    stop("Final map already exists!")
   }
 }
-sd_vals[,-1] %>% cor(method = "spearman") %>% corrplot::corrplot()
-sd_vals[,-1] %>% apply(., 2, median) %>% sort()
+c("png","pdf") %>% purrr::map(function(f){final_map(df = sfs_index, out_name = "sfs_index_map", format = f)})
 
-sd_vals1 <- normalized_df[,c("iso3c",combList)]
-for(i in 2:ncol(sd_vals1)){
-  for(j in 1:nrow(sd_vals1)){
-    sd_vals1[j,i] <- reference$SFS_index[which(sd_vals1$iso3c[j] == reference$iso3c)] - test %>% dplyr::filter(perturbation == "Permutations" & indicator == names(sd_vals1)[i] & iso3c == sd_vals1$iso3c[j]) %>% .[,"SFS_index"] %>% median(., na.rm = T)
-  }
-}
+# Producing reference map for 16 countries
+c("png","pdf") %>% purrr::map(function(f){final_map(df = calc_sfs_index(combList = frontier_df_fltrd$indicators_list[32][[1]], data = all_data, fnt_type = "arithmetic"), out_name = "sfs_index_map_17countries", format = f)})
 
-sd_vals1[,-1] %>% cor(method = "spearman") %>% corrplot::corrplot()
-test_pca <- sd_vals1[,-1] %>% FactoMineR::PCA(., scale.unit = F)
-sd_vals1[,-1] %>% apply(., 2, median) %>% sort(decreasing = T)
-fviz_pca_biplot(test_pca, repel = TRUE)
+# Producing reference map for 164 countries
+c("png","pdf") %>% purrr::map(function(f){final_map(df = calc_sfs_index(combList = frontier_df_fltrd$indicators_list[1][[1]], data = all_data, fnt_type = "arithmetic"), out_name = "sfs_index_map_164countries", format = f)})
+
+# Performing sensitivity analysis
 
 
 
-test %>% ggplot(aes(x = indicator, y = SFS_index)) + geom_boxplot() +
-  facet_wrap(~perturbation)
-
-test_stability <- function(indicator = "Obesity", perturbation = seq(1.5, 5, 0.5), df = normalized_df){
-  
-  sim <- perturbation %>% purrr::map(function(p){
-    df[,indicator] <- df[,indicator]/p
-    index <- calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-    index <- data.frame(iso3c = rownames(index), SFS_index = index$SFS_index)
-    return(index)
-  })
-  
-  sim <- Reduce(function(x,y) merge(x = x, y = y, by = "iso3c"), sim)
-  
-  return(sim)
-  
-}
-test_stability(indicator = "Obesity", perturbation = seq(1.5, 5, 0.5), df = normalized_df)
-test_stability(indicator = "Female.labor.force", perturbation = seq(1.5, 5, 0.5), df = normalized_df)
 
 
-
-df <- calc_sfs_nrml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data)
-df$Obesity <- df$Obesity/2
-calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-
-df <- calc_sfs_nrml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data)
-df$Female.labor.force <- df$Female.labor.force/2
-calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = df, fnt_type = "arithmetic")
-
-
-calc_sfs_frml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = calc_sfs_nrml(combList = frontier_df_fltrd$indicators_list[24][[1]], data = all_data), fnt_type = "arithmetic")
-
-# Optimize category assignation of categorical data
-
-# Adjust Fairtrade categories
-## Frequency-based assignment
-if(!file.exists(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_frequency.csv"))){
-  indices <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
-    df1 <- all_data[,c('iso3c', frontier_df_fltrd$indicators_list[i][[1]])]
-    df1$Country <- rownames(df1)
-    df1 <- df1 %>% dplyr::select(iso3c, Country)
-    df2 <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic")
-    df2$iso3c <- rownames(df2); rownames(df2) <- 1:nrow(df2)
-    df2 <- df2 %>% dplyr::select(iso3c, SFS_index)
-    df3 <- dplyr::inner_join(x = df1, y = df2, by = 'iso3c'); rm(df1, df2)
-    return(df3)
-  })
-  country_codes <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
-  country_codes <- country_codes %>% dplyr::select(iso3c, country.name.en)
-  colnames(country_codes)[2] <- "Country"
-  indices[[1]] <- dplyr::left_join(x = country_codes, y = indices[[1]], by = c("iso3c", "Country"))
-  indices_df <- Reduce(function(x, y) merge(x, y, by = c("iso3c", "Country"), all.x = T), indices)
-  colnames(indices_df)[3:ncol(indices_df)] <- paste0("SFS_index_", nInd)
-  indices_df$ToRemove <- apply(indices_df[3:ncol(indices_df)], 1, function(x) sum(is.na(x)))
-  indices_df <- indices_df[which(indices_df$ToRemove != 32),]
-  write.csv(indices_df, paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_frequency.csv"), row.names = F)
-}
-## Binary-based assignment
-if(!file.exists(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_binary.csv"))){
-  all_data <- read.csv(paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted_fairtrade_binary.csv"))
-  indices <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
-    df1 <- all_data[,c('iso3c', frontier_df_fltrd$indicators_list[i][[1]])]
-    df1$Country <- rownames(df1)
-    df1 <- df1 %>% dplyr::select(iso3c, Country)
-    df2 <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic")
-    df2$iso3c <- rownames(df2); rownames(df2) <- 1:nrow(df2)
-    df2 <- df2 %>% dplyr::select(iso3c, SFS_index)
-    df3 <- dplyr::inner_join(x = df1, y = df2, by = 'iso3c'); rm(df1, df2)
-    return(df3)
-  })
-  country_codes <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
-  country_codes <- country_codes %>% dplyr::select(iso3c, country.name.en)
-  colnames(country_codes)[2] <- "Country"
-  indices[[1]] <- dplyr::left_join(x = country_codes, y = indices[[1]], by = c("iso3c", "Country"))
-  indices_df <- Reduce(function(x, y) merge(x, y, by = c("iso3c", "Country"), all.x = T), indices)
-  colnames(indices_df)[3:ncol(indices_df)] <- paste0("SFS_index_", nInd)
-  indices_df$ToRemove <- apply(indices_df[3:ncol(indices_df)], 1, function(x) sum(is.na(x)))
-  indices_df <- indices_df[which(indices_df$ToRemove != 32),]
-  write.csv(indices_df, paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_binary.csv"), row.names = F)
-}
-## Optimal scaling-based assignment
-if(!file.exists(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_optiscale.csv"))){
-  ft <- readxl::read_excel(paste0(data_path,"/inputs_raw/sfs_social_raw_indicators.xlsx"), sheet = "fair_trade")
-  indices_df <- read.csv(paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_frequency.csv"))
-  indices_df2 <- dplyr::left_join(x = indices_df, y = ft, by = "Country")
-  # Optimal scaling for Fairtrade categories
-  cols_id <- frontier_df_fltrd$indicators_list %>% purrr::map(function(x){!("Fairtrade.ctg" %in% x)}) %>% unlist %>% which() %>% + 2
-  opt_scl <- cols_id %>% purrr::map(function(i){optiscale::opscale(x.qual = indices_df2$Category, x.quant = indices_df2[,i], level = 1, process = 1)})
-  opt_scl <- opt_scl %>% purrr::map(function(x){data.frame(Categories = x$qual, Quantification = x$os)})
-  opt_scl <- do.call(base::cbind, opt_scl)
-  opt_scl <- opt_scl[,-grep("Categories",colnames(opt_scl))[-1]]
-  opt_scl$Median <- apply(opt_scl[,-1], 1, median, na.rm = T)
-  opt_scl$iso3c <- indices_df2$iso3c
-  opt_scl <- opt_scl[,c("iso3c","Median")]
-  all_data$Fairtrade.ctg <- NA
-  all_data$Fairtrade.ctg[match(opt_scl$iso3c, all_data$iso3c)] <- opt_scl$Median
-  write.csv(x = all_data, file = paste0(data_path,"/outputs/sfs_raw_indicators_scales_adjusted_final.csv"), row.names = T)
-  
-  # Re-calculate indices
-  indices <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
-    df1 <- all_data[,c('iso3c', frontier_df_fltrd$indicators_list[i][[1]])]
-    df1$Country <- rownames(df1)
-    df1 <- df1 %>% dplyr::select(iso3c, Country)
-    df2 <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]],
-                          data     = all_data,
-                          fnt_type = "arithmetic")
-    df2$iso3c <- rownames(df2); rownames(df2) <- 1:nrow(df2)
-    df2 <- df2 %>% dplyr::select(iso3c, SFS_index)
-    df3 <- dplyr::inner_join(x = df1, y = df2, by = 'iso3c'); rm(df1, df2)
-    return(df3)
-  })
-  country_codes <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
-  country_codes <- country_codes %>% dplyr::select(iso3c, country.name.en)
-  colnames(country_codes)[2] <- "Country"
-  indices[[1]] <- dplyr::left_join(x = country_codes, y = indices[[1]], by = c("iso3c", "Country"))
-  indices_df <- Reduce(function(x, y) merge(x, y, by = c("iso3c", "Country"), all.x = T), indices)
-  colnames(indices_df)[3:ncol(indices_df)] <- paste0("SFS_index_", nInd)
-  indices_df$ToRemove <- apply(indices_df[3:ncol(indices_df)], 1, function(x) sum(is.na(x)))
-  indices_df <- indices_df[which(indices_df$ToRemove != 32),]
-  
-  write.csv(indices_df, paste0(data_path,"/outputs/edge_frontier/SFS_index_frontier_values_fairtrade_optiscale.csv"), row.names = F)
-}
-
-comparison <- T
-if(comparison){
-  db1 <- readxl::read_excel(paste0(data_path,"/outputs/edge_frontier/edge_frontier_fairtrade_categories_comparison.xlsx"), sheet = 1)
-  db2 <- readxl::read_excel(paste0(data_path,"/outputs/edge_frontier/edge_frontier_fairtrade_categories_comparison.xlsx"), sheet = 2)
-  db3 <- readxl::read_excel(paste0(data_path,"/outputs/edge_frontier/edge_frontier_fairtrade_categories_comparison.xlsx"), sheet = 3)
-  
-  db1 <- db1 %>% tidyr::gather(Combination, SFS_index, -c(iso3c:Country))
-  db1$SFS_index <- db1$SFS_index %>% as.numeric()
-  db1$Method    <- "Frecuency"
-  
-  db2 <- db2 %>% tidyr::gather(Combination, SFS_index, -c(iso3c:Country))
-  db2$SFS_index <- db2$SFS_index %>% as.numeric()
-  db2$Method    <- "Binary"
-  
-  db3 <- db3 %>% tidyr::gather(Combination, SFS_index, -c(iso3c:Country))
-  db3$SFS_index <- db3$SFS_index %>% as.numeric()
-  db3$Method    <- "Optimal_scaling"
-  
-  db <- rbind(db1, db2, db3); rm(db1, db2, db3)
-  
-  db %>%
-    dplyr::filter(Combination == "SFS_index_22") %>%
-    ggplot2::ggplot(aes(x = reorder(Country, SFS_index), y = SFS_index, colour = Method)) +
-    ggplot2::geom_point() +
-    ggplot2::theme_bw() +
-    ggplot2::xlab("") +
-    ggplot2::ylab("Country food system sustainability scores") +
-    ggplot2::theme(axis.text.x = element_text(hjust = 0.95, vjust = 0.2, angle = 90))
-  
-}
-
-all_data  <- read.csv(paste0(data_path,"/outputs/indicators/sfs_raw_indicators_scales_adjusted_final.csv"), row.names = 1)
-sfs_index <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[24][[1]],
-                            data     = all_data,
-                            fnt_type = "arithmetic")
-countries <- read.csv(paste0(data_path,"/inputs_raw/country_codes.csv"))
-sfs_index$iso3c <- rownames(sfs_index)
-rownames(sfs_index) <- 1:nrow(sfs_index)
-sfs_index <- dplyr::left_join(x = sfs_index, y = countries %>% dplyr::select(iso3c, country.name.en), by = "iso3c")
-sfs_index <- sfs_index %>% dplyr::select(iso3c, country.name.en, Environment, Economic, Social, Food_nutrition, SFS_index)
-rownames(sfs_index) <- sfs_index$country.name.en; sfs_index$country.name.en <- NULL
-write.csv(sfs_index, paste0(data_path,"/outputs/indicators/sfs_final_index.csv"), row.names = T)
-
-all_data1 <- all_data
-all_data1$Obesity <- all_data1$Obesity/2
 
 ## =================================================================================== ##
-## Sensitivity analysis: standarizing the dataset as first step
+## Sensitivity analysis
 ## =================================================================================== ##
-skew_methods <- c("none", "log", "box_cox")
 calculateIndices2 <- function(data = all_data, correct_skew = "none", combList = textFile2[[17]], theory = "true", fnt_type = "arithmetic"){
   
   # Measure skewness and apply scale transformations
@@ -721,65 +280,78 @@ calculateIndices2 <- function(data = all_data, correct_skew = "none", combList =
   
 }
 
-# combFiles <- list.files(path = "./Best_combinations/RDSfiles", full.names = T) %>% gtools::mixedsort()
-# sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
-#   
-#   db <- readRDS(combFiles[i])
-#   db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
-#   db <- db %>% dplyr::filter(matches == 4)
-#   nInd <- db$nIndicators %>% unique %>% sort
-#   smpls <- table(db$nIndicators)[2]
-#   if(length(nInd) > 4){
-#     db_new <- lapply(X = 1:length(nInd), function(j){
-#       db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
-#       if(nrow(db_nInd) > 1){
-#         set.seed(1234)
-#         smpl <- sample(x = 1:nrow(db_nInd), size = smpls, replace = F)
-#         db_nInd <- db_nInd[smpl,]
-#         return(db_nInd)
-#       } else {
-#         return(db_nInd)
-#       }
-#     })
-#     db_new <- do.call(rbind, db_new)
-#   } else {
-#     db_new <- db; rm(db)
-#   }
-#   
-#   textFile2 <- db_new$Indicators
-#   all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
-#     
-#     theoryList <- c("true")
-#     theoryResults <- lapply(X = 1:length(theoryList), function(j){
-#       
-#       typeList <- c("arithmetic")
-#       typeResults <- lapply(X = 1:length(typeList), function(k){
-#         
-#         results <- calculateIndices2(data = all_data,
-#                                      correct_skew = "box_cox",
-#                                      combList = textFile2[[i]],
-#                                      theory = theoryList[j],
-#                                      fnt_type = typeList[k])
-#         # results$mean_type <- typeList[k]
-#         # results$theory <- theoryList[j]
-#         results$combination <- i
-#         results$nIndicators <- length(textFile2[[i]])
-#         return(results)
-#         
-#       })
-#       typeResults <- do.call(rbind, typeResults)
-#       return(typeResults)
-#       
-#     })
-#     theoryResults <- do.call(rbind, theoryResults)
-#     return(theoryResults)
-#     
-#   })
-#   all_combinations2 <- do.call(rbind, all_combinations2)
-#   
-#   return(all_combinations2)
-# })
-# saveRDS(sensitivity_results, "./sensitivity_analysis_skewness_fltr.rds")
+combFiles <- list.files(path = paste0(data_path, "/outputs/indicators/edge_frontier/bckwd_combinations"), full.names = T) %>% gtools::mixedsort()
+combNames <- list.files(path = paste0(data_path, "/outputs/indicators/edge_frontier/bckwd_combinations"), full.names = F) %>% gtools::mixedsort()
+combNames <- combNames %>% strsplit(split = "_") %>% purrr::map(2) %>% unlist() %>% as.numeric()
+if(!file.exists(paste0(data_path, "/outputs/indicators/edge_frontier/sensitivity_results.rds"))){
+  
+} else {
+  
+}
+sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
+
+  db <- readRDS(combFiles[i])
+  db <- db %>% dplyr::filter(nIndicators == combNames[i])
+  
+  
+  
+  
+  
+  db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
+  db <- db %>% dplyr::filter(matches == 4)
+  nInd <- db$nIndicators %>% unique %>% sort
+  smpls <- table(db$nIndicators)[2]
+  if(length(nInd) > 4){
+    db_new <- lapply(X = 1:length(nInd), function(j){
+      db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
+      if(nrow(db_nInd) > 1){
+        set.seed(1234)
+        smpl <- sample(x = 1:nrow(db_nInd), size = smpls, replace = F)
+        db_nInd <- db_nInd[smpl,]
+        return(db_nInd)
+      } else {
+        return(db_nInd)
+      }
+    })
+    db_new <- do.call(rbind, db_new)
+  } else {
+    db_new <- db; rm(db)
+  }
+
+  textFile2 <- db_new$Indicators
+  all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
+
+    theoryList <- c("true")
+    theoryResults <- lapply(X = 1:length(theoryList), function(j){
+
+      typeList <- c("arithmetic")
+      typeResults <- lapply(X = 1:length(typeList), function(k){
+
+        results <- calculateIndices2(data = all_data,
+                                     correct_skew = "box_cox",
+                                     combList = textFile2[[i]],
+                                     theory = theoryList[j],
+                                     fnt_type = typeList[k])
+        # results$mean_type <- typeList[k]
+        # results$theory <- theoryList[j]
+        results$combination <- i
+        results$nIndicators <- length(textFile2[[i]])
+        return(results)
+
+      })
+      typeResults <- do.call(rbind, typeResults)
+      return(typeResults)
+
+    })
+    theoryResults <- do.call(rbind, theoryResults)
+    return(theoryResults)
+
+  })
+  all_combinations2 <- do.call(rbind, all_combinations2)
+
+  return(all_combinations2)
+})
+saveRDS(sensitivity_results, "./sensitivity_analysis_skewness_fltr.rds")
 sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_skewness_fltr2.rds")
 
 ## =================================================================================== ##

@@ -71,7 +71,7 @@ generate_drivers_tables <- function(data_path = data_path){
       pop_growth$Country <- NULL
       names(pop_growth)[-1] <- paste0("Y", names(pop_growth)[-1])
       
-      pop_growth$chg_pop_growth <- pop_growth %>% dplyr::select(Y2014:Y2016) %>% apply(., 1, median, na.rm = T)
+      pop_growth$chg_pop_growth <- pop_growth %>% dplyr::select(Y2004:Y2015) %>% apply(., 1, median, na.rm = T)
       pop_growth <- pop_growth %>% dplyr::select(iso3c, chg_pop_growth)
       pop_growth <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = pop_growth, by = "iso3c")
       pop_growth <- pop_growth %>% tidyr::drop_na()
@@ -101,7 +101,7 @@ generate_drivers_tables <- function(data_path = data_path){
       gdp_growth$Country <- NULL
       names(gdp_growth)[-1] <- paste0("Y", 2000:2016)
       
-      gdp_growth$chg_gdp_growth <- gdp_growth %>% dplyr::select(Y2006:Y2010) %>% apply(., 2, as.numeric) %>% apply(., 1, median, na.rm = T)
+      gdp_growth$chg_gdp_growth <- gdp_growth %>% dplyr::select(Y2004:Y2015) %>% apply(., 2, as.numeric) %>% apply(., 1, median, na.rm = T)
       gdp_growth <- gdp_growth %>% dplyr::select(iso3c, chg_gdp_growth)
       gdp_growth <- dplyr::left_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = gdp_growth, by = "iso3c")
       gdp_growth <- gdp_growth %>% tidyr::drop_na()
