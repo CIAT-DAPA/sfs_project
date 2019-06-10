@@ -278,3 +278,41 @@ calc_best_curve(df         = sfs_df,
                 remove_min = F,
                 remove_obs = "end",
                 number_obs = 5)
+
+# GDP per capita
+gdp <- read.csv(paste0(data_path,"/inputs_raw/gdp_per_capita_2010_us_dollars.csv"))
+colnames(gdp) <- gsub("X", "Y", colnames(gdp))
+
+dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp$Y2017), by = "iso3c")
+
+just_points <- function(df = df, driver = "gdp", label = label){
+  
+  df_fltr             <- df %>% dplyr::select("iso3c", driver, "SFS_index") %>% tidyr::drop_na()
+  names(df_fltr)[2:3] <- c("x","y")
+  
+  gp2 <- df_fltr %>%
+    ggplot2::ggplot(aes(x, y)) +
+    ggplot2::geom_point() +
+    ggplot2::xlab(label) +
+    ggplot2::ylab("Country food system sustainability scores") +
+    ggplot2::ylim(.20, .80) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(legend.title = element_blank()) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(axis.title   = element_text(size = 15),
+                   axis.text    = element_text(size = 13),
+                   legend.title = element_blank(),
+                   legend.text  = element_text(size = 13))
+  outfile <- paste0(data_path,"/drivers_graphs/correlations/v4/SFS_index_vs_",driver,".png")
+  if(!file.exists(outfile)){
+    ggplot2::ggsave(filename = outfile, plot = gp2, device = "png", units = "in", width = 8, height = 8)
+  }
+}
+
+just_points(df         = dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp$Y2017), by = "iso3c"),
+            driver     = "gdp",
+            label      = "GDP per capita 2017 (constant 2010 US$)")
+just_points(df         = dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp %>% dplyr::select(Y2004:Y2015) %>% apply(., 1, median, na.rm = T)), by = "iso3c"),
+            driver     = "gdp",
+            label      = "GDP per capita 2004-2015 (constant 2010 US$)")
+
