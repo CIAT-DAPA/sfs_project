@@ -100,83 +100,162 @@ path_finder <- function(df = all_data, combList = dfs2$Indicators[[761]], id = n
   soc_mxIndc <- soc_mxIndc %>% purrr::map(., function(x){lapply(1:length(x), function(i){paste(x[[i]], collapse = "_")})})
   fnt_mxIndc <- fnt_mxIndc %>% purrr::map(., function(x){lapply(1:length(x), function(i){paste(x[[i]], collapse = "_")})})
   
-  # -------------------------------------------------------------------- #
-  # Concatenate names between all possibilities
-  # -------------------------------------------------------------------- #
-  a <- list(unlist(env_mxIndc),
-            unlist(eco_mxIndc),
-            unlist(soc_mxIndc),
-            unlist(fnt_mxIndc))
-  a <- paste0('[',
-              '[', paste('"', unlist(env_mxIndc), '"', sep = '', collapse = ','),']', ',',
-              '[', paste('"', unlist(eco_mxIndc), '"', sep = '', collapse = ','),']', ',',
-              '[', paste('"', unlist(soc_mxIndc), '"', sep = '', collapse = ','),']', ',',
-              '[', paste('"', unlist(fnt_mxIndc), '"', sep = '', collapse = ','),']',
-              ']')
-  
   outfile <- paste0(data_path, "/outputs/edge_frontier/bckwd_combinations/bckwd_",id,".txt")
-  createCode <- function(code){
-    
-    sink(code)
-    cat(paste0('a=', a), fill = T)
-    cat('r=[[]]', fill = T)
-    cat('for x in a:', fill = T)
-    cat('\t t = []', fill = T)
-    cat('\t for y in x:', fill = T)
-    cat('\t \t for i in r:', fill = T)
-    cat('\t \t \t t.append(i+[y])', fill = T)
-    cat('\t r = t', fill = T)
-    cat(paste0('f = open("',outfile,'", "w")'), fill = T)
-    cat('z = str(r)', fill = T)
-    cat('f.write(z)', fill = T)
-    cat('f.close()', fill = T)
-    sink()
-    shell(code)
-    
-  }
-  createCode(code = gsub("txt","py",outfile))
   
-  textFile <- readLines(outfile)
-  textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
-  textFile <- lapply(textFile, function(x){
+  if(!file.exists(outfile)){
     
-    txt_str <- x
-    txt_str <- gsub(pattern = "_", replacement = ", ", x = txt_str)
-    txt_str <- gsub(pattern = "'", replacement = "", x = txt_str)
-    txt_str <- gsub(pattern = "\\]\\]", replacement = "", x = txt_str)
-    txt_str <- gsub(pattern = "\\[\\[", replacement = "", x = txt_str)
-    txt_str <- unlist(strsplit(x = txt_str, split = ", "))
-    return(txt_str)
+    # -------------------------------------------------------------------- #
+    # Concatenate names between all possibilities
+    # -------------------------------------------------------------------- #
+    a <- list(unlist(env_mxIndc),
+              unlist(eco_mxIndc),
+              unlist(soc_mxIndc),
+              unlist(fnt_mxIndc))
+    a <- paste0('[',
+                '[', paste('"', unlist(env_mxIndc), '"', sep = '', collapse = ','),']', ',',
+                '[', paste('"', unlist(eco_mxIndc), '"', sep = '', collapse = ','),']', ',',
+                '[', paste('"', unlist(soc_mxIndc), '"', sep = '', collapse = ','),']', ',',
+                '[', paste('"', unlist(fnt_mxIndc), '"', sep = '', collapse = ','),']',
+                ']')
     
-  })
-  
-  grep2 <- Vectorize(grep, "pattern") %>% unlist()
-  
-  finalCombinations <- lapply(1:length(textFile), function(i){
-    mtch <- match(textFile[[i]], names(df))
-    df <- data.frame(
-      nCountries  = sum(complete.cases(df[,textFile[[i]]])),
-      nIndicators = length(textFile[[i]]),
-      nEnv        = length(base::intersect(envPos, mtch)),
-      nEco        = length(base::intersect(ecoPos, mtch)),
-      nSoc        = length(base::intersect(socPos, mtch)),
-      nFnt        = length(base::intersect(fntPos, mtch))
-    )
-    return(df)
-  })
-  finalCombinations <- do.call(rbind, finalCombinations)
-  if(nrow(finalCombinations) > 100){
-    nzx <- caret::nearZeroVar(finalCombinations)
-    idx <- clhs::clhs(finalCombinations[,-nzx], size = 100, progress = F, iter = 1000)
-    finalCombinations  <- finalCombinations[idx,]
-    textFile_upd <- textFile[idx]
-    finalCombinations <- finalCombinations %>% dplyr::mutate(Indicators = textFile_upd)
+    createCode <- function(code){
+      
+      sink(code)
+      cat(paste0('a=', a), fill = T)
+      cat('r=[[]]', fill = T)
+      cat('for x in a:', fill = T)
+      cat('\t t = []', fill = T)
+      cat('\t for y in x:', fill = T)
+      cat('\t \t for i in r:', fill = T)
+      cat('\t \t \t t.append(i+[y])', fill = T)
+      cat('\t r = t', fill = T)
+      cat(paste0('f = open("',outfile,'", "w")'), fill = T)
+      cat('z = str(r)', fill = T)
+      cat('f.write(z)', fill = T)
+      cat('f.close()', fill = T)
+      sink()
+      shell(code)
+      
+    }
+    createCode(code = gsub("txt","py",outfile))
+    
+    textFile <- readLines(outfile)
+    textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
+    textFile <- lapply(textFile, function(x){
+      
+      txt_str <- x
+      txt_str <- gsub(pattern = "_", replacement = ", ", x = txt_str)
+      txt_str <- gsub(pattern = "'", replacement = "", x = txt_str)
+      txt_str <- gsub(pattern = "\\]\\]", replacement = "", x = txt_str)
+      txt_str <- gsub(pattern = "\\[\\[", replacement = "", x = txt_str)
+      txt_str <- unlist(strsplit(x = txt_str, split = ", "))
+      return(txt_str)
+      
+    })
+    
+    grep2 <- Vectorize(grep, "pattern") %>% unlist()
+    
+    finalCombinations <- lapply(1:length(textFile), function(i){
+      mtch <- match(textFile[[i]], names(df))
+      df <- data.frame(
+        nCountries  = sum(complete.cases(df[,textFile[[i]]])),
+        nIndicators = length(textFile[[i]]),
+        nEnv        = length(base::intersect(envPos, mtch)),
+        nEco        = length(base::intersect(ecoPos, mtch)),
+        nSoc        = length(base::intersect(socPos, mtch)),
+        nFnt        = length(base::intersect(fntPos, mtch))
+      )
+      return(df)
+    })
+    finalCombinations <- do.call(rbind, finalCombinations)
+    
+    cnts <- table(finalCombinations$nIndicators) %>% as.numeric
+    cmbt <- names(table(finalCombinations$nIndicators))
+    finalCombinations2 <- lapply(1:length(cnts), function(i){
+      if(cnts[i] > 100){
+        
+        df_aux  <- finalCombinations %>% dplyr::filter(nIndicators == cmbt[i])
+        txt_aux <- textFile[textFile %>% purrr::map(., length) %>% unlist %in% cmbt[i] %>% which()]
+        nzx    <- caret::nearZeroVar(df_aux)
+        idx    <- clhs::clhs(df_aux[,-nzx], size = 50, progress = F, iter = 1000)
+        df_aux <- df_aux[idx,]
+        textFile_upd <- txt_aux[idx]
+        df_aux <- df_aux %>% dplyr::mutate(Indicators = textFile_upd)
+        
+      } else {
+        
+        df_aux  <- finalCombinations %>% dplyr::filter(nIndicators == cmbt[i])
+        txt_aux <- textFile[textFile %>% purrr::map(., length) %>% unlist %in% cmbt[i] %>% which()]
+        df_aux  <- df_aux %>% dplyr::mutate(Indicators = txt_aux)
+        
+      }
+      return(df_aux)
+    })
+    finalCombinations2 <- do.call(rbind, finalCombinations2)
+    saveRDS(finalCombinations2, paste0(data_path, "/outputs/edge_frontier/bckwd_combinations/bckwd_",id,".RDS"))
+    
+    return(cat("Done.\n"))
+    
   } else {
-    finalCombinations <- finalCombinations %>% dplyr::mutate(Indicators = textFile)
+    
+    textFile <- readLines(outfile)
+    textFile <- unlist(strsplit(x = textFile, split = "], [", fixed = T))
+    textFile <- lapply(textFile, function(x){
+      
+      txt_str <- x
+      txt_str <- gsub(pattern = "_", replacement = ", ", x = txt_str)
+      txt_str <- gsub(pattern = "'", replacement = "", x = txt_str)
+      txt_str <- gsub(pattern = "\\]\\]", replacement = "", x = txt_str)
+      txt_str <- gsub(pattern = "\\[\\[", replacement = "", x = txt_str)
+      txt_str <- unlist(strsplit(x = txt_str, split = ", "))
+      return(txt_str)
+      
+    })
+    
+    grep2 <- Vectorize(grep, "pattern") %>% unlist()
+    
+    finalCombinations <- lapply(1:length(textFile), function(i){
+      mtch <- match(textFile[[i]], names(df))
+      df <- data.frame(
+        nCountries  = sum(complete.cases(df[,textFile[[i]]])),
+        nIndicators = length(textFile[[i]]),
+        nEnv        = length(base::intersect(envPos, mtch)),
+        nEco        = length(base::intersect(ecoPos, mtch)),
+        nSoc        = length(base::intersect(socPos, mtch)),
+        nFnt        = length(base::intersect(fntPos, mtch))
+      )
+      return(df)
+    })
+    finalCombinations <- do.call(rbind, finalCombinations)
+    
+    cnts <- table(finalCombinations$nIndicators) %>% as.numeric
+    cmbt <- names(table(finalCombinations$nIndicators))
+    finalCombinations2 <- lapply(1:length(cnts), function(i){
+      if(cnts[i] > 100){
+        
+        df_aux  <- finalCombinations %>% dplyr::filter(nIndicators == cmbt[i])
+        txt_aux <- textFile[textFile %>% purrr::map(., length) %>% unlist %in% cmbt[i] %>% which()]
+        nzx    <- caret::nearZeroVar(df_aux)
+        tryCatch(expr = {idx <- clhs::clhs(df_aux[,-nzx], size = 50, progress = F, iter = 1000)}, error = function(e){idx <<- which.max(df_aux$nCountries)})
+        df_aux <- df_aux[idx,]
+        textFile_upd <- txt_aux[idx]
+        df_aux <- df_aux %>% dplyr::mutate(Indicators = textFile_upd)
+        
+      } else {
+        
+        df_aux  <- finalCombinations %>% dplyr::filter(nIndicators == cmbt[i])
+        txt_aux <- textFile[textFile %>% purrr::map(., length) %>% unlist %in% cmbt[i] %>% which()]
+        df_aux  <- df_aux %>% dplyr::mutate(Indicators = txt_aux)
+        
+      }
+      return(df_aux)
+    })
+    finalCombinations2 <- do.call(rbind, finalCombinations2)
+    saveRDS(finalCombinations2, paste0(data_path, "/outputs/edge_frontier/bckwd_combinations/bckwd_",id,".RDS"))
+    
+    return(cat("Done.\n"))
+    
   }
-  saveRDS(finalCombinations, paste0(data_path, "/outputs/edge_frontier/bckwd_combinations/bckwd_",id,".RDS"))
-  
-  return(cat("Done.\n"))
   
 }
 
@@ -198,7 +277,7 @@ createCluster <- function(noCores, logfile = "/dev/null", export = NULL, lib = N
   cl <- makeCluster(noCores, type = "SOCK", outfile = logfile)
   if(!is.null(export)) clusterExport(cl, export)
   if(!is.null(lib)) {
-    plyr::l_ply(lib, function(dum) { 
+    plyr::l_ply(lib, function(dum){
       clusterExport(cl, "dum", envir = environment())
       clusterEvalQ(cl, library(dum, character.only = TRUE))
     })

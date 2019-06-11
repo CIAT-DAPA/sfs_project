@@ -159,358 +159,117 @@ c("png","pdf") %>% purrr::map(function(f){final_map(df = calc_sfs_index(combList
 c("png","pdf") %>% purrr::map(function(f){final_map(df = calc_sfs_index(combList = frontier_df_fltrd$indicators_list[1][[1]], data = all_data, fnt_type = "arithmetic"), out_name = "sfs_index_map_164countries", format = f)})
 
 # Performing sensitivity analysis
-
-
-
-
-
-
-## =================================================================================== ##
-## Sensitivity analysis
-## =================================================================================== ##
-calculateIndices2 <- function(data = all_data, correct_skew = "none", combList = textFile2[[17]], theory = "true", fnt_type = "arithmetic"){
-  
-  # Measure skewness and apply scale transformations
-  skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
-  if(correct_skew == "log"){
-    for(i in 2:length(skew)){
-      if(skew[i] > 2 | skew[i] < -2){data[,i][which(data[,i] == 0)] <- 0.01; data[,i] <- log(data[,i])} else {data[,i] <- data[,i]}
-    }
-  } else {
-    if(correct_skew == "box_cox"){
-      for(i in 2:length(skew)){
-        if(skew[i] > 2 | skew[i] < -2){
-          data[,i][which(data[,i] == 0)] <- 0.01
-          optPar   <- EnvStats::boxcox(x = data[,i], optimize = T)
-          data[,i] <- EnvStats::boxcoxTransform(x = data[,i], lambda = optPar$lambda)
-        } else { data[,i] <- data[,i] }
-      }
-    } else {
-      if(correct_skew == "none"){
-        data <- data
-      }
-    }
-  }
-  
-  theory <<- theory
-  fnt_type <<- fnt_type
-  
-  # Updating dimension indexes
-  signs <- c(NA, -1, -1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
-  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
-  mtch <- match(combList, names(data))
-  envUpt <- base::intersect(envPos, mtch)
-  ecoUpt <- base::intersect(ecoPos, mtch)
-  socUpt <- base::intersect(socPos, mtch)
-  fntUpt <- base::intersect(fntPos, mtch)
-  
-  # Step 1. Normalization function for all indicators
-  normalization <- function(x){
-    # y <- x/max(x, na.rm = T)
-    y <- (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
-    return(y)
-  }
-  
-  for(j in 2:ncol(data)){
-    data[,j] <- normalization(x = data[,j])
-    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-  }; rm(j)
-  
-  # Updating data set
-  data <- data[which(complete.cases(data[, mtch])),]
-  
-  # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
-    
-    rNames <- data$iso3c
-    
-    # Step 2. Apply a correction for those indicators which have negative polarity
-    for(m in mtch){
-      if(theory == "true"){
-        if(signs[m] < 0){
-          data[,m] <- 1 - data[,m]
-          data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
-          }
-      }
-    }; rm(m)
-    
-    # Step 3. Calculate an index for each dimension
-    # Environmental: geometric mean
-    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
-    # Economic: arithmetic mean
-    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
-    # Social: geometric mean
-    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
-    # Food and nutrition: For testing
-    if(fnt_type == "geometric"){
-      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
-    } else {
-      if(fnt_type == "arithmetic"){
-        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
-      }
-    }
-    
-    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
-    
-    # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
-    rownames(indices) <- rNames
-    
-    return(indices)
-  }
-  
-  ownJackknife <- function(x = data, FUN = HDI_approach, funName = "HDI_approach"){
-    folds <- nrow(x)
-    Function <- FUN
-    jckk <- lapply(X = 1:folds, FUN = function(i){
-      x <- x[-i,]
-      df <- Function(data = x, varInd = mtch, theory = theory, fnt_type = fnt_type)
-      df$Subsample <- i
-      df$Approach <- gsub(pattern = "_approach", replacement = "", x = funName)
-      df$iso3c <- rownames(df)
-      return(df)
-    })
-    return(jckk)
-  }
-  HDI_results <- ownJackknife(x = data, FUN = HDI_approach, funName = "HDI_approach")
-  HDI_results <- do.call(rbind, HDI_results)
-  rownames(HDI_results) <- 1:nrow(HDI_results)
-  
-  return(HDI_results)
-  
-}
-
 combFiles <- list.files(path = paste0(data_path, "/outputs/indicators/edge_frontier/bckwd_combinations"), full.names = T) %>% gtools::mixedsort()
 combNames <- list.files(path = paste0(data_path, "/outputs/indicators/edge_frontier/bckwd_combinations"), full.names = F) %>% gtools::mixedsort()
 combNames <- combNames %>% strsplit(split = "_") %>% purrr::map(2) %>% unlist() %>% as.numeric()
-if(!file.exists(paste0(data_path, "/outputs/indicators/edge_frontier/sensitivity_results.rds"))){
+if(!file.exists(paste0(data_path, "/outputs/indicators/edge_frontier/sensitivity_analysis.rds"))){
+  
+  sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
+    
+    db <- readRDS(combFiles[i])
+    
+    # Verify if the 4 initial indicators are present
+    db$matches <- lapply(1:nrow(db), function(j){ sum(frontier_df_fltrd$indicators_list[1][[1]] %in% db$Indicators[[j]]) }) %>% unlist
+    db <- db %>% dplyr::filter(matches == 4)
+    nInd <- db$nIndicators %>% unique %>% sort
+    
+    textFile2 <- db$Indicators
+    all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
+      
+      results <- calc_sfs_index(combList = textFile2[[i]], data = all_data, fnt_type = "arithmetic")
+      results$combination <- i
+      results$nIndicators <- length(textFile2[[i]])
+      results$iso3c <- rownames(results)
+      rownames(results) <- 1:nrow(results)
+      return(results)
+      
+    })
+    all_combinations2 <- do.call(rbind, all_combinations2)
+    
+    return(all_combinations2)
+  })
+  sensitivity_results <- list(sensitivity_results[[1]],
+                              do.call(rbind, sensitivity_results[2:3]),
+                              sensitivity_results[[4]],
+                              do.call(rbind, sensitivity_results[5:7]),
+                              do.call(rbind, sensitivity_results[8:10]),
+                              sensitivity_results[[11]],
+                              do.call(rbind, sensitivity_results[12:14]),
+                              sensitivity_results[[15]],
+                              sensitivity_results[[16]],
+                              sensitivity_results[[17]],
+                              sensitivity_results[[18]],
+                              sensitivity_results[[19]],
+                              sensitivity_results[[20]],
+                              sensitivity_results[[21]],
+                              sensitivity_results[[22]],
+                              sensitivity_results[[23]],
+                              sensitivity_results[[24]],
+                              sensitivity_results[[25]],
+                              sensitivity_results[[26]],
+                              sensitivity_results[[27]])
+  
+  saveRDS(sensitivity_results, paste0(data_path,"/outputs/indicators/edge_frontier/sensitivity_analysis.rds"))
   
 } else {
-  
+  sensitivity_results <- readRDS(paste0(data_path,"/outputs/indicators/edge_frontier/sensitivity_analysis.rds"))
 }
-sensitivity_results <- lapply(X = 1:length(combFiles), function(i){
 
-  db <- readRDS(combFiles[i])
-  db <- db %>% dplyr::filter(nIndicators == combNames[i])
+# Plot: Instability issue
+if(!file.exists(paste0(data_path,"/outputs/indicators/edge_frontier/instability_issue.png"))){
   
-  
-  
-  
-  
-  db$matches <- lapply(1:nrow(db), function(i){ sum(textFile2[[1]] %in% db$Indicators[[i]]) }) %>% unlist
-  db <- db %>% dplyr::filter(matches == 4)
-  nInd <- db$nIndicators %>% unique %>% sort
-  smpls <- table(db$nIndicators)[2]
-  if(length(nInd) > 4){
-    db_new <- lapply(X = 1:length(nInd), function(j){
-      db_nInd <- db %>% dplyr::filter(nIndicators == nInd[j])
-      if(nrow(db_nInd) > 1){
-        set.seed(1234)
-        smpl <- sample(x = 1:nrow(db_nInd), size = smpls, replace = F)
-        db_nInd <- db_nInd[smpl,]
-        return(db_nInd)
-      } else {
-        return(db_nInd)
-      }
-    })
-    db_new <- do.call(rbind, db_new)
-  } else {
-    db_new <- db; rm(db)
-  }
-
-  textFile2 <- db_new$Indicators
-  all_combinations2 <- lapply(X = 1:length(textFile2), FUN = function(i){
-
-    theoryList <- c("true")
-    theoryResults <- lapply(X = 1:length(theoryList), function(j){
-
-      typeList <- c("arithmetic")
-      typeResults <- lapply(X = 1:length(typeList), function(k){
-
-        results <- calculateIndices2(data = all_data,
-                                     correct_skew = "box_cox",
-                                     combList = textFile2[[i]],
-                                     theory = theoryList[j],
-                                     fnt_type = typeList[k])
-        # results$mean_type <- typeList[k]
-        # results$theory <- theoryList[j]
-        results$combination <- i
-        results$nIndicators <- length(textFile2[[i]])
-        return(results)
-
-      })
-      typeResults <- do.call(rbind, typeResults)
-      return(typeResults)
-
-    })
-    theoryResults <- do.call(rbind, theoryResults)
-    return(theoryResults)
-
+  edge_path <- lapply(1:length(frontier_df_fltrd$indicators_list), function(i){
+    tbl <- calc_sfs_index(combList = frontier_df_fltrd$indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic")
+    tbl$nIndicators <- length(frontier_df_fltrd$indicators_list[i][[1]])
+    tbl$iso3c <- rownames(tbl)
+    rownames(tbl) <- 1:nrow(tbl)
+    tbl$nCountries <- nrow(tbl)
+    return(tbl)
   })
-  all_combinations2 <- do.call(rbind, all_combinations2)
-
-  return(all_combinations2)
-})
-saveRDS(sensitivity_results, "./sensitivity_analysis_skewness_fltr.rds")
-sensitivity_results <- readRDS("//dapadfs/Workspace_cluster_9/Sustainable_Food_System/SFS_indicators/sensitivity_analysis_skewness_fltr2.rds")
-
-## =================================================================================== ##
-## Stability plot: internal variability after backwards process
-## =================================================================================== ##
-
-tsv <- sensitivity_results[[17]] %>% group_by(nIndicators, iso3c) %>%
-  summarise(SFS_index = mean(SFS_index)) %>%
-  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
-  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
-  geom_point() + facet_wrap(~iso3c, ncol = 3) +
-  geom_hline(yintercept = 0, color = "red") +
-  scale_x_continuous(breaks = 4:27, labels = 4:27) +
-  scale_y_continuous(limits = c(0, 1)) +
-  xlab("Number of indicators") +
-  ylab("Sustainability aggregated score") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 20),
-        axis.text  = element_text(size = 15))
-ggsave(filename = "./_graphs/stability_backwards_20indicators.png", plot = tsv, device = "png", units = "in", width = 16, height = 8)
-
-## =================================================================================== ##
-## Instability plot: external variability without backwards process
-## =================================================================================== ##
-
-calc_sfs_index <- function(combList = textFile2[[17]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic"){
-  
-  # Measure skewness and apply scale transformations
-  skew <- apply(X = data, MARGIN = 2, FUN = function(x){x %>% as.numeric %>% moments::skewness(., na.rm = T)})
-  if(correct_skew == "log"){
-    for(i in 2:length(skew)){
-      if(skew[i] > 2 | skew[i] < -2){data[,i][which(data[,i] == 0)] <- 0.01; data[,i] <- log(data[,i])} else {data[,i] <- data[,i]}
-    }
-  } else {
-    if(correct_skew == "box_cox"){
-      for(i in 2:length(skew)){
-        if(skew[i] > 2 | skew[i] < -2){
-          data[,i][which(data[,i] == 0)] <- 0.01
-          optPar   <- EnvStats::boxcox(x = data[,i], optimize = T)
-          data[,i] <- EnvStats::boxcoxTransform(x = data[,i], lambda = optPar$lambda)
-        } else { data[,i] <- data[,i] }
-      }
-    } else {
-      if(correct_skew == "none"){
-        data <- data
-      }
-    }
-  }
-  
-  # Updating dimension indexes
-  signs <- c(NA, -1, -1, -1, +1, -1, +1, -1, +1, -1, +1, +1, +1, +1, +1, -1, -1, +1, +1, -1, -1, -1, -1, +1, +1, -1, -1, -1)
-  envPos <- 2:8; ecoPos <- 9:11; socPos <- 12:14; fntPos <- 15:28
-  mtch <- match(combList, names(data))
-  envUpt <- base::intersect(envPos, mtch)
-  ecoUpt <- base::intersect(ecoPos, mtch)
-  socUpt <- base::intersect(socPos, mtch)
-  fntUpt <- base::intersect(fntPos, mtch)
-  
-  # Step 1. Normalization function for all indicators
-  normalization <- function(x){
-    # y = x/max(x, na.rm = T)
-    y = (x - min(x, na.rm = T))/(max(x, na.rm = T) - min(x, na.rm = T))
-    return(y)
-  }
-  
-  for(j in 2:ncol(data)){
-    data[,j] <- normalization(x = data[,j])
-    data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
-  }; rm(j)
-  
-  # Updating data set
-  data <- data[which(complete.cases(data[, mtch])),]
-  
-  # HDI approach
-  HDI_approach <- function(data = data, varInd = mtch, theory = theory, fnt_type = "geometric"){
-    
-    rNames <- data$iso3c
-    
-    # Step 2. Normalize indicadors and apply a correction for those indicators which have negative polarity
-    for(m in mtch){
-      if(theory == "true"){
-        if(signs[m] < 0){
-          data[,m] <- 1 - data[,m]
-          data[which(data[,m] == 0), m] <- data[which(data[,m] == 0), m] + 0.01
-        }
-      }
-    }; rm(m)
-    
-    # Step 3. Calculate an index for each dimension
-    # Environmental: geometric mean
-    if(length(envUpt) > 1){envAve <- apply(X = data[,envUpt], MARGIN = 1, EnvStats::geoMean)} else {envAve <- data[,envUpt]}
-    # Economic: arithmetic mean
-    if(length(ecoUpt) > 1){ecoAve <- rowMeans(data[,ecoUpt])} else {ecoAve <- data[,ecoUpt]}
-    # Social: geometric mean
-    if(length(socUpt) > 1){socAve <- apply(X = data[,socUpt], MARGIN = 1, EnvStats::geoMean)} else {socAve <- data[,socUpt]}
-    # Food and nutrition: For testing
-    if(fnt_type == "geometric"){
-      if(length(fntUpt) > 1){fntAve <- apply(X = data[,fntUpt], MARGIN = 1, EnvStats::geoMean)} else {fntAve <- data[,fntUpt]}
-    } else {
-      if(fnt_type == "arithmetic"){
-        if(length(fntUpt) > 1){fntAve <- rowMeans(data[,fntUpt])} else {fntAve <- data[,fntUpt]}
-      }
-    }
-    
-    indices <- data.frame(Environment = envAve, Economic = ecoAve, Social = socAve, Food_nutrition = fntAve)
-    
-    # Step 4. Calculate a final composite index
-    indices$SFS_index <- indices %>% dplyr::select(Environment:Food_nutrition) %>% apply(X = ., MARGIN = 1, EnvStats::geoMean)
-    rownames(indices) <- rNames
-    
-    return(indices)
-  }
-  ref_vals <- HDI_approach(data = data, varInd = mtch, theory = "true", fnt_type = fnt_type)
-  return(ref_vals)
+  edge_path <- do.call(rbind, edge_path)
+  # Example 6 countries
+  tsv <- edge_path %>% group_by(nIndicators, iso3c) %>%
+    summarise(SFS_index = mean(SFS_index)) %>%
+    filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+    ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
+    geom_point() + facet_wrap(~iso3c, ncol = 3) +
+    geom_hline(yintercept = 0, color = "red") +
+    scale_x_continuous(breaks = 4:27, labels = 4:27) +
+    scale_y_continuous(limits = c(0, 1)) +
+    xlab("Number of indicators") +
+    ylab("Country food system sustainability scores") +
+    theme_bw() +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15))
+  ggsave(filename = paste0(data_path,"/outputs/indicators/edge_frontier/instability_issue.png"), plot = tsv, device = "png", units = "in", width = 20, height = 8)
   
 }
+# Plot: Stability after backwards process
+if(!file.exists(paste0(data_path,"/outputs/indicators/edge_frontier/backwards_stability.png"))){
+  # Example 6 countries
+  tsv <- sensitivity_results[[17]] %>% group_by(nIndicators, iso3c) %>%
+    summarise(SFS_index = mean(SFS_index)) %>%
+    filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
+    ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
+    geom_point() + facet_wrap(~iso3c, ncol = 3) +
+    geom_hline(yintercept = 0, color = "red") +
+    scale_x_continuous(breaks = 4:27, labels = 4:27) +
+    scale_y_continuous(limits = c(0, 1)) +
+    xlab("Number of indicators") +
+    ylab("Country food system sustainability scores") +
+    theme_bw() +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15))
+  ggsave(filename = paste0(data_path,"/outputs/indicators/edge_frontier/backwards_stability.png"), plot = tsv, device = "png", units = "in", width = 16, height = 8)
+}
 
-# write.csv(cbind(data[,c(1, mtch)], ref_vals), "./sfs_prcs_indicators_plus_indexes.csv", row.names = T)
-# ttst <- cbind(data[,c(1, mtch)], ref_vals)
 
-edge_path <- lapply(1:length(textFile2), function(i){
-  tbl <- calc_sfs_index(combList = textFile2[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
-  tbl$nIndicators <- length(textFile2[[i]])
-  tbl$iso3c <- rownames(tbl)
-  rownames(tbl) <- 1:nrow(tbl)
-  tbl$nCountries <- nrow(tbl)
-  return(tbl)
-})
-edge_path <- do.call(rbind, edge_path)
 
-# Example 6 countries
-tsv <- edge_path %>% group_by(nIndicators, iso3c) %>%
-  summarise(SFS_index = mean(SFS_index)) %>%
-  filter(iso3c %in% c("ARG", "COL", "FRA", "USA", "CAN", "VNM")) %>%
-  ggplot(aes(x = as.numeric(nIndicators), y = SFS_index)) +
-  geom_point() + facet_wrap(~iso3c, ncol = 3) +
-  geom_hline(yintercept = 0, color = "red") +
-  scale_x_continuous(breaks = 4:27, labels = 4:27) +
-  scale_y_continuous(limits = c(0, 1)) +
-  xlab("Number of indicators") +
-  ylab("Sustainability aggregated score") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 20),
-        axis.text  = element_text(size = 15))
-ggsave(filename = "./_graphs/stability_issue_6countries.png", plot = tsv, device = "png", units = "in", width = 20, height = 8)
 
-# Same issue with all countries
-tsv <- edge_path %>% group_by(nIndicators, iso3c) %>%
-  ggplot(aes(x = factor(nIndicators), y = SFS_index)) +
-  geom_boxplot() + #facet_wrap(~iso3c, ncol = 3) +
-  geom_hline(yintercept = 0, color = "red") +
-  #scale_x_continuous(breaks = 4:27, labels = 4:27) +
-  scale_y_continuous(limits = c(0, 1)) +
-  xlab("Number of indicators") +
-  ylab("Sustainability aggregated score (for all countries)") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 20),
-        axis.text  = element_text(size = 15))
-ggsave(filename = "./_graphs/stability_issue_all_countries.png", plot = tsv, device = "png", units = "in", width = 12, height = 8)
+
+
+
+
 
 ## =================================================================================== ##
 ## Measure rank change and internal variability using backwards process results
