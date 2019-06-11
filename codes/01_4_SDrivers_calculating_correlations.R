@@ -315,4 +315,3 @@ just_points(df         = dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, 
 just_points(df         = dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp %>% dplyr::select(Y2004:Y2015) %>% apply(., 1, median, na.rm = T)), by = "iso3c"),
             driver     = "gdp",
             label      = "GDP per capita 2004-2015 (constant 2010 US$)")
-
