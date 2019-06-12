@@ -263,28 +263,14 @@ if(!file.exists(paste0(data_path,"/outputs/indicators/edge_frontier/backwards_st
   ggsave(filename = paste0(data_path,"/outputs/indicators/edge_frontier/backwards_stability.png"), plot = tsv, device = "png", units = "in", width = 16, height = 8)
 }
 
-
-
-
-
-
-
-
-
-## =================================================================================== ##
-## Measure rank change and internal variability using backwards process results
-## =================================================================================== ##
-
-# Rank operators
-# Update indicators list
-textFile2_uptd <- textFile2[1:19]
-
-rank_summary <- rep(NA, length(textFile2_uptd))
-stdv_summary <- rep(NA, length(textFile2_uptd))
-for(i in 1:length(textFile2_uptd)){
+# Selecting optimal combination of indicators
+indicators_list <- frontier_df_fltrd$indicators_list[c(1,2,4,5,8,11,12,15:27)]
+rank_summary <- rep(NA, length(indicators_list))
+stdv_summary <- rep(NA, length(indicators_list))
+for(i in 1:length(indicators_list)){
   
-  ref_vals <- calc_sfs_index(combList = textFile2_uptd[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic")
-  ref_cntr <- calc_sfs_index(combList = textFile2_uptd[[i]], correct_skew = "box_cox", data = all_data, fnt_type = "arithmetic") %>% rownames %>% sort
+  ref_vals <- calc_sfs_index(combList = indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic")
+  ref_cntr <- calc_sfs_index(combList = indicators_list[i][[1]], data = all_data, fnt_type = "arithmetic") %>% rownames %>% sort
   
   snsr_flt <- sensitivity_results[[i]]
   snsr_flt <- snsr_flt %>% dplyr::filter(iso3c %in% ref_cntr)
@@ -302,33 +288,33 @@ for(i in 1:length(textFile2_uptd)){
   stdv_summary[i] <- sd(calc_stdv)
   
 }
-
-gnrl_summary <- data.frame(cmbn = 4:22, rank = rank_summary, stdv = stdv_summary)
-gnrl_summary <- cbind(gnrl_summary, scale(gnrl_summary[,2:3], center = T, scale = T))
+gnrl_summary <- data.frame(cmbn = 4:23, rank = rank_summary, stdv = stdv_summary)
+gnrl_summary <- cbind(gnrl_summary, scale(gnrl_summary[,2:3]))
 colnames(gnrl_summary)[4:5] <- c("rank_scaled", "stdv_scaled")
-gnrl_summary$nCountries <- dfs %>%
-  dplyr::filter(nIndicators <= 22) %>%
+gnrl_summary$nCountries <- frontier_df_fltrd %>%
+  dplyr::filter(nIndicators <= 23) %>%
   dplyr::group_by(nIndicators) %>%
   dplyr::summarise(MaxCount = max(nCountries)) %>%
   .$MaxCount
-
-tsv <- gnrl_summary %>%
-  ggplot(aes(factor(cmbn), rank, fill = "Rank change")) +
-  geom_bar(stat = "identity") +
-  geom_bar(aes(factor(cmbn), stdv*1000, fill = "Variability", alpha = 0.8), stat = "identity") +
-  scale_y_continuous(sec.axis = sec_axis(~./1000, name = "Standard deviation")) +
-  scale_colour_manual(values = c("blue", "red")) +
-  xlab("Number of indicators") +
-  ylab("Rank change") +
-  guides(alpha = F) +
-  theme(legend.title = element_blank()) +
-  ggplot2::annotate("text", x = 1:19, y = gnrl_summary$rank + 1, label = lag(x = gnrl_summary$nCountries, n = 1) - gnrl_summary$nCountries, size = 5) +
-  theme_bw() +
-  theme(axis.title = element_text(size = 20),
-        axis.text  = element_text(size = 15),
-        legend.title = element_blank(),
-        legend.text  = element_text(size = 15))
-ggsave(filename = "./_graphs/optimal_combination.png", plot = tsv, device = "png", units = "in", width = 12, height = 8)
+if(!file.exists(paste0(data_path,"/outputs/indicators/edge_frontier/select_best_combination.png"))){
+  tsv <- gnrl_summary %>%
+    ggplot(aes(x = factor(cmbn), y = rank, fill = "Rank change")) +
+    geom_bar(stat = "identity") +
+    geom_bar(aes(x = factor(cmbn), y = stdv*1000, fill = "Variability"), alpha = 0.8, stat = "identity") +
+    scale_y_continuous(sec.axis = sec_axis(~./1000, name = "Standard deviation")) +
+    scale_colour_manual(values = c("blue", "red")) +
+    xlab("Number of indicators") +
+    ylab("Rank change") +
+    guides(alpha = F) +
+    theme(legend.title = element_blank()) +
+    ggplot2::annotate("text", x = 1:20, y = gnrl_summary$rank + 1, label = lag(x = gnrl_summary$nCountries, n = 1) - gnrl_summary$nCountries, size = 5) +
+    theme_bw() +
+    theme(axis.title = element_text(size = 20),
+          axis.text  = element_text(size = 15),
+          legend.title = element_blank(),
+          legend.text  = element_text(size = 15))
+  ggsave(filename = paste0(data_path,"/outputs/indicators/edge_frontier/select_best_combination.png"), plot = tsv, device = "png", units = "in", width = 12, height = 8)
+}
 
 ## =================================================================================== ##
 ## Producing final map
