@@ -315,3 +315,20 @@ just_points(df         = dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, 
 just_points(df         = dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp %>% dplyr::select(Y2004:Y2015) %>% apply(., 1, median, na.rm = T)), by = "iso3c"),
             driver     = "gdp",
             label      = "GDP per capita 2004-2015 (constant 2010 US$)")
+
+test <- dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp %>% dplyr::select(Y2004:Y2015) %>% apply(., 1, median, na.rm = T)), by = "iso3c")
+
+test %>% 
+  ggplot(aes(x = SFS_index, y = gdp)) +
+  geom_point()
+
+test$Quantiles <- cut(test$SFS_index, quantile(test$SFS_index, probs = seq(0, 1, 0.25)))
+test$Quantiles[which(is.na(test$Quantiles))] <- levels(test$Quantiles)[1]
+test %>% 
+  ggplot(aes(x = SFS_index, y = gdp, colour = Quantiles)) +
+  geom_point()
+
+test2 <- test
+test2 <- test2 %>% dplyr::arrange(SFS_index)
+df_diff <- data.frame(Environment = diff(test2$Environment), Economic = diff(test2$Economic), Social = diff(test2$Social), Food_nutrition = diff(test2$Food_nutrition), SFS_index = diff(test2$SFS_index))
+pairs(df_diff)
