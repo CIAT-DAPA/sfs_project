@@ -55,6 +55,27 @@ cor(sfs_chngs[,'Social'], sfs_index$SFS_index[-1], method = "spearman")
   ggplot(aes(x = order, y = estimate, colour = term)) +
   geom_line()
 
+# Moving Beta regression models
+beta_fits <- 1:73 %>% purrr::map(.f = function(i){
+  bt_fit  <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, family = binomial, data = sfs_index[i:(24 + i),-1])
+  results <- broom::tidy(bt_fit)
+  results$order <- i
+  return(results)
+}) %>% dplyr::bind_rows()
+beta_fits %>%
+  dplyr::filter(term %in% c('Environment','Economic','Social','Food_nutrition')) %>% #  & p.value < 0.05
+  ggplot(aes(x = order, y = exp(estimate), colour = term)) +
+  geom_line(size = 1.2) +
+  geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2)
+beta_fits %>%
+  dplyr::filter(term %in% c('Environment:Economic','Environment:Social','Environment:Food_nutrition',
+                            'Economic:Social','Economic:Food_nutrition','Social:Food_nutrition')) %>% # & p.value < 0.05
+  ggplot(aes(x = order, y = exp(estimate), colour = term)) +
+  geom_line(size = 1.2) +
+  geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2) +
+  ylim(0, 100)
+
+
 # Using local explanations
 # Linear model
 lm_fit <- lm(SFS_index ~ ., data = sfs_index[,-1])
