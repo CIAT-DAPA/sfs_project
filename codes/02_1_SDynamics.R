@@ -55,6 +55,8 @@ cor(sfs_chngs[,'Social'], sfs_index$SFS_index[-1], method = "spearman")
   ggplot(aes(x = order, y = estimate, colour = term)) +
   geom_line()
 
+fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, link = 'logit', data = sfs_index)
+
 # Moving Beta regression models
 beta_fits <- 1:73 %>% purrr::map(.f = function(i){
   bt_fit  <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, family = binomial, data = sfs_index[i:(24 + i),-1])
