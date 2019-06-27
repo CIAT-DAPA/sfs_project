@@ -44,22 +44,32 @@ cor(sfs_chngs[41:96,], method = "spearman")
 plot(sfs_chngs[,'Social'], sfs_index$SFS_index[-1], pch = 20)
 cor(sfs_chngs[,'Social'], sfs_index$SFS_index[-1], method = "spearman")
 
+lm_fit <- lm(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, data = sfs_index)
+
 # Moving linear regression models
-1:73 %>% purrr::map(.f = function(i){
-  lm_fit  <- lm(SFS_index ~ ., data = sfs_index[i:(24 + i),-1])
+linear_fits <- 1:73 %>% purrr::map(.f = function(i){
+  lm_fit  <- lm(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, data = sfs_index[i:(24 + i),-1])
   results <- broom::tidy(lm_fit)
   results$order <- i
   return(results)
-}) %>% dplyr::bind_rows() %>%
+}) %>% dplyr::bind_rows()
+linear_fits %>%
   dplyr::filter(term %in% c('Environment', 'Economic', 'Social', 'Food_nutrition')) %>%
   ggplot(aes(x = order, y = estimate, colour = term)) +
-  geom_line()
+  geom_line(size = 1.2) +
+  geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2)
+linear_fits %>%
+  dplyr::filter(term %in% c('Environment:Economic','Environment:Social','Environment:Food_nutrition',
+                            'Economic:Social','Economic:Food_nutrition','Social:Food_nutrition')) %>% # & p.value < 0.05
+  ggplot(aes(x = order, y = exp(estimate), colour = term)) +
+  geom_line(size = 1.2) +
+  geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2)
 
-fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, link = 'logit', data = sfs_index)
+bt_fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, link = 'logit', data = sfs_index)
 
 # Moving Beta regression models
 beta_fits <- 1:73 %>% purrr::map(.f = function(i){
-  bt_fit  <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, family = binomial, data = sfs_index[i:(24 + i),-1])
+  bt_fit  <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2, link = 'logit', data = sfs_index[i:(24 + i),-1])
   results <- broom::tidy(bt_fit)
   results$order <- i
   return(results)
