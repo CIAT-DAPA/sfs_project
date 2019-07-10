@@ -60,11 +60,13 @@ linear_fits %>%
   geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2)
 
 # Fitting a beta regression model (without intercept)
-bt_fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 - 1, link = 'logit', data = sfs_index)
+sfs_index2 <- sfs_index
+sfs_index2[,c('Environment','Economic','Social','Food_nutrition')] <- sfs_index2[,c('Environment','Economic','Social','Food_nutrition')] %>% scale(center = T, scale = T) %>% data.frame
+bt_fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 - 1, link = 'logit', data = sfs_index2)
 
 # Moving Beta regression models
 beta_fits <- 1:73 %>% purrr::map(.f = function(i){
-  bt_fit  <- betareg::betareg(SFS_index ~ Environment + Economic + Social + Food_nutrition - 1, link = 'logit', data = sfs_index[i:(24 + i),-1])
+  bt_fit  <- betareg::betareg(SFS_index ~ Environment + Economic + Social + Food_nutrition - 1, link = 'logit', data = sfs_index2[i:(24 + i),-1])
   results <- broom::tidy(bt_fit)
   results$order <- i
   return(results)
@@ -78,7 +80,7 @@ beta_fits %>%
   geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2)
 
 beta_fits2 <- 1:73 %>% purrr::map(.f = function(i){ # 1:73, 25 countries (24); # 1:48, 50 countries (49)
-  bt_fit  <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 - 1, link = 'logit', data = sfs_index[i:(24 + i),-1])
+  bt_fit  <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 - 1, link = 'logit', data = sfs_index2[i:(24 + i),-1])
   results <- broom::tidy(bt_fit)
   results$order <- i
   return(results)
@@ -290,8 +292,10 @@ ggplot(final2, aes(x = Groups, y = Values)) +
 rm(env_dt, eco_dt, soc_dt, fnt_dt, pd, final2)
 
 # Fitting Beta regression models
+sfs_index2[,c('Environment','Economic','Social','Food_nutrition')] <- sfs_index2[,c('Environment','Economic','Social','Food_nutrition')] %>% scale(center = T, scale = F) %>% data.frame
 models <- lapply(paste0('g',1:4), function(g){
   db <- sfs_index2[sfs_index2$Groups == g,]
+  #db[,c('Environment','Economic','Social','Food_nutrition')] <- db[,c('Environment','Economic','Social','Food_nutrition')] %>% scale(center = T, scale = F) %>% data.frame
   bt_fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 -1 , link = 'logit', data = db)
   return(bt_fit)
 })
