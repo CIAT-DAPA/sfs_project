@@ -381,3 +381,117 @@ models <- lapply(paste0('g',1:4), function(g){
   return(bt_fit)
 })
 models %>% purrr::map(.f = summary)
+
+# Exploring SFS index delta change vs drivers
+sfs_delta   <- readxl::read_excel(paste0(data_path, '/outputs/indicators/SFS_index_over_time/SFS_and_GDP_dynamics.xlsx'), sheet = 'SFS_delta_change')
+sfs_drivers <- read.csv(paste0(data_path, '/outputs/drivers/sfs_drivers.csv'), row.names = 1)
+
+sfs_df <- dplyr::left_join(x = sfs_delta, y = sfs_drivers, by = 'iso3c'); rm(sfs_delta, sfs_drivers)
+
+variables <- names(sfs_df)[-1]
+
+# Correlations with outliers
+
+i_loop <- lapply(1:length(variables), function(i){
+  j_loop <- lapply(1:length(variables), function(j){
+    df <- sfs_df[,c(variables[i],variables[j])]; names(df) <- c('x','y'); df <- df %>% tidyr::drop_na()
+    results <- cor.test(df$x, df$y, method = "spearman") %>% broom::tidy() %>% data.frame()
+    results$x <- variables[i]
+    results$y <- variables[j]
+    results <- results %>% dplyr::select(x, y, estimate, p.value)
+    return(results)
+  })
+  j_loop <- dplyr::bind_rows(j_loop)
+  return(j_loop)
+})
+i_loop <- dplyr::bind_rows(i_loop)
+
+write.csv(i_loop, "D:/sfs_corr_outliers.csv", row.names = F)
+
+png(height = 8, width = 8, res = 300, units = "in", file = 'D:/sfs_corr_outliers.png')
+par(cex = 1)
+corrplot::corrplot(corr = reshape2::acast(data = i_loop, formula = x~y, value.var = "estimate"),
+                   p.mat = reshape2::acast(data = i_loop, formula = x~y, value.var = "p.value"),
+                   insig = "blank",
+                   order = "hclust",
+                   tl.pos = "lt",
+                   cl.cex = par("cex"),
+                   tl.cex = par("cex"),
+                   number.cex = 0.45,
+                   lower.col = "black")
+dev.off()
+
+
+# Correlations removing outliers
+
+i_loop_ro <- lapply(1:length(variables), function(i){
+  j_loop_ro <- lapply(1:length(variables), function(j){
+    
+    if(i == j){
+      results <- data.frame(x = variables[i], y = variables[j], estimate = 1, p.value = 0)
+      return(results)
+    } else {
+      df <- sfs_df[,c(variables[i],variables[j])]; names(df) <- c('x','y'); df <- df %>% tidyr::drop_na()
+      
+      # Try different outliers detection methods
+      O3s  <- df %>% OutliersO3::O3prep(method = c("HDo", "PCS", "BAC", "adjOut", "DDC", "MCD"), tols = .1, boxplotLimits = 6)
+      O3s1 <- OutliersO3::O3plotM(O3s)
+      otlr <- O3s1$outsTable
+      if(length(grep(pattern = "0", x = otlr$Combination)) > 0){
+        otlr <- otlr[-grep(pattern = "0", x = otlr$Combination),]
+      }
+      df_updt <- df[-unique(as.numeric(otlr$Case)),]
+      
+      results <- cor.test(df_updt$x, df_updt$y, method = "spearman") %>% broom::tidy() %>% data.frame()
+      results$x <- variables[i]
+      results$y <- variables[j]
+      results <- results %>% dplyr::select(x, y, estimate, p.value)
+      return(results)
+    }
+    
+  })
+  j_loop_ro <- dplyr::bind_rows(j_loop_ro)
+  return(j_loop_ro)
+})
+i_loop_ro <- dplyr::bind_rows(i_loop_ro)
+
+write.csv(i_loop_ro, "D:/sfs_corr_cleaned.csv", row.names = F)
+
+png(height = 8, width = 8, res = 300, units = "in", file = 'D:/sfs_corr_cleaned.png')
+par(cex = 1)
+corrplot::corrplot(corr = reshape2::acast(data = i_loop_ro, formula = x~y, value.var = "estimate"),
+                   p.mat = reshape2::acast(data = i_loop_ro, formula = x~y, value.var = "p.value"),
+                   insig = "blank",
+                   order = "hclust",
+                   tl.pos = "lt",
+                   cl.cex = par("cex"),
+                   tl.cex = par("cex"),
+                   number.cex = 0.45,
+                   lower.col = "black")
+dev.off()
+
+
+delta <- drivers %>% purrr::map(.f = function(drv){
+  df <- sfs_df[,c(drv,'SFS_delta')]; df <- df %>% tidyr::drop_na()
+  names(df) <- c('x','y')
+  db <- cor.test(df$x, df$y, method = "spearman") %>% broom::tidy()
+  db$Driver <- drv
+  return(db)
+}) %>% dplyr::bind_rows() %>% dplyr::select(Driver, estimate, p.value)
+names(delta)[2:3] <- c("Delta_Spearman","Delta_pvalue")
+
+index <- drivers %>% purrr::map(.f = function(drv){
+  df <- sfs_df[,c(drv,'SFS_index')]; df <- df %>% tidyr::drop_na()
+  names(df) <- c('x','y')
+  db <- cor.test(df$x, df$y, method = "spearman") %>% broom::tidy()
+  db$Driver <- drv
+  return(db)
+}) %>% dplyr::bind_rows() %>% dplyr::select(Driver, estimate, p.value)
+names(index)[2:3] <- c("Index_Spearman","Index_pvalue")
+
+cor_df <- dplyr::left_join(x = index, y = delta, by = "Driver")
+write.csv(cor_df, paste0(data_path, '/outputs/indicators/SFS_index_over_time/SFS_delta_index_vs_drivers_correlation.csv'), row.names = F)
+
+
+cor(sfs_df[,-1], use = "pairwise.complete.obs", method = "pearson") %>% corrplot::corrplot()
+cor(sfs_df[,-1], use = "pairwise.complete.obs", method = "spearman") %>% corrplot::corrplot()
