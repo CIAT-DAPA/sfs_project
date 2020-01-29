@@ -42,14 +42,14 @@ descriptive_analysis <- function(df = all_data[,-1],
     png(height = 8, width = 8, res = 300, units = "in", file = outfile)
     par(cex = 1)
     df %>%
-      cor(method = "spearman", use = "pairwise.complete.obs") %>%
-      corrplot::corrplot.mixed(lower = "number",
-                               upper = "square",
-                               tl.pos = "lt",
-                               cl.cex = par("cex"),
-                               tl.cex = par("cex"),
+      cor(method = "spearman", use        = "pairwise.complete.obs") %>%
+      corrplot::corrplot.mixed(lower      = "number",
+                               upper      = "square",
+                               tl.pos     = "lt",
+                               cl.cex     = par("cex"),
+                               tl.cex     = par("cex"),
                                number.cex = 0.45,
-                               lower.col = "black")
+                               lower.col  = "black")
     dev.off()
     
   }
@@ -61,19 +61,16 @@ descriptive_analysis <- function(df = all_data[,-1],
 # Descriptive statistics for original data
 descriptive_analysis(df = all_data[,-1],
                      dataset_name = "sfs_original",
-                     outdir = paste0(data_path,"/outputs"))
+                     outdir = paste0(data_path,"/outputs/indicators"))
 
 # Scale adjustments
 ## Water pH: creating an adapted pH version to measure appropriately water quality
 all_data$pH <- abs(all_data$pH - 7)
 
-# Fairtrade: asigning numerical values to fairtrade categories
-## all_data$Fairtrade.ctg <- ....
-
 # Correct skewness
 dscrp_stats <- read.csv(paste0(data_path,"/outputs/indicators/sfs_original_dscrp_stats/dscrp_stats_sfs_original_dataset.csv"), row.names = 1)
 # Apply Box-Cox transformations to correct skewness
-for(i in 1:nrow(dscrp_stats)){
+for(i in (1:nrow(dscrp_stats))[-which(rownames(dscrp_stats) == 'Fairtrade.ctg')]){
   j <- i + 1
   if(dscrp_stats$skew[i] > 2 | dscrp_stats$skew[i] < -2){
     all_data[,j][which(all_data[,j] == 0)] <- 0.01
@@ -85,7 +82,7 @@ for(i in 1:nrow(dscrp_stats)){
 # Descriptive statistics for scale adjusted data
 descriptive_analysis(df = all_data[,-1],
                      dataset_name = "sfs_scales_adjusted",
-                     outdir = paste0(data_path,"/outputs"))
+                     outdir = paste0(data_path,"/outputs/indicators"))
 
 # Save scale adjusted data
 if(!file.exists(paste0(data_path,"/outputs/indicators/sfs_raw_indicators_scales_adjusted.csv"))){

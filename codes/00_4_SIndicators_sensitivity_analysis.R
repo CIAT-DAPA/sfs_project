@@ -73,7 +73,7 @@ calc_sfs_index  <- function(combList = frontier_df_fltrd$indicators_list[24][[1]
     return(y)
   }
   
-  for(j in 2:ncol(data)){
+  for(j in (2:ncol(data))[-(which(names(data) == 'Fairtrade.ctg')-1)]){
     data[,j] <- normalization(x = data[,j])
     data[which(data[,j] == 0), j] <- data[which(data[,j] == 0), j] + 0.01
   }; rm(j)
@@ -151,6 +151,8 @@ final_map <- function(df = sfs_index, out_name = "sfs_index_map", format = "png"
   }
 }
 c("png","pdf") %>% purrr::map(function(f){final_map(df = sfs_index, out_name = "sfs_index_map", format = f)})
+
+final_map(df = sfs_index, out_name = "sfs_index_map", format = 'pdf')
 
 # Producing reference map for 16 countries
 c("png","pdf") %>% purrr::map(function(f){final_map(df = calc_sfs_index(combList = frontier_df_fltrd$indicators_list[32][[1]], data = all_data, fnt_type = "arithmetic"), out_name = "sfs_index_map_17countries", format = f)})

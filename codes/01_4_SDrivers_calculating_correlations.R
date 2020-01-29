@@ -27,6 +27,12 @@ drivers_lbls <- read.csv(paste0(data_path,"/inputs_raw/drivers_labels.csv"), str
 sfs_df <- dplyr::left_join(x = sfs_index, y = drivers, by = "iso3c")
 rownames(sfs_df) <- rownames(sfs_index); rm(sfs_index, drivers)
 
+# Countries income classification
+countries <- read.csv(paste0(data_path,"/inputs_raw/country_income.csv"))
+sfs_df <- dplyr::left_join(x = sfs_df, y = countries %>% dplyr::select(iso3c,Income), by = 'iso3c')
+levels(sfs_df$Income)[3:4] <- 'Middle income'
+sfs_df$Income <- factor(sfs_df$Income, levels = c('High income','Middle income','Low income'))
+
 calc_correlation <- function(df = sfs_df, driver = drivers_list[1]){
   
   cat(paste0("1. Calculating correlation with outliers for: ", driver, "\n"))
@@ -76,10 +82,15 @@ calc_best_curve <- function(df         = sfs_df,
                             order      = 2,
                             remove_min = T,
                             remove_obs = c("start", "end", "both", NA),
-                            number_obs = 3)
+                            number_obs = 3,
+                            shw_income = T)
 {
+  if(shw_income){
+    df_fltr <- df %>% dplyr::select("iso3c", driver, "SFS_index","Income") %>% tidyr::drop_na()
+  } else {
+    df_fltr <- df %>% dplyr::select("iso3c", driver, "SFS_index") %>% tidyr::drop_na()
+  }
   
-  df_fltr             <- df %>% dplyr::select("iso3c", driver, "SFS_index") %>% tidyr::drop_na()
   names(df_fltr)[2:3] <- c("x","y")
   countryNames        <- df_fltr$iso3c %>% as.character
   
@@ -181,22 +192,44 @@ calc_best_curve <- function(df         = sfs_df,
     }
   }
   jcknf_smpl <- do.call(rbind, jcknf_smpl)
-  
-  gp2 <- jcknf_smpl %>%
-    ggplot2::ggplot(aes(x, y, group = id)) +
-    ggplot2::geom_line(alpha = 0.5, colour = "dodgerblue2") +
-    ggplot2::geom_point(data = df_fltr_updt %>% mutate(id = 0), aes(x, y)) +
-    ggplot2::xlab(label) +
-    ggplot2::ylab("Country food system sustainability scores") +
-    ggplot2::ylim(.20, .80) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(legend.title = element_blank()) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(axis.title   = element_text(size = 15),
-                   axis.text    = element_text(size = 13),
-                   legend.title = element_blank(),
-                   legend.text  = element_text(size = 13))
-  outfile <- paste0(data_path,"/drivers_graphs/correlations/v4/SFS_index_vs_",driver,"_removing_outliers_",ft,".png")
+  library(RColorBrewer)
+  if(shw_income){
+    gp2 <- jcknf_smpl %>%
+      ggplot2::ggplot(aes(x, y, group = id)) +
+      ggplot2::geom_line(alpha = 0.5, colour = "dodgerblue2") +
+      ggplot2::geom_point(data = df_fltr_updt %>% mutate(id = 0), aes(x, y, colour = Income)) +
+      ggplot2::scale_color_brewer(palette = 'Dark2') +
+      ggplot2::xlab(label) +
+      ggplot2::ylab("Country food system sustainability scores") +
+      ggplot2::ylim(.20, .80) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(legend.title = element_blank()) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(axis.title   = element_text(size = 15),
+                     axis.text    = element_text(size = 13),
+                     legend.title = element_blank(),
+                     legend.text  = element_text(size = 13),
+                     legend.position = c(0.87,0.92),
+                     legend.background = element_rect(fill=alpha('white', 0)))
+  } else {
+    gp2 <- jcknf_smpl %>%
+      ggplot2::ggplot(aes(x, y, group = id)) +
+      ggplot2::geom_line(alpha = 0.5, colour = "dodgerblue2") +
+      ggplot2::geom_point(data = df_fltr_updt %>% mutate(id = 0), aes(x, y)) +
+      ggplot2::xlab(label) +
+      ggplot2::ylab("Country food system sustainability scores") +
+      ggplot2::ylim(.20, .80) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(legend.title = element_blank()) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(axis.title   = element_text(size = 15),
+                     axis.text    = element_text(size = 13),
+                     legend.title = element_blank(),
+                     legend.text  = element_text(size = 13),
+                     legend.position = c(0.87,0.92),
+                     legend.background = element_rect(fill=alpha('white', 0)))
+  }
+  outfile <- paste0(data_path,"/drivers_graphs/correlations/v6/SFS_index_vs_",driver,"_removing_outliers_",ft,".png")
   if(!file.exists(outfile)){
     ggplot2::ggsave(filename = outfile, plot = gp2, device = "png", units = "in", width = 8, height = 8)
   }
@@ -217,7 +250,8 @@ calc_best_curve(df         = sfs_df,
                 order      = NA,
                 remove_min = T,
                 remove_obs = NA,
-                number_obs = NA)
+                number_obs = NA,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # Change in annual population growth
 calc_best_curve(df         = sfs_df,
@@ -227,7 +261,8 @@ calc_best_curve(df         = sfs_df,
                 order      = 2,
                 remove_min = F,
                 remove_obs = NA,
-                number_obs = NA)
+                number_obs = NA,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # Change over time in annual GDP
 calc_best_curve(df         = sfs_df,
@@ -236,8 +271,9 @@ calc_best_curve(df         = sfs_df,
                 ft         = "poly",
                 order      = 2,
                 remove_min = F,
-                remove_obs = NA,
-                number_obs = NA)
+                remove_obs = "start",
+                number_obs = 5,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # Change over time in agricultural area
 calc_best_curve(df         = sfs_df,
@@ -247,7 +283,8 @@ calc_best_curve(df         = sfs_df,
                 order      = 2,
                 remove_min = T,
                 remove_obs = NA,
-                number_obs = NA)
+                number_obs = NA,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # Change over time in mobile cellular subscriptions
 calc_best_curve(df         = sfs_df,
@@ -257,7 +294,8 @@ calc_best_curve(df         = sfs_df,
                 order      = 2,
                 remove_min = F,
                 remove_obs = NA,
-                number_obs = NA)
+                number_obs = NA,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # Change over time in female employment in services
 calc_best_curve(df         = sfs_df,
@@ -267,7 +305,8 @@ calc_best_curve(df         = sfs_df,
                 order      = 2,
                 remove_min = T,
                 remove_obs = "start",
-                number_obs = 3)
+                number_obs = 3,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # Change in urban population
 calc_best_curve(df         = sfs_df,
@@ -277,7 +316,8 @@ calc_best_curve(df         = sfs_df,
                 order      = 2,
                 remove_min = F,
                 remove_obs = "end",
-                number_obs = 5)
+                number_obs = 5,
+                shw_income = T) # Previous version, this parameter does not exists
 
 # GDP per capita
 gdp <- read.csv(paste0(data_path,"/inputs_raw/gdp_per_capita_2010_us_dollars.csv"))

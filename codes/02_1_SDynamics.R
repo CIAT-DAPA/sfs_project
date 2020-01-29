@@ -38,7 +38,7 @@ sfs_index2 <- sfs_index
 sfs_index2[,c('Environment','Economic','Social','Food_nutrition')] <- sfs_index2[,c('Environment','Economic','Social','Food_nutrition')] %>% scale(center = T, scale = T) %>% data.frame
 
 # Fitting a linear model (without intercept)
-lm_fit <- lm(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 - 1, data = sfs_index2)
+lm_fit <- lm(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^4 - 1, data = sfs_index2)
 
 # Moving linear regression models
 linear_fits <- 1:73 %>% purrr::map(.f = function(i){
@@ -64,7 +64,7 @@ linear_fits %>%
   geom_hline(yintercept = 0, col = 'red', lty = 2, size = 2)
 
 # Fitting a beta regression model (without intercept)
-bt_fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^2 - 1, link = 'logit', data = sfs_index2)
+bt_fit <- betareg::betareg(SFS_index ~ (Environment + Economic + Social + Food_nutrition)^4 - 1, link = 'logit', data = sfs_index2)
 plot(sfs_index2$SFS_index, bt_fit$fitted.values, xlab = "SFS index values", ylab = "SFS predicted values", pch = 20); abline(0,1)
 cor.test(sfs_index2$SFS_index, bt_fit$fitted.values)
 

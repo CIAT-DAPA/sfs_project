@@ -99,7 +99,7 @@ generate_drivers_tables <- function(data_path = data_path){
       
       gdp_growth <- readxl::read_excel(paste0(data_path,"/inputs_raw/drivers/sfs_demand_consumer_raw_drivers.xlsx"), sheet = "gdp_annual_growth")
       gdp_growth$Country <- NULL
-      names(gdp_growth)[-1] <- paste0("Y", 2000:2016)
+      names(gdp_growth)[-1] <- paste0("Y", 2000:2018)
       
       gdp_growth$chg_gdp_growth <- gdp_growth %>% dplyr::select(Y2004:Y2015) %>% apply(., 2, as.numeric) %>% apply(., 1, median, na.rm = T)
       gdp_growth <- gdp_growth %>% dplyr::select(iso3c, chg_gdp_growth)
@@ -919,7 +919,7 @@ generate_drivers_tables <- function(data_path = data_path){
     drivers <- dplyr::left_join(x = country_codes %>% dplyr::select(iso3c), y = loaded_tbs[["demand_consumer"]], by = "iso3c")
     drivers <- dplyr::left_join(x = drivers, y = loaded_tbs[["production_supply"]], by = "iso3c")
     drivers <- dplyr::left_join(x = drivers, y = loaded_tbs[["trade_distribution"]], by = "iso3c")
-    drivers <- drivers[-which(apply(drivers[,2:ncol(drivers)], 1, function(x) sum(is.na(x))) == 21),]
+    drivers <- drivers[-which(apply(drivers[,2:ncol(drivers)], 1, function(x) sum(is.na(x))) == (nrow(drivers)-1)),]
     
     drivers <- dplyr::right_join(x = country_codes %>% dplyr::select(country.name.en, iso3c), y = drivers, by = "iso3c")
     rownames(drivers) <- drivers$country.name.en; drivers$country.name.en <- NULL
