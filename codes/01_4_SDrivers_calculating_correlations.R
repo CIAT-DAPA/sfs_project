@@ -9,7 +9,7 @@ g <- gc(reset = T); rm(list = ls()); options(scipen = 999, warn = -1)
 suppressMessages(library(pacman))
 suppressMessages(pacman::p_load(raster, rgdal, maptools, jsonlite, foreach, doParallel, XML, plspm, reshape, tidyverse, countrycode, caret,
                                 missMDA, missForest, treemap, viridisLite, highcharter, corrplot, cluster, factoextra, FactoMineR, gghighlight,
-                                EnvStats, compiler, caretEnsemble))
+                                EnvStats, compiler, caretEnsemble, ggrepel))
 
 # Define data directory
 data_path <- "D:/ToBackup/sustainable_food_systems/sfs_repo/data"
@@ -74,6 +74,10 @@ calc_correlation <- function(df = sfs_df, driver = drivers_list[1]){
 drivers_correlation <- drivers_list %>% purrr::map(function(x) calc_correlation(df = sfs_df, driver = x))
 drivers_correlation <- dplyr::bind_rows(drivers_correlation)
 
+show_cntrs <- T
+cntr_iso3c <- c('BGD','ETH','NGA','VNM')
+cntr_names <- c('Bangladesh','Ethiopia','Nigeria','Vietnam')
+
 # Fitting best curve function
 calc_best_curve <- function(df         = sfs_df,
                             driver     = drivers_list[1],
@@ -83,7 +87,10 @@ calc_best_curve <- function(df         = sfs_df,
                             remove_min = T,
                             remove_obs = c("start", "end", "both", NA),
                             number_obs = 3,
-                            shw_income = T)
+                            shw_income = T,
+                            show_cntrs = T,
+                            cntr_iso3c = c('BGD','ETH','NGA','VNM'),
+                            cntr_names = c('Bangladesh','Ethiopia','Nigeria','Vietnam'))
 {
   if(shw_income){
     df_fltr <- df %>% dplyr::select("iso3c", driver, "SFS_index","Income") %>% tidyr::drop_na()
@@ -111,6 +118,11 @@ calc_best_curve <- function(df         = sfs_df,
     df_fltr_updt <- df_fltr_updt[-which.min(df_fltr_updt$x),]
   }
   df_fltr_updt <- df_fltr_updt %>% dplyr::arrange(x)
+  
+  # Verify if desired countries are in the final list
+  cntr_iso3c <- cntr_iso3c[which(cntr_iso3c %in% df_fltr_updt$iso3c)]
+  cntr_names <- cntr_names[which(cntr_iso3c %in% df_fltr_updt$iso3c)]
+  
   if(is.na(remove_obs)){
     
     jcknf_smpl <- lapply(1:nrow(df_fltr_updt), function(i){
@@ -197,7 +209,7 @@ calc_best_curve <- function(df         = sfs_df,
     gp2 <- jcknf_smpl %>%
       ggplot2::ggplot(aes(x, y, group = id)) +
       ggplot2::geom_line(alpha = 0.5, colour = "dodgerblue2") +
-      ggplot2::geom_point(data = df_fltr_updt %>% mutate(id = 0), aes(x, y, colour = Income)) +
+      ggplot2::geom_point(data = df_fltr_updt %>% dplyr::mutate(id = 0), aes(x, y, colour = Income)) +
       ggplot2::scale_color_brewer(palette = 'Dark2') +
       ggplot2::xlab(label) +
       ggplot2::ylab("Country food system sustainability scores") +
@@ -211,6 +223,14 @@ calc_best_curve <- function(df         = sfs_df,
                      legend.text  = element_text(size = 13),
                      legend.position = c(0.87,0.92),
                      legend.background = element_rect(fill=alpha('white', 0)))
+    if(show_cntrs){
+      df_cntrs <- df_fltr_updt[match(cntr_iso3c,df_fltr_updt$iso3c),]
+      set.seed(42)
+      gp2 <- gp2 +
+        ggplot2::geom_point(data = df_cntrs %>% dplyr::mutate(id = 0), aes(x ,y), shape = 23, fill = "black", color="black", size = 3) +
+        ggrepel::geom_text_repel(data = df_cntrs %>% dplyr::mutate(id = 0, Country = cntr_names), aes(label = Country, size = 3.5), show.legend = FALSE)
+    }
+    print(gp2)
   } else {
     gp2 <- jcknf_smpl %>%
       ggplot2::ggplot(aes(x, y, group = id)) +
@@ -228,8 +248,16 @@ calc_best_curve <- function(df         = sfs_df,
                      legend.text  = element_text(size = 13),
                      legend.position = c(0.87,0.92),
                      legend.background = element_rect(fill=alpha('white', 0)))
+    if(show_cntrs){
+      df_cntrs <- df_fltr_updt[match(cntr_iso3c,df_fltr_updt$iso3c),]
+      set.seed(42)
+      gp2 <- gp2 +
+        ggplot2::geom_point(data = df_cntrs %>% dplyr::mutate(id = 0), aes(x ,y), shape = 23, fill = "black", color="black", size = 3) +
+        ggrepel::geom_text_repel(data = df_cntrs %>% dplyr::mutate(id = 0, Country = cntr_names), aes(label = Country, size = 3.5))
+    }
+    print(gp2)
   }
-  outfile <- paste0(data_path,"/drivers_graphs/correlations/v6/SFS_index_vs_",driver,"_removing_outliers_",ft,".png")
+  outfile <- paste0(data_path,"/drivers_graphs/correlations/v6.1/SFS_index_vs_",driver,"_removing_outliers_",ft,".png")
   if(!file.exists(outfile)){
     ggplot2::ggsave(filename = outfile, plot = gp2, device = "png", units = "in", width = 8, height = 8)
   }
@@ -251,7 +279,10 @@ calc_best_curve(df         = sfs_df,
                 remove_min = T,
                 remove_obs = NA,
                 number_obs = NA,
-                shw_income = T) # Previous version, this parameter does not exists
+                shw_income = T, # Previous version, this parameter does not exists
+                show_cntrs = T, # Previous version, this parameter does not exists
+                cntr_iso3c = c('BGD','ETH','NGA','VNM'), # Previous version, this parameter does not exists
+                cntr_names = c('Bangladesh','Ethiopia','Nigeria','Vietnam')) # Previous version, this parameter does not exists
 
 # Change in annual population growth
 calc_best_curve(df         = sfs_df,
@@ -262,7 +293,10 @@ calc_best_curve(df         = sfs_df,
                 remove_min = F,
                 remove_obs = NA,
                 number_obs = NA,
-                shw_income = T) # Previous version, this parameter does not exists
+                shw_income = T, # Previous version, this parameter does not exists
+                show_cntrs = T, # Previous version, this parameter does not exists
+                cntr_iso3c = c('BGD','ETH','NGA','VNM'), # Previous version, this parameter does not exists
+                cntr_names = c('Bangladesh','Ethiopia','Nigeria','Vietnam')) # Previous version, this parameter does not exists
 
 # Change over time in annual GDP
 calc_best_curve(df         = sfs_df,
@@ -284,7 +318,10 @@ calc_best_curve(df         = sfs_df,
                 remove_min = T,
                 remove_obs = NA,
                 number_obs = NA,
-                shw_income = T) # Previous version, this parameter does not exists
+                shw_income = T, # Previous version, this parameter does not exists
+                show_cntrs = T, # Previous version, this parameter does not exists
+                cntr_iso3c = c('BGD','ETH','NGA','VNM'), # Previous version, this parameter does not exists
+                cntr_names = c('Bangladesh','Ethiopia','Nigeria','Vietnam')) # Previous version, this parameter does not exists
 
 # Change over time in mobile cellular subscriptions
 calc_best_curve(df         = sfs_df,
@@ -306,7 +343,10 @@ calc_best_curve(df         = sfs_df,
                 remove_min = T,
                 remove_obs = "start",
                 number_obs = 3,
-                shw_income = T) # Previous version, this parameter does not exists
+                shw_income = T, # Previous version, this parameter does not exists
+                show_cntrs = T, # Previous version, this parameter does not exists
+                cntr_iso3c = c('BGD','ETH','NGA','VNM'), # Previous version, this parameter does not exists
+                cntr_names = c('Bangladesh','Ethiopia','Nigeria','Vietnam')) # Previous version, this parameter does not exists
 
 # Change in urban population
 calc_best_curve(df         = sfs_df,
@@ -317,13 +357,16 @@ calc_best_curve(df         = sfs_df,
                 remove_min = F,
                 remove_obs = "end",
                 number_obs = 5,
-                shw_income = T) # Previous version, this parameter does not exists
+                shw_income = T, # Previous version, this parameter does not exists
+                show_cntrs = T, # Previous version, this parameter does not exists
+                cntr_iso3c = c('BGD','ETH','NGA','VNM'), # Previous version, this parameter does not exists
+                cntr_names = c('Bangladesh','Ethiopia','Nigeria','Vietnam')) # Previous version, this parameter does not exists
 
 # GDP per capita
 gdp <- read.csv(paste0(data_path,"/inputs_raw/gdp_per_capita_2010_us_dollars.csv"))
 colnames(gdp) <- gsub("X", "Y", colnames(gdp))
 
-dplyr::left_join(sfs_df, data.frame(iso3c = gdp$iso3c, gdp = gdp$Y2017), by = "iso3c")
+dplyr::left_join(sfs_df %>% dplyr::select(iso3c, SFS_index), data.frame(iso3c = gdp$iso3c, gdp = gdp$Y2017), by = "iso3c")
 
 just_points <- function(df = df, driver = "gdp", label = label){
   
